@@ -1518,12 +1518,12 @@
             updateStatus('HABLANDO...');
             document.getElementById('response').textContent = cleanText.substring(0, 120);
 
-            // --- Inworld TTS ---
+            // --- Edge TTS (gratis, femenina española) ---
             try {
-                const ttsRes = await fetch('/api/tts', {
+                const ttsRes = await fetch('/api/tts-edge', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: cleanText })
+                    body: JSON.stringify({ text: cleanText, voice: 'es-MX' })
                 });
                 if (ttsRes.ok) {
                     const ttsData = await ttsRes.json();
