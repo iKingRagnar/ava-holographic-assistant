@@ -680,11 +680,18 @@
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), mat);
             head.position.y = 1.6;
             avatarGroup.add(head);
-            avatarGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), wire).position.set(0, 1.6, 0).scale.set(1.05, 1.05, 1.05));
+            const headWire = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), wire);
+            headWire.position.set(0, 1.6, 0);
+            headWire.scale.set(1.05, 1.05, 1.05);
+            avatarGroup.add(headWire);
             
             // Flowing body
+            const torsoWire = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.08, 0.65, 12), wire);
+            torsoWire.position.set(0, 1.05, 0);
+            torsoWire.scale.set(1.02, 1.01, 1.02);
+            avatarGroup.add(torsoWire);
             const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 0.65, 12), mat);
-            torso.position.y = 1.05;
+            torso.position.set(0, 1.05, 0);
             avatarGroup.add(torso);
             
             // Graceful arms
