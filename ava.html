@@ -59,6 +59,23 @@
             width: 100%;
             height: 100%;
             z-index: 10;
+            filter: saturate(1.3) brightness(1.1) contrast(1.05) hue-rotate(5deg);
+        }
+
+        /* Holographic glow overlay */
+        #holo-glow-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 11;
+            background: radial-gradient(
+                ellipse 60% 80% at 50% 60%,
+                rgba(0, 255, 157, 0.04) 0%,
+                transparent 70%
+            );
         }
 
         /* Base platform ring */
@@ -489,6 +506,9 @@
     <!-- Three.js canvas for avatar -->
     <canvas id="avatar-canvas"></canvas>
 
+    <!-- Holographic glow overlay -->
+    <div id="holo-glow-overlay"></div>
+
     <!-- Base ring -->
     <div class="base-ring idle" id="base-ring"></div>
 
@@ -552,6 +572,9 @@
             <label class="config-label">System Prompt</label>
             <textarea class="config-input config-textarea" id="system-prompt">Eres AVA, una asistente holográfica inteligente y amigable. Responde en español de forma concisa y natural. Tu personalidad es profesional pero cálida.</textarea>
             
+            <label class="config-label">URL del Avatar .glb (opcional)</label>
+            <input type="text" class="config-input" id="glb-url-input" placeholder="https://tu-url.com/avatar.glb (deja vacío para usar avatares geométricos)">
+            
             <button class="config-button" id="activate-btn" onclick="saveConfig()">ACTIVAR AVA</button>
             
             <div class="config-hint">Ctrl+R para resetear configuración</div>
@@ -565,8 +588,10 @@
 
     <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- GLTFLoader for Ready Player Me -->
+    <!-- Loaders for VRoid/GLB support -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 
     <script>
         // ==========================================
@@ -589,6 +614,13 @@
         let scene, camera, renderer, avatar, avatarGroup;
         let particles = [];
         let time = 0;
+
+        // VRoid/GLB Animation System
+        let mixer = null;
+        let animations = {};  // { idle, talking, listening, thinking }
+        let currentAction = null;
+        let loadedModel = null;
+        const GLB_URL = localStorage.getItem('ava_glb_url') || '';
 
         function initThreeJS() {
             const canvas = document.getElementById('avatar-canvas');
@@ -763,7 +795,6 @@
         // READY PLAYER ME - GLTF LOADER SYSTEM
         // ==========================================
         let currentGLTF = null;
-        let mixer = null;
         let avatarAnimations = null;
 
         // Ready Player Me avatar URLs (public, free models)
@@ -837,6 +868,128 @@
                     createPlaceholderAvatar(index);
                 }
             );
+        }
+
+        // ==========================================
+        // VRoid/GLB AVATAR LOADER
+        // ==========================================
+        function loadAvatar(glbUrl) {
+            const loader = new THREE.GLTFLoader();
+            
+            // Mostrar loading indicator
+            updateStatus('Cargando avatar...');
+
+            loader.load(
+                glbUrl,
+                (gltf) => {
+                    loadedModel = gltf.scene;
+                    
+                    // Escalar y centrar el modelo
+                    // VRoid exporta modelos de ~1.5-1.7m de alto
+                    loadedModel.scale.setScalar(0.85);
+                    loadedModel.position.set(0, -0.8, 0);
+                    
+                    // Aplicar efecto holográfico a todos los materiales
+                    loadedModel.traverse((node) => {
+                        if (node.isMesh) {
+                            // Guardar material original
+                            node.userData.originalMaterial = node.material;
+                            
+                            // Crear material holográfico manteniendo texturas
+                            if (node.material.map) {
+                                // Si tiene textura (cara, ropa) — mantener pero agregar tinte
+                                node.material = new THREE.MeshStandardMaterial({
+                                    map: node.material.map,
+                                    emissiveMap: node.material.map,
+                                    emissive: new THREE.Color(0x003322),
+                                    emissiveIntensity: 0.2,
+                                    transparent: true,
+                                    opacity: 0.92,
+                                });
+                            }
+                            
+                            node.castShadow = true;
+                            node.receiveShadow = false;
+                        }
+                    });
+                    
+                    // Agregar overlay wireframe holográfico encima del modelo
+                    const wireClone = loadedModel.clone();
+                    wireClone.traverse((node) => {
+                        if (node.isMesh) {
+                            node.material = new THREE.MeshBasicMaterial({
+                                color: 0x00ff9d,
+                                wireframe: true,
+                                transparent: true,
+                                opacity: 0.04,
+                            });
+                        }
+                    });
+                    
+                    avatarGroup.add(loadedModel);
+                    avatarGroup.add(wireClone);
+                    
+                    // Configurar AnimationMixer
+                    mixer = new THREE.AnimationMixer(loadedModel);
+                    
+                    // Cargar animaciones incluidas en el GLB (si las tiene)
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        gltf.animations.forEach((clip) => {
+                            const name = clip.name.toLowerCase();
+                            if (name.includes('idle') || name.includes('stand')) {
+                                animations.idle = mixer.clipAction(clip);
+                            } else if (name.includes('talk') || name.includes('speak')) {
+                                animations.talking = mixer.clipAction(clip);
+                            } else if (name.includes('listen') || name.includes('wave')) {
+                                animations.listening = mixer.clipAction(clip);
+                            } else {
+                                // Primera animación disponible como fallback idle
+                                if (!animations.idle) animations.idle = mixer.clipAction(clip);
+                            }
+                        });
+                    }
+                    
+                    // Si no hay animaciones en el GLB, crear animaciones procedurales
+                    if (!animations.idle) {
+                        createProceduralAnimations();
+                    }
+                    
+                    // Iniciar animación idle
+                    playAnimation('idle');
+                    createBase(0x00ff9d);
+                    createParticles(0x00ff9d);
+                    scene.add(avatarGroup);
+                    avatar = avatarGroup;
+                    updateBranding();
+                    updateStatus('LISTA');
+                },
+                (progress) => {
+                    const pct = Math.round((progress.loaded / progress.total) * 100);
+                    updateStatus(`Cargando avatar... ${pct}%`);
+                },
+                (error) => {
+                    console.error('Error cargando GLB:', error);
+                    updateStatus('Error cargando avatar. Usando placeholder.');
+                    createPlaceholderAvatar(0); // fallback
+                }
+            );
+        }
+
+        function createProceduralAnimations() {
+            // Las animaciones procedurales se manejan en animateThree()
+            console.log('Using procedural animations');
+        }
+
+        function playAnimation(name) {
+            const action = animations[name];
+            if (!action || action === currentAction) return;
+            
+            if (currentAction) {
+                currentAction.fadeOut(0.3);
+            }
+            
+            action.reset().fadeIn(0.3).play();
+            currentAction = action;
         }
 
         function createPlaceholderAvatar(index) {
@@ -1370,35 +1523,67 @@
             time += 0.016;
 
             if (avatar) {
-                // State-based animations
-                switch (state) {
-                    case 'IDLE':
-                        // Gentle floating
-                        avatar.position.y = Math.sin(time * 0.8) * 0.05;
-                        avatar.rotation.y = Math.sin(time * 0.2) * 0.05;
-                        break;
-                        
-                    case 'LISTENING':
-                        // Slow pulse
-                        avatar.position.y = Math.sin(time * 2) * 0.03;
-                        const listenScale = 1 + Math.sin(time * 3) * 0.02;
-                        avatar.scale.set(listenScale, listenScale, listenScale);
-                        break;
-                        
-                    case 'THINKING':
-                        // Active rotation and blinking
-                        avatar.rotation.y += 0.02;
-                        avatar.position.y = Math.sin(time * 4) * 0.08;
-                        const thinkScale = 1 + Math.sin(time * 8) * 0.03;
-                        avatar.scale.set(thinkScale, thinkScale, thinkScale);
-                        break;
-                        
-                    case 'TALKING':
-                        // Fast pulse
-                        const talkScale = 1 + Math.sin(time * 15) * 0.04;
-                        avatar.scale.set(talkScale, 1, talkScale);
-                        avatar.position.y = Math.sin(time * 5) * 0.02;
-                        break;
+                // Animaciones procedurales para modelos GLB/VRoid
+                if (loadedModel) {
+                    const elapsed = time;
+                    
+                    // Flotación base siempre activa
+                    avatarGroup.position.y = Math.sin(elapsed * 1.1) * 0.05;
+                    
+                    // Balanceo lateral suave (breathing)
+                    avatarGroup.rotation.z = Math.sin(elapsed * 0.8) * 0.01;
+                    
+                    // Rotación Y según estado
+                    if (state === 'IDLE') {
+                        avatarGroup.rotation.y = Math.sin(elapsed * 0.3) * 0.12;
+                    } else if (state === 'LISTENING') {
+                        // Leve inclinación hacia adelante interesada
+                        avatarGroup.rotation.x = -0.05 + Math.sin(elapsed * 2) * 0.02;
+                        avatarGroup.rotation.y = Math.sin(elapsed * 0.5) * 0.08;
+                    } else if (state === 'THINKING') {
+                        // Movimiento de "pensando"
+                        avatarGroup.rotation.y += 0.008;
+                        avatarGroup.position.y += Math.sin(elapsed * 3) * 0.002;
+                    } else if (state === 'TALKING') {
+                        // Animación de hablar — leve bounce rítmico
+                        avatarGroup.rotation.y = Math.sin(elapsed * 0.4) * 0.15;
+                        avatarGroup.position.y = Math.sin(elapsed * 8) * 0.03;
+                        avatarGroup.rotation.z = Math.sin(elapsed * 6) * 0.015;
+                    }
+                    
+                    // Actualizar mixer si hay animaciones cargadas
+                    if (mixer) mixer.update(0.016);
+                } else {
+                    // State-based animations para avatares geométricos
+                    switch (state) {
+                        case 'IDLE':
+                            // Gentle floating
+                            avatar.position.y = Math.sin(time * 0.8) * 0.05;
+                            avatar.rotation.y = Math.sin(time * 0.2) * 0.05;
+                            break;
+                            
+                        case 'LISTENING':
+                            // Slow pulse
+                            avatar.position.y = Math.sin(time * 2) * 0.03;
+                            const listenScale = 1 + Math.sin(time * 3) * 0.02;
+                            avatar.scale.set(listenScale, listenScale, listenScale);
+                            break;
+                            
+                        case 'THINKING':
+                            // Active rotation and blinking
+                            avatar.rotation.y += 0.02;
+                            avatar.position.y = Math.sin(time * 4) * 0.08;
+                            const thinkScale = 1 + Math.sin(time * 8) * 0.03;
+                            avatar.scale.set(thinkScale, thinkScale, thinkScale);
+                            break;
+                            
+                        case 'TALKING':
+                            // Fast pulse
+                            const talkScale = 1 + Math.sin(time * 15) * 0.04;
+                            avatar.scale.set(talkScale, 1, talkScale);
+                            avatar.position.y = Math.sin(time * 5) * 0.02;
+                            break;
+                    }
                 }
 
                 // Animate particles
@@ -1777,6 +1962,7 @@
                     micButton.classList.add('idle');
                     micIcon.style.display = 'block';
                     stopIcon.style.display = 'none';
+                    playAnimation('idle');
                     break;
                     
                 case 'LISTENING':
@@ -1784,6 +1970,7 @@
                     micButton.classList.add('listening');
                     micIcon.style.display = 'block';
                     stopIcon.style.display = 'none';
+                    playAnimation('listening');
                     break;
                     
                 case 'THINKING':
@@ -1791,6 +1978,7 @@
                     micButton.classList.add('thinking');
                     micIcon.style.display = 'none';
                     stopIcon.style.display = 'block';
+                    playAnimation('thinking');
                     break;
                     
                 case 'TALKING':
@@ -1798,6 +1986,7 @@
                     micButton.classList.add('talking');
                     micIcon.style.display = 'none';
                     stopIcon.style.display = 'block';
+                    playAnimation('talking');
                     break;
             }
         }
@@ -1822,6 +2011,7 @@
         function saveConfig() {
             const apiUrl = document.getElementById('api-url').value.trim();
             const systemPrompt = document.getElementById('system-prompt').value.trim();
+            const glbUrl = document.getElementById('glb-url-input').value.trim();
 
             if (!apiUrl) {
                 alert('Por favor ingresa la URL del endpoint API');
@@ -1833,6 +2023,16 @@
 
             localStorage.setItem('ava_api_url', apiUrl);
             localStorage.setItem('ava_system_prompt', systemPrompt);
+
+            // Guardar y cargar URL del GLB si existe
+            if (glbUrl) {
+                localStorage.setItem('ava_glb_url', glbUrl);
+                loadAvatar(glbUrl);
+            } else {
+                localStorage.removeItem('ava_glb_url');
+                // Cargar avatar geométrico por defecto
+                createAvatar(0);
+            }
 
             hideConfig();
         }
@@ -1863,6 +2063,13 @@
             // Check configuration
             if (!config.apiUrl) {
                 showConfig();
+            }
+
+            // Load GLB avatar if URL is saved
+            if (GLB_URL) {
+                loadAvatar(GLB_URL);
+                // Pre-fill the GLB URL input
+                document.getElementById('glb-url-input').value = GLB_URL;
             }
 
             // Event listeners
