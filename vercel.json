@@ -13,8 +13,5 @@
       "src": "/(.*)",
       "dest": "/ava.html"
     }
-  ],
-  "env": {
-    "OPENROUTER_KEY": "@openrouter-key"
-  }
+  ]
 }
