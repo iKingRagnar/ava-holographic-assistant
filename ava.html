@@ -871,26 +871,32 @@
             const color = avatarColors[index];
             const url = localAvatars[index];
 
+            console.log('Loading avatar', index, 'from', url);
+            console.log('THREE.VRM available:', typeof THREE.VRM);
+
+            updateStatus('CARGANDO AVATAR...');
+
+            // Si THREE.VRM no está disponible, usar placeholder inmediatamente
             if (typeof THREE.VRM === 'undefined') {
-                console.warn('THREE.VRM no cargado, usando placeholder');
+                console.warn('THREE.VRM no cargado desde CDN, usando placeholder holográfico');
                 createPlaceholderAvatar(index);
                 return;
             }
 
-            updateStatus('CARGANDO AVATAR...');
             const loader = new THREE.GLTFLoader();
 
             loader.load(
                 url,
                 (gltf) => {
+                    console.log('GLTF loaded, parsing VRM...');
                     THREE.VRM.from(gltf).then((vrm) => {
+                        console.log('VRM parsed successfully');
                         const model = vrm.scene;
                         model.scale.set(0.85, 0.85, 0.85);
                         model.position.y = -0.9;
                         model.rotation.y = Math.PI;
 
-                        // Glow holográfico: en r134 MToon funciona bien,
-                        // solo añadimos emissive sutil para el efecto de color
+                        // Glow holográfico sutil
                         const glowColor = new THREE.Color(color);
                         model.traverse((obj) => {
                             if (obj.isMesh && obj.material) {
@@ -918,6 +924,7 @@
                         avatar = avatarGroup;
                         updateBranding();
                         updateStatus('LISTA');
+                        console.log('Avatar loaded successfully');
                     }).catch((err) => {
                         console.error('VRM parse error:', err);
                         createPlaceholderAvatar(index);
@@ -1062,12 +1069,89 @@
             clearAvatar();
             avatarGroup = new THREE.Group();
             const color = avatarColors[index];
+            const colorHex = new THREE.Color(color);
+
+            // === AVATAR 3D HOLOGRÁFICO (fallback cuando VRM no carga) ===
+
+            // Cabeza
+            const headGeo = new THREE.SphereGeometry(0.12, 32, 32);
+            const headMat = new THREE.MeshStandardMaterial({
+                color: 0xffdbac,
+                emissive: colorHex,
+                emissiveIntensity: 0.3,
+                roughness: 0.4
+            });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 0.5;
+            avatarGroup.add(head);
+
+            // Cuello
+            const neckGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.08, 16);
+            const neckMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, emissive: colorHex, emissiveIntensity: 0.2 });
+            const neck = new THREE.Mesh(neckGeo, neckMat);
+            neck.position.y = 0.38;
+            avatarGroup.add(neck);
+
+            // Torso
+            const torsoGeo = new THREE.CylinderGeometry(0.09, 0.07, 0.35, 16);
+            const torsoMat = new THREE.MeshStandardMaterial({
+                color: colorHex,
+                emissive: colorHex,
+                emissiveIntensity: 0.15,
+                transparent: true,
+                opacity: 0.9
+            });
+            const torso = new THREE.Mesh(torsoGeo, torsoMat);
+            torso.position.y = 0.15;
+            avatarGroup.add(torso);
+
+            // Hombros y brazos
+            const armGeo = new THREE.CylinderGeometry(0.03, 0.025, 0.25, 12);
+            const armMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, emissive: colorHex, emissiveIntensity: 0.1 });
+
+            // Brazo izquierdo
+            const leftArm = new THREE.Mesh(armGeo, armMat);
+            leftArm.position.set(-0.14, 0.15, 0);
+            leftArm.rotation.z = 0.2;
+            avatarGroup.add(leftArm);
+
+            // Brazo derecho
+            const rightArm = new THREE.Mesh(armGeo, armMat);
+            rightArm.position.set(0.14, 0.15, 0);
+            rightArm.rotation.z = -0.2;
+            avatarGroup.add(rightArm);
+
+            // Cadera/Base
+            const hipsGeo = new THREE.CylinderGeometry(0.08, 0.09, 0.12, 16);
+            const hips = new THREE.Mesh(hipsGeo, torsoMat);
+            hips.position.y = -0.08;
+            avatarGroup.add(hips);
+
+            // Ojos (glow)
+            const eyeGeo = new THREE.SphereGeometry(0.015, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.04, 0.52, 0.1);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.04, 0.52, 0.1);
+            avatarGroup.add(leftEye);
+            avatarGroup.add(rightEye);
+
+            // Posicionar grupo
+            avatarGroup.scale.set(0.85, 0.85, 0.85);
+            avatarGroup.position.y = -0.9;
+            avatarGroup.rotation.y = Math.PI;
+
+            // Guardar referencias para animación
+            loadedModel = avatarGroup;
+
             createBase(color);
             createParticles(color);
             scene.add(avatarGroup);
             avatar = avatarGroup;
             updateBranding();
-            updateStatus('ERROR CARGANDO VRM');
+            updateStatus('MODO HOLOGRÁFICO');
+            console.log('Placeholder avatar 3D creado');
         }
 
         function updateBranding() {
@@ -1231,34 +1315,66 @@
                     
                     if (mixer) mixer.update(delta);
                 } else {
-                    // State-based animations para avatares geométricos
+                    // Animaciones para avatar placeholder 3D (más orgánico)
+                    // Encontrar partes del cuerpo por posición aproximada
+                    let head, leftArm, rightArm, torso;
+                    avatar.traverse((child) => {
+                        if (!child.isMesh) return;
+                        const y = child.position.y;
+                        if (y > 0.45 && y < 0.55 && child.geometry.type === 'SphereGeometry') head = child;
+                        else if (y > 0.1 && y < 0.2 && child.position.x < -0.1) leftArm = child;
+                        else if (y > 0.1 && y < 0.2 && child.position.x > 0.1) rightArm = child;
+                        else if (y > 0.1 && y < 0.2 && Math.abs(child.position.x) < 0.05) torso = child;
+                    });
+
+                    // Cabeza sigue el mouse con lerp suave
+                    if (head) {
+                        const targetRotY = _mouseX * 0.5 + Math.sin(time * 0.5) * 0.1;
+                        const targetRotX = _mouseY * 0.3 + Math.sin(time * 0.7) * 0.05;
+                        head.rotation.y = THREE.MathUtils.lerp(head.rotation.y || 0, targetRotY, 0.05);
+                        head.rotation.x = THREE.MathUtils.lerp(head.rotation.x || 0, targetRotX, 0.05);
+                    }
+
                     switch (state) {
                         case 'IDLE':
-                            // Gentle floating
-                            avatar.position.y = Math.sin(time * 0.8) * 0.05;
-                            avatar.rotation.y = Math.sin(time * 0.2) * 0.05;
+                            // Flotación suave + brazos colgando
+                            avatar.position.y = -0.9 + Math.sin(time * 0.8) * 0.03;
+                            avatar.rotation.y = Math.PI + Math.sin(time * 0.2) * 0.08;
+                            if (leftArm) { leftArm.rotation.z = 0.2 + Math.sin(time * 0.6 + 1) * 0.15; leftArm.rotation.x = Math.sin(time * 0.4) * 0.1; }
+                            if (rightArm) { rightArm.rotation.z = -0.2 - Math.sin(time * 0.6) * 0.15; rightArm.rotation.x = Math.sin(time * 0.4 + 0.5) * 0.1; }
                             break;
-                            
+
                         case 'LISTENING':
-                            // Slow pulse
-                            avatar.position.y = Math.sin(time * 2) * 0.03;
-                            const listenScale = 1 + Math.sin(time * 3) * 0.02;
-                            avatar.scale.set(listenScale, listenScale, listenScale);
+                            // Postura alerta, brazos cerca del cuerpo
+                            avatar.position.y = -0.9 + Math.sin(time * 1.5) * 0.02;
+                            avatar.rotation.y = Math.PI + Math.sin(time * 0.3) * 0.05;
+                            if (leftArm) { leftArm.rotation.z = 0.1 + Math.sin(time * 1.2) * 0.08; leftArm.rotation.x = -0.2; }
+                            if (rightArm) { rightArm.rotation.z = -0.1 - Math.sin(time * 1.2) * 0.08; rightArm.rotation.x = -0.2; }
                             break;
-                            
+
                         case 'THINKING':
-                            // Active rotation and blinking
-                            avatar.rotation.y += 0.02;
-                            avatar.position.y = Math.sin(time * 4) * 0.08;
-                            const thinkScale = 1 + Math.sin(time * 8) * 0.03;
-                            avatar.scale.set(thinkScale, thinkScale, thinkScale);
+                            // Brazo en mentón, mirada pensativa
+                            avatar.position.y = -0.9 + Math.sin(time * 2) * 0.02;
+                            avatar.rotation.y = Math.PI + Math.sin(time * 0.8) * 0.15;
+                            if (rightArm) { rightArm.rotation.z = -0.4 + Math.sin(time * 1.5) * 0.1; rightArm.rotation.x = -0.5 + Math.sin(time * 2) * 0.1; }
+                            if (leftArm) { leftArm.rotation.z = 0.15; leftArm.rotation.x = -0.1; }
                             break;
-                            
+
                         case 'TALKING':
-                            // Fast pulse
-                            const talkScale = 1 + Math.sin(time * 15) * 0.04;
+                            // Gesticulación activa
+                            avatar.position.y = -0.9 + Math.sin(time * 4) * 0.015;
+                            avatar.rotation.y = Math.PI + Math.sin(time * 3) * 0.12;
+                            if (leftArm) {
+                                leftArm.rotation.z = 0.3 + Math.sin(time * 6) * 0.35;
+                                leftArm.rotation.x = Math.sin(time * 5 + 0.5) * 0.4;
+                            }
+                            if (rightArm) {
+                                rightArm.rotation.z = -0.3 - Math.sin(time * 6 + 1) * 0.35;
+                                rightArm.rotation.x = Math.sin(time * 5) * 0.4;
+                            }
+                            // Escala rápida al hablar
+                            const talkScale = 1 + Math.sin(time * 12) * 0.02;
                             avatar.scale.set(talkScale, 1, talkScale);
-                            avatar.position.y = Math.sin(time * 5) * 0.02;
                             break;
                     }
                 }
@@ -1518,40 +1634,14 @@
             updateStatus('HABLANDO...');
             document.getElementById('response').textContent = cleanText.substring(0, 120);
 
-            // --- Edge TTS (gratis, femenina española) ---
-            try {
-                const ttsRes = await fetch('/api/tts-edge', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: cleanText, voice: 'es-MX' })
-                });
-                if (ttsRes.ok) {
-                    const ttsData = await ttsRes.json();
-                    if (ttsData.audioContent) {
-                        const binary = atob(ttsData.audioContent);
-                        const bytes = new Uint8Array(binary.length);
-                        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-                        const blob = new Blob([bytes], { type: 'audio/mp3' });
-                        const url = URL.createObjectURL(blob);
-                        const audio = new Audio(url);
-                        _currentAudio = audio;
-                        audio.onended = () => {
-                            setState('IDLE'); updateStatus('LISTA');
-                            document.getElementById('response').textContent = '';
-                            URL.revokeObjectURL(url);
-                            _currentAudio = null;
-                        };
-                        audio.onerror = () => { _speakFallback(cleanText); };
-                        audio.play();
-                        return;
-                    }
-                }
-            } catch(e) {
-                console.warn('Inworld TTS failed, usando Web Speech:', e.message);
-            }
-
-            // --- Web Speech fallback ---
+            // --- Web Speech API (gratis, funciona siempre) ---
             _speakFallback(cleanText);
+
+            /* Edge TTS deshabilitado - el endpoint de Microsoft no es estable
+            try {
+                const ttsRes = await fetch('/api/tts-edge', {...});
+            } catch(e) { console.warn('Edge TTS failed'); }
+            */
         }
 
         function _speakFallback(cleanText) {
