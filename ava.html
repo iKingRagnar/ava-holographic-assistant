@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>AVA - Asistente Holográfico</title>
     <style>
         * {
@@ -837,7 +837,7 @@
         let avatarAnimations = null;
 
         // VRoid Models served from GitHub raw
-        const GITHUB_RAW = 'https://raw.githubusercontent.com/iKingRagnar/ava-holographic-assistant/main/public/';
+        const GITHUB_RAW = 'https://cdn.jsdelivr.net/gh/iKingRagnar/ava-holographic-assistant@main/public/';
         const localAvatars = [
             GITHUB_RAW + '1620000625477528222.vrm',
             GITHUB_RAW + '247388737517495633.vrm',
@@ -875,7 +875,7 @@
                         const model = vrm.scene;
                         model.scale.set(0.85, 0.85, 0.85);
                         model.position.y = -0.9;
-                        model.rotation.y = 0;
+                        model.rotation.y = Math.PI;
 
                         currentVRM = vrm;
                         loadedModel = model;
