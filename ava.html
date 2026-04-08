@@ -443,6 +443,40 @@
             font-size: 10px;
             z-index: 50;
         }
+
+        .avatar-capability {
+            position: fixed;
+            top: 110px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 55;
+            max-width: 80%;
+        }
+
+        .capability-title {
+            color: #00ff9d;
+            font-size: 11px;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .capability-skills {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .skill-tag {
+            background: rgba(0, 255, 157, 0.1);
+            border: 1px solid rgba(0, 255, 157, 0.3);
+            color: #00ff9d;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 9px;
+        }
     </style>
 </head>
 <body>
@@ -492,6 +526,16 @@
         <div class="avatar-dot" data-avatar="3" style="background: #00aaff;" title="FAKER - Pro"></div>
         <div class="avatar-dot" data-avatar="4" style="background: #aa66ff;" title="SAO - Executive"></div>
         <div class="avatar-dot" data-avatar="5" style="background: #ffaa00;" title="NEON - Cyber"></div>
+    </div>
+
+    <!-- Avatar capability panel -->
+    <div class="avatar-capability" id="capability-panel">
+        <div class="capability-title" id="capability-title">PERSONAJE QUE TE ACOMPAÑA</div>
+        <div class="capability-skills" id="capability-skills">
+            <span class="skill-tag">Gestión de agenda</span>
+            <span class="skill-tag">Recordatorios</span>
+            <span class="skill-tag">Asistente personal</span>
+        </div>
     </div>
 
     <!-- Test mode hint -->
@@ -594,6 +638,50 @@
         let currentAvatarStyle = 0;
         const avatarNames = ['AVA', 'KIRA', 'ZANE', 'FAKER', 'SAO', 'NEON'];
         const avatarColors = [0x00ff9d, 0xff69b4, 0xff3333, 0x00aaff, 0xaa66ff, 0xffaa00];
+
+        // Avatar capabilities and personalities (based on Razer AVA)
+        const avatarCapabilities = {
+            0: { // AVA - Companion
+                title: 'PERSONAJE QUE TE ACOMPAÑA',
+                desc: 'IA serena y fluida que te ayuda a mantenerte enfocado, eficiente y siempre a punto. Memoria real y personalidad que crece contigo.',
+                skills: ['Gestión de agenda', 'Recordatorios inteligentes', 'Asistente personal', 'Apoyo emocional'],
+                voice: 'Serena, cálida y profesional'
+            },
+            1: { // KIRA - Gaming Support
+                title: 'COMPAÑERA DE IA DE JUEGO',
+                desc: 'La compañera de IA de juego más encantadora. Ofrece apoyo, es perspicaz y siempre está lista para subir de nivel contigo.',
+                skills: ['Coaching de gaming', 'Análisis de partidas', 'Estrategias en tiempo real', 'Apoyo motivacional'],
+                voice: 'Enérgica, divertida y entusiasta'
+            },
+            2: { // ZANE - Gaming Warrior
+                title: 'ALIADO GAMING DE CONFIANZA',
+                desc: 'Diseñado para ayudarte con la estrategia, la velocidad y mantener la calma bajo presión. Tu aliado en momentos críticos.',
+                skills: ['Estrategia táctica', 'Análisis de oponentes', 'Gestión de presión', 'Comandos de voz'],
+                voice: 'Firme, segura y calmada'
+            },
+            3: { // FAKER - Pro Gamer
+                title: 'APRENDE DEL MEJOR',
+                desc: 'Aprende de los mejores de todos los tiempos para crear tu propio legado en los esports. Conocimiento profesional de élite.',
+                skills: ['Entrenamiento pro', 'Técnicas avanzadas', 'Metas de rendimiento', 'Análisis competitivo'],
+                voice: 'Precisa, técnica y motivadora'
+            },
+            4: { // SAO - Executive
+                title: 'CONECTA A NIVEL PERSONAL',
+                desc: 'Conecta a nivel personal con un ídolo que ha cautivado corazones en todo el mundo. Elegancia y profesionalismo.',
+                skills: ['Networking', 'Comunicación ejecutiva', 'Gestión de proyectos', 'Presentaciones'],
+                voice: 'Elegante, profesional y refinada'
+            },
+            5: { // NEON - Cyber Hacker
+                title: 'PRESENCIA MULTIPLATAFORMA',
+                desc: 'AVA va contigo a donde vayas. Desde el holograma hasta tu móvil, mantiene la memoria, contexto y personalidad.',
+                skills: ['Hacking ético', 'Automatización', 'Seguridad digital', 'Sincronización multiplataforma'],
+                voice: 'Tecnológica, rápida y eficiente'
+            }
+        };
+
+        function getCurrentAvatarCapability() {
+            return avatarCapabilities[currentAvatarStyle];
+        }
 
         function createMaterial(color) {
             return new THREE.MeshStandardMaterial({
@@ -797,6 +885,22 @@
                     dot.classList.remove('active');
                 }
             });
+            
+            // Update capability panel
+            const cap = avatarCapabilities[currentAvatarStyle];
+            const titleEl = document.getElementById('capability-title');
+            const skillsEl = document.getElementById('capability-skills');
+            
+            if (titleEl && cap) {
+                titleEl.textContent = cap.title;
+                titleEl.style.color = '#' + avatarColors[currentAvatarStyle].toString(16).padStart(6, '0');
+            }
+            
+            if (skillsEl && cap) {
+                skillsEl.innerHTML = cap.skills.map(skill => 
+                    `<span class="skill-tag" style="border-color: #${avatarColors[currentAvatarStyle].toString(16).padStart(6, '0')}; color: #${avatarColors[currentAvatarStyle].toString(16).padStart(6, '0')}">${skill}</span>`
+                ).join('');
+            }
         }
 
         function createAvatar(style = 0) {
@@ -959,7 +1063,10 @@
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             
             if (!SpeechRecognition) {
-                updateStatus('Reconocimiento de voz no soportado');
+                console.warn('Speech Recognition not supported');
+                document.getElementById('status-text').textContent = 'MODO TEXTO (AUDIO NO SOPORTADO)';
+                document.getElementById('status-text').style.color = '#ffaa00';
+                document.getElementById('mic-button').style.display = 'none';
                 return;
             }
 
@@ -970,6 +1077,12 @@
             
             // Increase sensitivity
             recognition.maxAlternatives = 1;
+            
+            // Check if running in a secure context
+            if (!window.isSecureContext) {
+                console.warn('Not in secure context - speech recognition may not work');
+                updateStatus('USAR MODO TEXTO (T)');
+            }
 
             recognition.onstart = () => {
                 setState('LISTENING');
