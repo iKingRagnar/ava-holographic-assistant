@@ -597,7 +597,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
     <!-- VRM Loader for VRoid models -->
-    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.7/lib/three-vrm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.9/lib/three-vrm.js"></script>
 
     <script>
         // ==========================================
@@ -848,6 +848,14 @@
             
             const url = localAvatars[index];
             
+            // Verificar si THREE.VRM está disponible
+            if (typeof THREE.VRM === 'undefined') {
+                console.warn('THREE.VRM no está cargado, usando placeholder');
+                updateStatus('VRM NO DISPONIBLE - USANDO AVATAR BASE');
+                createPlaceholderAvatar(index);
+                return;
+            }
+            
             updateStatus('CARGANDO AVATAR VRM...');
             
             // Usar GLTFLoader + VRM.from() para archivos VRoid
@@ -855,43 +863,52 @@
             
             loader.load(url, 
                 (gltf) => {
-                    // Convertir GLTF a VRM usando three-vrm
-                    THREE.VRM.from(gltf).then((vrm) => {
-                        currentGLTF = vrm;
-                        const model = vrm.scene;
-                        loadedModel = model;
-                        
-                        // Scale and position para VRM
-                        model.scale.set(0.8, 0.8, 0.8);
-                        model.position.y = -0.8;
-                        
-                        // Rotate to face camera
-                        model.rotation.y = Math.PI;
-                        
-                        // Apply hologram glow effect
-                        model.traverse((child) => {
-                            if (child.isMesh && child.material) {
-                                child.material.emissive = new THREE.Color(color);
-                                child.material.emissiveIntensity = 0.2;
+                    try {
+                        // Convertir GLTF a VRM usando three-vrm
+                        THREE.VRM.from(gltf).then((vrm) => {
+                            currentGLTF = vrm;
+                            const model = vrm.scene;
+                            loadedModel = model;
+                            
+                            // Scale and position para VRM
+                            model.scale.set(0.8, 0.8, 0.8);
+                            model.position.y = -0.8;
+                            
+                            // Rotate to face camera
+                            model.rotation.y = Math.PI;
+                            
+                            // Apply hologram glow effect
+                            model.traverse((child) => {
+                                if (child.isMesh && child.material) {
+                                    child.material.emissive = new THREE.Color(color);
+                                    child.material.emissiveIntensity = 0.2;
+                                }
+                            });
+                            
+                            avatarGroup.add(model);
+                            
+                            // Setup VRM animations (blendshape/morph)
+                            if (vrm.blendShapeProxy) {
+                                console.log('VRM blendshapes loaded');
                             }
+                            
+                            createBase(color);
+                            createParticles(color);
+                            scene.add(avatarGroup);
+                            avatar = avatarGroup;
+                            
+                            updateBranding();
+                            updateStatus('LISTA');
+                        }).catch((err) => {
+                            console.error('Error parsing VRM:', err);
+                            updateStatus('ERROR VRM - USANDO PLACEHOLDER');
+                            createPlaceholderAvatar(index);
                         });
-                        
-                        avatarGroup.add(model);
-                        
-                        // Setup VRM animations (blendshape/morph)
-                        if (vrm.blendShapeProxy) {
-                            // VRM tiene blendshapes para expresiones faciales
-                            console.log('VRM blendshapes loaded');
-                        }
-                        
-                        createBase(color);
-                        createParticles(color);
-                        scene.add(avatarGroup);
-                        avatar = avatarGroup;
-                        
-                        updateBranding();
-                        updateStatus('LISTA');
-                    });
+                    } catch (e) {
+                        console.error('Exception loading VRM:', e);
+                        updateStatus('ERROR - USANDO PLACEHOLDER');
+                        createPlaceholderAvatar(index);
+                    }
                 },
                 (progress) => {
                     const percent = Math.round((progress.loaded / progress.total) * 100);
