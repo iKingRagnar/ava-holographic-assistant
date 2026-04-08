@@ -546,6 +546,10 @@
         <div class="avatar-dot" data-avatar="3" style="background: #00aaff;" title="FAKER - Pro"></div>
         <div class="avatar-dot" data-avatar="4" style="background: #aa66ff;" title="SAO - Executive"></div>
         <div class="avatar-dot" data-avatar="5" style="background: #ffaa00;" title="NEON - Cyber"></div>
+        <div class="avatar-dot" data-avatar="6" style="background: #00ffff;" title="YUKI - Artist"></div>
+        <div class="avatar-dot" data-avatar="7" style="background: #ff0066;" title="REI - Tech"></div>
+        <div class="avatar-dot" data-avatar="8" style="background: #6600ff;" title="MIRA - Wellness"></div>
+        <div class="avatar-dot" data-avatar="9" style="background: #66ff00;" title="KAI - Social"></div>
     </div>
 
     <!-- Avatar capability panel -->
@@ -559,7 +563,7 @@
     </div>
 
     <!-- Test mode hint -->
-    <div class="test-mode-hint">T:texto | 1-6:avatar | N:next</div>
+    <div class="test-mode-hint">T:texto | 1-9:avatar | N:next</div>
     <div class="avatar-hint">AVA v1.0</div>
 
     <!-- Config overlay -->
@@ -665,11 +669,11 @@
         }
 
         // ==========================================
-        // 6 AVATAR STYLES - PROJECT AVA INSPIRED
+        // 10 AVATAR STYLES - VRoid Local Models
         // ==========================================
         let currentAvatarStyle = 0;
-        const avatarNames = ['AVA', 'KIRA', 'ZANE', 'FAKER', 'SAO', 'NEON'];
-        const avatarColors = [0x00ff9d, 0xff69b4, 0xff3333, 0x00aaff, 0xaa66ff, 0xffaa00];
+        const avatarNames = ['AVA', 'KIRA', 'ZANE', 'FAKER', 'SAO', 'NEON', 'YUKI', 'REI', 'MIRA', 'KAI'];
+        const avatarColors = [0x00ff9d, 0xff69b4, 0xff3333, 0x00aaff, 0xaa66ff, 0xffaa00, 0x00ffff, 0xff0066, 0x6600ff, 0x66ff00];
 
         // Avatar capabilities and personalities (based on Razer AVA)
         const avatarCapabilities = {
@@ -708,6 +712,30 @@
                 desc: 'AVA va contigo a donde vayas. Desde el holograma hasta tu móvil, mantiene la memoria, contexto y personalidad.',
                 skills: ['Hacking ético', 'Automatización', 'Seguridad digital', 'Sincronización multiplataforma'],
                 voice: 'Tecnológica, rápida y eficiente'
+            },
+            6: { // YUKI - Creative Artist
+                title: 'ARTISTA CREATIVA DIGITAL',
+                desc: 'Inspiración ilimitada para crear contenido visual, música y arte. Tu musa digital para proyectos creativos.',
+                skills: ['Diseño visual', 'Generación de ideas', 'Arte digital', 'Edición creativa'],
+                voice: 'Inspiradora, artística y soñadora'
+            },
+            7: { // REI - Tech Specialist
+                title: 'ESPECIALISTA EN TECNOLOGÍA',
+                desc: 'Experta en gadgets, software y tendencias tech. Mantente al día con las últimas innovaciones.',
+                skills: ['Reviews tech', 'Configuración de dispositivos', 'Optimización de sistemas', 'Troubleshooting'],
+                voice: 'Precisa, técnica y directa'
+            },
+            8: { // MIRA - Health & Wellness
+                title: 'COACH DE BIENESTAR HOLÍSTICO',
+                desc: 'Guía personal para tu salud física y mental. Rutinas de ejercicio, meditación y balance de vida.',
+                skills: ['Fitness personalizado', 'Meditación guiada', 'Nutrición básica', 'Manejo de estrés'],
+                voice: 'Tranquila, motivadora y empática'
+            },
+            9: { // KAI - Social Connector
+                title: 'CONEXIONES SOCIALES Y NETWORKING',
+                desc: 'Maestro de las relaciones sociales y la comunicación. Conecta con personas y crea comunidad.',
+                skills: ['Comunicación efectiva', 'Networking', 'Gestión de comunidades', 'Eventos sociales'],
+                voice: 'Extrovertida, carismática y amigable'
             }
         };
 
@@ -797,14 +825,18 @@
         let currentGLTF = null;
         let avatarAnimations = null;
 
-        // Ready Player Me avatar URLs (public, free models)
-        const readyPlayerMeAvatars = [
-            'https://models.readyplayer.me/64b906d06828c18e7c14d90f.glb',  // AVA - Professional
-            'https://models.readyplayer.me/64b91d68a31d1c47bfc1b81d.glb',  // KIRA - Anime Girl
-            'https://models.readyplayer.me/64b91e4a6828c18e7c14e7cc.glb',  // ZANE - Warrior
-            'https://models.readyplayer.me/64b91ee66828c18e7c14e8e7.glb',  // FAKER - Pro Gamer
-            'https://models.readyplayer.me/64b91f9ca31d1c47bfc1c0e7.glb',  // SAO - Executive
-            'https://models.readyplayer.me/64b920446828c18e7c14eb61.glb'   // NEON - Cyber
+        // VRoid Local Models (renamed from .vrm to .glb)
+        const localAvatars = [
+            './1620000625477528222.glb',
+            './247388737517495633.glb',
+            './3477026897357566765.glb',
+            './4141371705774241586.glb',
+            './5664079130297924007.glb',
+            './6395041283196423502.glb',
+            './6842341930685658330.glb',
+            './6851268443831277502.glb',
+            './7062840423830520603.glb',
+            './7413598465746914517.glb'
         ];
 
         function loadReadyPlayerMeAvatar(index) {
@@ -813,7 +845,7 @@
             const color = avatarColors[index];
             
             const loader = new THREE.GLTFLoader();
-            const url = readyPlayerMeAvatars[index];
+            const url = localAvatars[index];
             
             updateStatus('CARGANDO AVATAR...');
             
@@ -2125,10 +2157,10 @@
                     resetConfig();
                 }
 
-                // Avatar selection with keys 1-6
-                if (e.key >= '1' && e.key <= '6' && !e.ctrlKey) {
+                // Avatar selection with keys 0-9
+                if (((e.key >= '1' && e.key <= '9') || e.key === '0') && !e.ctrlKey) {
                     e.preventDefault();
-                    const avatarIndex = parseInt(e.key) - 1;
+                    const avatarIndex = e.key === '0' ? 9 : parseInt(e.key) - 1;
                     createAvatar(avatarIndex);
                     updateStatus('AVATAR: ' + avatarNames[avatarIndex]);
                     setTimeout(() => {
