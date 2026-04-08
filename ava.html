@@ -669,6 +669,14 @@
             pointLight.position.set(0, 3, 2);
             scene.add(pointLight);
 
+            // Grid holográfico en el suelo
+            const gridHelper = new THREE.GridHelper(6, 20, 0x003311, 0x001108);
+            gridHelper.position.y = -0.92;
+            scene.add(gridHelper);
+
+            // Niebla sutil para profundidad
+            scene.fog = new THREE.FogExp2(0x000510, 0.08);
+
             // Create holographic avatar
             createAvatar();
 
@@ -837,7 +845,7 @@
         let avatarAnimations = null;
 
         // VRoid Models served from GitHub raw
-        const GITHUB_RAW = 'https://cdn.jsdelivr.net/gh/iKingRagnar/ava-holographic-assistant@main/public/';
+        const GITHUB_RAW = '/public/';
         const localAvatars = [
             GITHUB_RAW + '1620000625477528222.vrm',
             GITHUB_RAW + '247388737517495633.vrm',
@@ -880,26 +888,26 @@
                         currentVRM = vrm;
                         loadedModel = model;
 
-                        // Convertir MToon a MeshBasicMaterial para evitar shader errors con r128
+                        // Convertir MToon → MeshStandardMaterial con glow holográfico
+                        const glowColor = new THREE.Color(color);
                         model.traverse((obj) => {
                             if (obj.isMesh) {
                                 const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
                                 const newMats = mats.map(mat => {
-                                    // Extraer textura y color del MToon ShaderMaterial
                                     let tex = null;
-                                    let col = new THREE.Color(1, 1, 1);
                                     if (mat.uniforms) {
                                         tex = mat.uniforms.mainTex?.value || mat.uniforms.map?.value || null;
-                                        const cv = mat.uniforms.color?.value;
-                                        if (cv) col = new THREE.Color(cv.x ?? 1, cv.y ?? 1, cv.z ?? 1);
                                     } else {
                                         tex = mat.map || null;
-                                        col = mat.color || new THREE.Color(1, 1, 1);
                                     }
                                     const alpha = mat.uniforms?.cutoff?.value ?? mat.alphaTest ?? 0;
-                                    return new THREE.MeshBasicMaterial({
+                                    return new THREE.MeshStandardMaterial({
                                         map: tex,
-                                        color: tex ? new THREE.Color(1, 1, 1) : col,
+                                        color: new THREE.Color(1, 1, 1),
+                                        emissive: glowColor,
+                                        emissiveIntensity: tex ? 0.18 : 0.45,
+                                        roughness: 0.55,
+                                        metalness: 0.15,
                                         transparent: mat.transparent || false,
                                         opacity: mat.opacity !== undefined ? mat.opacity : 1.0,
                                         side: mat.side !== undefined ? mat.side : THREE.FrontSide,
@@ -1172,34 +1180,39 @@
                             }
                         }
 
-                        // Brazo izquierdo — sway natural
+                        // Brazos — animación dinámica según estado
                         const leftArm = humanoid.getBoneNode('leftUpperArm');
-                        if (leftArm) {
-                            leftArm.rotation.z = 0.4 + Math.sin(t * 0.7 + 1.0) * 0.12;
-                            leftArm.rotation.x = Math.sin(t * 0.5) * 0.05;
-                        }
-                        // Brazo derecho
                         const rightArm = humanoid.getBoneNode('rightUpperArm');
-                        if (rightArm) {
-                            rightArm.rotation.z = -(0.4 + Math.sin(t * 0.7) * 0.12);
-                            rightArm.rotation.x = Math.sin(t * 0.5 + 0.5) * 0.05;
-                        }
-                        // Antebrazo izquierdo
                         const leftForearm = humanoid.getBoneNode('leftLowerArm');
-                        if (leftForearm) {
-                            leftForearm.rotation.y = Math.sin(t * 0.6) * 0.1;
-                        }
-                        // Antebrazo derecho
                         const rightForearm = humanoid.getBoneNode('rightLowerArm');
-                        if (rightForearm) {
-                            rightForearm.rotation.y = -Math.sin(t * 0.6 + 0.5) * 0.1;
-                        }
-
-                        // Cadera — sutil sway
                         const hips = humanoid.getBoneNode('hips');
-                        if (hips) {
-                            hips.rotation.z = Math.sin(t * 0.6) * 0.015;
+                        const neck = humanoid.getBoneNode('neck');
+
+                        if (state === 'IDLE') {
+                            if (leftArm)  { leftArm.rotation.z  =  0.75 + Math.sin(t * 0.8 + 1.0) * 0.18; leftArm.rotation.x  = Math.sin(t * 0.5) * 0.08; }
+                            if (rightArm) { rightArm.rotation.z = -(0.75 + Math.sin(t * 0.8) * 0.18); rightArm.rotation.x = Math.sin(t * 0.5 + 0.6) * 0.08; }
+                            if (leftForearm)  leftForearm.rotation.y  =  0.1 + Math.sin(t * 0.7) * 0.12;
+                            if (rightForearm) rightForearm.rotation.y = -(0.1 + Math.sin(t * 0.7 + 0.5) * 0.12);
+                            if (hips) { hips.rotation.z = Math.sin(t * 0.6) * 0.04; hips.rotation.y = Math.sin(t * 0.4) * 0.03; }
+                        } else if (state === 'LISTENING') {
+                            if (leftArm)  { leftArm.rotation.z  =  0.55 + Math.sin(t * 1.5) * 0.08; leftArm.rotation.x  = -0.1; }
+                            if (rightArm) { rightArm.rotation.z = -(0.55 + Math.sin(t * 1.5 + 0.5) * 0.08); rightArm.rotation.x = -0.1; }
+                            if (leftForearm)  leftForearm.rotation.y  =  0.2 + Math.sin(t * 2) * 0.08;
+                            if (rightForearm) rightForearm.rotation.y = -(0.2 + Math.sin(t * 2 + 0.5) * 0.08);
+                            if (hips) hips.rotation.z = Math.sin(t * 1.2) * 0.025;
+                        } else if (state === 'THINKING') {
+                            if (leftArm)  { leftArm.rotation.z  =  0.5; leftArm.rotation.x  = -0.15 + Math.sin(t * 2) * 0.1; }
+                            if (rightArm) { rightArm.rotation.z = -(0.3); rightArm.rotation.x = -0.4 + Math.sin(t * 1.5) * 0.12; }
+                            if (rightForearm) rightForearm.rotation.y = -0.6 + Math.sin(t * 3) * 0.15;
+                            if (hips) hips.rotation.z = Math.sin(t * 0.8) * 0.05;
+                        } else if (state === 'TALKING') {
+                            if (leftArm)  { leftArm.rotation.z  =  0.45 + Math.sin(t * 3.5) * 0.28; leftArm.rotation.x  = Math.sin(t * 4) * 0.15; }
+                            if (rightArm) { rightArm.rotation.z = -(0.45 + Math.sin(t * 3.5 + 0.8) * 0.28); rightArm.rotation.x = Math.sin(t * 4 + 0.5) * 0.15; }
+                            if (leftForearm)  leftForearm.rotation.y  =  Math.sin(t * 4) * 0.2;
+                            if (rightForearm) rightForearm.rotation.y = -Math.sin(t * 4 + 0.5) * 0.2;
+                            if (hips) { hips.rotation.z = Math.sin(t * 2) * 0.06; hips.rotation.y = Math.sin(t * 1.5) * 0.04; }
                         }
+                        if (neck) neck.rotation.y = Math.sin(t * 0.4) * 0.08;
                     }
 
                     // Blendshapes faciales autónomas (VRM 0.6.x)
@@ -1420,39 +1433,36 @@
                 document.getElementById('transcript').textContent = transcript;
             };
 
+            let _noSpeechRetry = false;
+
             recognition.onerror = (event) => {
+                if (event.error === 'no-speech') {
+                    _noSpeechRetry = true;
+                    return; // onend will restart
+                }
+                if (event.error === 'aborted') return;
                 console.error('Speech recognition error:', event.error);
                 let errorMsg = 'ERROR';
-                
                 switch(event.error) {
-                    case 'no-speech':
-                        errorMsg = 'NO SE DETECTÓ VOZ';
-                        break;
-                    case 'audio-capture':
-                        errorMsg = 'SIN MICRÓFONO';
-                        break;
-                    case 'not-allowed':
-                        errorMsg = 'PERMISO DENEGADO';
-                        break;
-                    case 'network':
-                        errorMsg = 'ERROR DE RED';
-                        break;
-                    default:
-                        errorMsg = 'ERROR: ' + event.error;
+                    case 'audio-capture': errorMsg = 'SIN MICRÓFONO'; break;
+                    case 'not-allowed':   errorMsg = 'PERMISO DENEGADO'; break;
+                    case 'network':       errorMsg = 'ERROR DE RED'; break;
+                    default:              errorMsg = 'ERROR: ' + event.error;
                 }
-                
                 updateStatus(errorMsg);
                 setState('IDLE');
-                
-                // Auto-reset después de 2 segundos
-                setTimeout(() => {
-                    if (state === 'IDLE') {
-                        updateStatus('LISTA');
-                    }
-                }, 2000);
+                setTimeout(() => { if (state === 'IDLE') updateStatus('LISTA'); }, 2000);
             };
 
             recognition.onend = () => {
+                if (_noSpeechRetry) {
+                    _noSpeechRetry = false;
+                    if (state === 'LISTENING') {
+                        updateStatus('ESCUCHANDO... (habla ahora)');
+                        try { recognition.start(); } catch(e) { setState('IDLE'); updateStatus('LISTA'); }
+                    }
+                    return;
+                }
                 const transcript = document.getElementById('transcript').textContent.trim();
                 if (transcript && state === 'LISTENING') {
                     processMessage(transcript);
