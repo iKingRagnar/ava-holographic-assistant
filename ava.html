@@ -596,6 +596,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+    <!-- VRM Loader for VRoid models -->
+    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.7/lib/three-vrm.min.js"></script>
 
     <script>
         // ==========================================
@@ -825,18 +827,18 @@
         let currentGLTF = null;
         let avatarAnimations = null;
 
-        // VRoid Local Models (renamed from .vrm to .glb)
+        // VRoid Local Models (.vrm format)
         const localAvatars = [
-            './1620000625477528222.glb',
-            './247388737517495633.glb',
-            './3477026897357566765.glb',
-            './4141371705774241586.glb',
-            './5664079130297924007.glb',
-            './6395041283196423502.glb',
-            './6842341930685658330.glb',
-            './6851268443831277502.glb',
-            './7062840423830520603.glb',
-            './7413598465746914517.glb'
+            './1620000625477528222.vrm',
+            './247388737517495633.vrm',
+            './3477026897357566765.vrm',
+            './4141371705774241586.vrm',
+            './5664079130297924007.vrm',
+            './6395041283196423502.vrm',
+            './6842341930685658330.vrm',
+            './6851268443831277502.vrm',
+            './7062840423830520603.vrm',
+            './7413598465746914517.vrm'
         ];
 
         function loadReadyPlayerMeAvatar(index) {
@@ -844,42 +846,40 @@
             avatarGroup = new THREE.Group();
             const color = avatarColors[index];
             
-            const loader = new THREE.GLTFLoader();
             const url = localAvatars[index];
             
-            updateStatus('CARGANDO AVATAR...');
+            updateStatus('CARGANDO AVATAR VRM...');
+            
+            // Usar VRMLoader específico para archivos VRoid
+            const loader = new THREE.VRMLoader();
             
             loader.load(url, 
-                (gltf) => {
-                    currentGLTF = gltf;
-                    const model = gltf.scene;
+                (vrm) => {
+                    currentGLTF = vrm;
+                    const model = vrm.scene;
+                    loadedModel = model;
                     
-                    // Scale and position
-                    model.scale.set(1.2, 1.2, 1.2);
-                    model.position.y = 0.1;
+                    // Scale and position para VRM
+                    model.scale.set(0.8, 0.8, 0.8);
+                    model.position.y = -0.8;
                     
-                    // Center the model
-                    const box = new THREE.Box3().setFromObject(model);
-                    const center = box.getCenter(new THREE.Vector3());
-                    model.position.x = -center.x;
-                    model.position.z = -center.z;
+                    // Rotate to face camera
+                    model.rotation.y = Math.PI;
                     
                     // Apply hologram glow effect
                     model.traverse((child) => {
-                        if (child.isMesh) {
+                        if (child.isMesh && child.material) {
                             child.material.emissive = new THREE.Color(color);
-                            child.material.emissiveIntensity = 0.3;
+                            child.material.emissiveIntensity = 0.2;
                         }
                     });
                     
                     avatarGroup.add(model);
                     
-                    // Setup animations if available
-                    if (gltf.animations && gltf.animations.length > 0) {
-                        mixer = new THREE.AnimationMixer(model);
-                        avatarAnimations = gltf.animations;
-                        const idleAction = mixer.clipAction(gltf.animations[0]);
-                        idleAction.play();
+                    // Setup VRM animations (blendshape/morph)
+                    if (vrm.blendShapeProxy) {
+                        // VRM tiene blendshapes para expresiones faciales
+                        console.log('VRM blendshapes loaded');
                     }
                     
                     createBase(color);
@@ -895,8 +895,8 @@
                     updateStatus('CARGANDO: ' + percent + '%');
                 },
                 (error) => {
-                    console.error('Error loading avatar:', error);
-                    updateStatus('ERROR - USANDO PLACEHOLDER');
+                    console.error('Error loading VRM avatar:', error);
+                    updateStatus('ERROR VRM - USANDO PLACEHOLDER');
                     createPlaceholderAvatar(index);
                 }
             );

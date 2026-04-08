@@ -20,6 +20,10 @@
       "dest": "/api/$1"
     },
     {
+      "src": "/(.*\\.(vrm|glb|gltf|fbx|png|jpg|jpeg|gif|svg|css|js|woff|woff2|ttf|json))",
+      "dest": "/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/ava.html"
     }
