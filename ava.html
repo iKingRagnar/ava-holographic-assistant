@@ -597,7 +597,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
     <!-- VRM Loader for VRoid models -->
-    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.9/lib/three-vrm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.11/lib/three-vrm.js"></script>
 
     <script>
         // ==========================================
@@ -649,25 +649,23 @@
             });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            // Requerido por MToon (shader de VRM/VRoid)
+            // sRGBEncoding requerido por MToon shader de VRM
             renderer.outputEncoding = THREE.sRGBEncoding;
-            renderer.physicallyCorrectLights = true;
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.2;
+            // IMPORTANTE: physicallyCorrectLights=true causa shader error con three-vrm 0.6.x + r128
 
-            // Luces optimizadas para VRM
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            // Luces optimizadas para VRM (sin physicallyCorrectLights)
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
             scene.add(ambientLight);
 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
             dirLight.position.set(1, 2, 2);
             scene.add(dirLight);
 
-            const dirLight2 = new THREE.DirectionalLight(0xaaddff, 0.4);
+            const dirLight2 = new THREE.DirectionalLight(0xaaddff, 0.5);
             dirLight2.position.set(-1, 1, -1);
             scene.add(dirLight2);
 
-            const pointLight = new THREE.PointLight(0x00ff9d, 0.3, 10);
+            const pointLight = new THREE.PointLight(0x00ff9d, 0.2, 10);
             pointLight.position.set(0, 3, 2);
             scene.add(pointLight);
 
