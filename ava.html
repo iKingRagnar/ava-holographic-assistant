@@ -827,18 +827,19 @@
         let currentGLTF = null;
         let avatarAnimations = null;
 
-        // VRoid Local Models (.vrm format)
+        // VRoid Models served from GitHub raw
+        const GITHUB_RAW = 'https://raw.githubusercontent.com/iKingRagnar/ava-holographic-assistant/main/public/';
         const localAvatars = [
-            './1620000625477528222.vrm',
-            './247388737517495633.vrm',
-            './3477026897357566765.vrm',
-            './4141371705774241586.vrm',
-            './5664079130297924007.vrm',
-            './6395041283196423502.vrm',
-            './6842341930685658330.vrm',
-            './6851268443831277502.vrm',
-            './7062840423830520603.vrm',
-            './7413598465746914517.vrm'
+            GITHUB_RAW + '1620000625477528222.vrm',
+            GITHUB_RAW + '247388737517495633.vrm',
+            GITHUB_RAW + '3477026897357566765.vrm',
+            GITHUB_RAW + '4141371705774241586.vrm',
+            GITHUB_RAW + '5664079130297924007.vrm',
+            GITHUB_RAW + '6395041283196423502.vrm',
+            GITHUB_RAW + '6842341930685658330.vrm',
+            GITHUB_RAW + '6851268443831277502.vrm',
+            GITHUB_RAW + '7062840423830520603.vrm',
+            GITHUB_RAW + '7413598465746914517.vrm'
         ];
 
         function loadReadyPlayerMeAvatar(index) {
