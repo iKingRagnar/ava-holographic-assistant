@@ -850,45 +850,48 @@
             
             updateStatus('CARGANDO AVATAR VRM...');
             
-            // Usar VRMLoader específico para archivos VRoid
-            const loader = new THREE.VRMLoader();
+            // Usar GLTFLoader + VRM.from() para archivos VRoid
+            const loader = new THREE.GLTFLoader();
             
             loader.load(url, 
-                (vrm) => {
-                    currentGLTF = vrm;
-                    const model = vrm.scene;
-                    loadedModel = model;
-                    
-                    // Scale and position para VRM
-                    model.scale.set(0.8, 0.8, 0.8);
-                    model.position.y = -0.8;
-                    
-                    // Rotate to face camera
-                    model.rotation.y = Math.PI;
-                    
-                    // Apply hologram glow effect
-                    model.traverse((child) => {
-                        if (child.isMesh && child.material) {
-                            child.material.emissive = new THREE.Color(color);
-                            child.material.emissiveIntensity = 0.2;
+                (gltf) => {
+                    // Convertir GLTF a VRM usando three-vrm
+                    THREE.VRM.from(gltf).then((vrm) => {
+                        currentGLTF = vrm;
+                        const model = vrm.scene;
+                        loadedModel = model;
+                        
+                        // Scale and position para VRM
+                        model.scale.set(0.8, 0.8, 0.8);
+                        model.position.y = -0.8;
+                        
+                        // Rotate to face camera
+                        model.rotation.y = Math.PI;
+                        
+                        // Apply hologram glow effect
+                        model.traverse((child) => {
+                            if (child.isMesh && child.material) {
+                                child.material.emissive = new THREE.Color(color);
+                                child.material.emissiveIntensity = 0.2;
+                            }
+                        });
+                        
+                        avatarGroup.add(model);
+                        
+                        // Setup VRM animations (blendshape/morph)
+                        if (vrm.blendShapeProxy) {
+                            // VRM tiene blendshapes para expresiones faciales
+                            console.log('VRM blendshapes loaded');
                         }
+                        
+                        createBase(color);
+                        createParticles(color);
+                        scene.add(avatarGroup);
+                        avatar = avatarGroup;
+                        
+                        updateBranding();
+                        updateStatus('LISTA');
                     });
-                    
-                    avatarGroup.add(model);
-                    
-                    // Setup VRM animations (blendshape/morph)
-                    if (vrm.blendShapeProxy) {
-                        // VRM tiene blendshapes para expresiones faciales
-                        console.log('VRM blendshapes loaded');
-                    }
-                    
-                    createBase(color);
-                    createParticles(color);
-                    scene.add(avatarGroup);
-                    avatar = avatarGroup;
-                    
-                    updateBranding();
-                    updateStatus('LISTA');
                 },
                 (progress) => {
                     const percent = Math.round((progress.loaded / progress.total) * 100);
