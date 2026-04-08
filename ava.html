@@ -404,6 +404,45 @@
             font-size: 10px;
             z-index: 50;
         }
+
+        /* Avatar selector */
+        .avatar-selector {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 60;
+        }
+
+        .avatar-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .avatar-dot:hover {
+            transform: scale(1.3);
+        }
+
+        .avatar-dot.active {
+            box-shadow: 0 0 15px currentColor;
+            border-color: #fff;
+            transform: scale(1.2);
+        }
+
+        .avatar-hint {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            color: rgba(0, 255, 157, 0.3);
+            font-size: 10px;
+            z-index: 50;
+        }
     </style>
 </head>
 <body>
@@ -445,8 +484,19 @@
         <input type="text" class="text-input" id="text-input" placeholder="Escribe tu mensaje y presiona Enter...">
     </div>
 
+    <!-- Avatar selector -->
+    <div class="avatar-selector" id="avatar-selector">
+        <div class="avatar-dot active" data-avatar="0" style="background: #00ff9d;" title="AVA - Serene"></div>
+        <div class="avatar-dot" data-avatar="1" style="background: #ff69b4;" title="KIRA - Anime"></div>
+        <div class="avatar-dot" data-avatar="2" style="background: #ff3333;" title="ZANE - Warrior"></div>
+        <div class="avatar-dot" data-avatar="3" style="background: #00aaff;" title="FAKER - Pro"></div>
+        <div class="avatar-dot" data-avatar="4" style="background: #aa66ff;" title="SAO - Executive"></div>
+        <div class="avatar-dot" data-avatar="5" style="background: #ffaa00;" title="NEON - Cyber"></div>
+    </div>
+
     <!-- Test mode hint -->
-    <div class="test-mode-hint">Presiona T para modo texto</div>
+    <div class="test-mode-hint">T:texto | 1-6:avatar | N:next</div>
+    <div class="avatar-hint">AVA v1.0</div>
 
     <!-- Config overlay -->
     <div class="config-overlay" id="config-overlay">
@@ -536,77 +586,46 @@
             animate();
         }
 
-        function createAvatar() {
-            avatarGroup = new THREE.Group();
+        // ==========================================
+        // 6 AVATAR STYLES - PROJECT AVA INSPIRED
+        // ==========================================
+        let currentAvatarStyle = 0;
+        const avatarNames = ['AVA', 'KIRA', 'ZANE', 'FAKER', 'SAO', 'NEON'];
+        const avatarColors = [0x00ff9d, 0xff69b4, 0xff3333, 0x00aaff, 0xaa66ff, 0xffaa00];
 
-            // Material holográfico
-            const holographicMaterial = new THREE.MeshStandardMaterial({
-                color: 0x00ff9d,
-                emissive: 0x00ff9d,
+        function createMaterial(color) {
+            return new THREE.MeshStandardMaterial({
+                color: color,
+                emissive: color,
                 emissiveIntensity: 0.5,
                 transparent: true,
                 opacity: 0.9,
                 roughness: 0.2,
                 metalness: 0.8
             });
+        }
 
-            const wireframeMaterial = new THREE.MeshBasicMaterial({
-                color: 0x00ff9d,
+        function createWireframe(color) {
+            return new THREE.MeshBasicMaterial({
+                color: color,
                 wireframe: true,
                 transparent: true,
                 opacity: 0.3
             });
+        }
 
-            // Head
-            const headGeo = new THREE.SphereGeometry(0.25, 16, 16);
-            const head = new THREE.Mesh(headGeo, holographicMaterial);
-            head.position.y = 1.6;
-            avatarGroup.add(head);
+        function clearAvatar() {
+            if (avatarGroup) {
+                scene.remove(avatarGroup);
+                particles = [];
+            }
+            avatarGroup = new THREE.Group();
+        }
 
-            const headWire = new THREE.Mesh(headGeo, wireframeMaterial);
-            headWire.position.y = 1.6;
-            headWire.scale.set(1.05, 1.05, 1.05);
-            avatarGroup.add(headWire);
-
-            // Torso
-            const torsoGeo = new THREE.CylinderGeometry(0.2, 0.15, 0.6, 12);
-            const torso = new THREE.Mesh(torsoGeo, holographicMaterial);
-            torso.position.y = 1.1;
-            avatarGroup.add(torso);
-
-            const torsoWire = new THREE.Mesh(torsoGeo, wireframeMaterial);
-            torsoWire.position.y = 1.1;
-            torsoWire.scale.set(1.05, 1.02, 1.05);
-            avatarGroup.add(torsoWire);
-
-            // Shoulders
-            const shoulderGeo = new THREE.SphereGeometry(0.15, 12, 12);
-            
-            const leftShoulder = new THREE.Mesh(shoulderGeo, holographicMaterial);
-            leftShoulder.position.set(-0.35, 1.3, 0);
-            avatarGroup.add(leftShoulder);
-
-            const rightShoulder = new THREE.Mesh(shoulderGeo, holographicMaterial);
-            rightShoulder.position.set(0.35, 1.3, 0);
-            avatarGroup.add(rightShoulder);
-
-            // Arms
-            const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.5, 8);
-            
-            const leftArm = new THREE.Mesh(armGeo, holographicMaterial);
-            leftArm.position.set(-0.45, 0.9, 0);
-            leftArm.rotation.z = 0.1;
-            avatarGroup.add(leftArm);
-
-            const rightArm = new THREE.Mesh(armGeo, holographicMaterial);
-            rightArm.position.set(0.45, 0.9, 0);
-            rightArm.rotation.z = -0.1;
-            avatarGroup.add(rightArm);
-
-            // Base platform
+        function createBase(color) {
             const baseGeo = new THREE.CylinderGeometry(0.8, 0.9, 0.1, 32);
             const baseMat = new THREE.MeshBasicMaterial({
-                color: 0x00ff9d,
+                color: color,
                 transparent: true,
                 opacity: 0.2,
                 wireframe: true
@@ -614,12 +633,13 @@
             const base = new THREE.Mesh(baseGeo, baseMat);
             base.position.y = -0.05;
             avatarGroup.add(base);
+        }
 
-            // Floating particles around avatar
+        function createParticles(color) {
             for (let i = 0; i < 20; i++) {
                 const particleGeo = new THREE.SphereGeometry(0.02, 8, 8);
                 const particleMat = new THREE.MeshBasicMaterial({
-                    color: 0x00ff9d,
+                    color: color,
                     transparent: true,
                     opacity: 0.6
                 });
@@ -647,9 +667,361 @@
                 avatarGroup.add(particle);
                 particles.push(particle);
             }
+        }
 
+        // AVA - Serene Energy (Default)
+        function createAVA() {
+            clearAvatar();
+            const color = avatarColors[0];
+            const mat = createMaterial(color);
+            const wire = createWireframe(color);
+            
+            // Elegant head
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), mat);
+            head.position.y = 1.6;
+            avatarGroup.add(head);
+            avatarGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), wire).position.set(0, 1.6, 0).scale.set(1.05, 1.05, 1.05));
+            
+            // Flowing body
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 0.65, 12), mat);
+            torso.position.y = 1.05;
+            avatarGroup.add(torso);
+            
+            // Graceful arms
+            const armGeo = new THREE.CylinderGeometry(0.05, 0.04, 0.55, 8);
+            const leftArm = new THREE.Mesh(armGeo, mat);
+            leftArm.position.set(-0.42, 0.85, 0);
+            leftArm.rotation.z = 0.15;
+            avatarGroup.add(leftArm);
+            
+            const rightArm = new THREE.Mesh(armGeo, mat);
+            rightArm.position.set(0.42, 0.85, 0);
+            rightArm.rotation.z = -0.15;
+            avatarGroup.add(rightArm);
+            
+            createBase(color);
+            createParticles(color);
             scene.add(avatarGroup);
             avatar = avatarGroup;
+            updateBranding();
+        }
+
+        // KIRA - Anime Gamer Girl
+        function createKIRA() {
+            clearAvatar();
+            const color = avatarColors[1];
+            const mat = createMaterial(color);
+            const wire = createWireframe(color);
+            
+            // Cute head with cat ears
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 16), mat);
+            head.position.y = 1.58;
+            avatarGroup.add(head);
+            
+            // Cat ears
+            const earGeo = new THREE.ConeGeometry(0.06, 0.15, 8);
+            const leftEar = new THREE.Mesh(earGeo, mat);
+            leftEar.position.set(-0.15, 1.78, 0);
+            leftEar.rotation.z = 0.3;
+            avatarGroup.add(leftEar);
+            
+            const rightEar = new THREE.Mesh(earGeo, mat);
+            rightEar.position.set(0.15, 1.78, 0);
+            rightEar.rotation.z = -0.3;
+            avatarGroup.add(rightEar);
+            
+            // Gamer headset
+            const headsetGeo = new THREE.TorusGeometry(0.28, 0.03, 8, 16, Math.PI);
+            const headset = new THREE.Mesh(headsetGeo, wire);
+            headset.position.y = 1.6;
+            avatarGroup.add(headset);
+            
+            // Slim body with gaming jacket
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.14, 0.6, 10), mat);
+            torso.position.y = 1.0;
+            avatarGroup.add(torso);
+            
+            // Gaming jacket details
+            const jacket = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.25), wire);
+            jacket.position.set(0, 1.1, 0);
+            avatarGroup.add(jacket);
+            
+            // Dynamic pose arms
+            const armGeo = new THREE.CylinderGeometry(0.04, 0.03, 0.5, 8);
+            const leftArm = new THREE.Mesh(armGeo, mat);
+            leftArm.position.set(-0.38, 0.9, 0.1);
+            leftArm.rotation.z = 0.2;
+            leftArm.rotation.x = -0.1;
+            avatarGroup.add(leftArm);
+            
+            const rightArm = new THREE.Mesh(armGeo, mat);
+            rightArm.position.set(0.38, 0.9, 0.1);
+            rightArm.rotation.z = -0.2;
+            rightArm.rotation.x = -0.1;
+            avatarGroup.add(rightArm);
+            
+            createBase(color);
+            createParticles(color);
+            scene.add(avatarGroup);
+            avatar = avatarGroup;
+            updateBranding();
+        }
+
+        // ZANE - Rugged Gaming Warrior
+        function createZANE() {
+            clearAvatar();
+            const color = avatarColors[2];
+            const mat = createMaterial(color);
+            const wire = createWireframe(color);
+            
+            // Strong angular head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.3), mat);
+            head.position.y = 1.65;
+            avatarGroup.add(head);
+            
+            // Beard
+            const beard = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.12, 0.15), wire);
+            beard.position.set(0, 1.48, 0.1);
+            avatarGroup.add(beard);
+            
+            // Tactical visor
+            const visor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.02), mat);
+            visor.position.set(0, 1.68, 0.16);
+            avatarGroup.add(visor);
+            
+            // Muscular torso
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.7, 8), mat);
+            torso.position.y = 1.05;
+            avatarGroup.add(torso);
+            
+            // Armor plates
+            const chest = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.2), wire);
+            chest.position.set(0, 1.15, 0.1);
+            avatarGroup.add(chest);
+            
+            // Powerful arms
+            const armGeo = new THREE.CylinderGeometry(0.09, 0.07, 0.55, 8);
+            const leftArm = new THREE.Mesh(armGeo, mat);
+            leftArm.position.set(-0.5, 0.85, 0);
+            leftArm.rotation.z = 0.1;
+            avatarGroup.add(leftArm);
+            
+            const rightArm = new THREE.Mesh(armGeo, mat);
+            rightArm.position.set(0.5, 0.85, 0);
+            rightArm.rotation.z = -0.1;
+            avatarGroup.add(rightArm);
+            
+            createBase(color);
+            createParticles(color);
+            scene.add(avatarGroup);
+            avatar = avatarGroup;
+            updateBranding();
+        }
+
+        // FAKER - Pro Gamer
+        function createFAKER() {
+            clearAvatar();
+            const color = avatarColors[3];
+            const mat = createMaterial(color);
+            const wire = createWireframe(color);
+            
+            // Sharp head
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), mat);
+            head.position.y = 1.62;
+            head.scale.set(1, 1.1, 0.95);
+            avatarGroup.add(head);
+            
+            // Glasses
+            const glassesGeo = new THREE.BoxGeometry(0.28, 0.06, 0.08);
+            const glasses = new THREE.Mesh(glassesGeo, wire);
+            glasses.position.set(0, 1.62, 0.18);
+            avatarGroup.add(glasses);
+            
+            // Esports jersey
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.18, 0.62, 6), mat);
+            torso.position.y = 1.08;
+            avatarGroup.add(torso);
+            
+            // Jersey stripes
+            const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.15, 0.3), wire);
+            stripe.position.set(0, 1.2, 0);
+            avatarGroup.add(stripe);
+            
+            // Pro gamer pose
+            const armGeo = new THREE.CylinderGeometry(0.055, 0.045, 0.52, 8);
+            const leftArm = new THREE.Mesh(armGeo, mat);
+            leftArm.position.set(-0.44, 0.88, 0);
+            leftArm.rotation.z = 0.12;
+            avatarGroup.add(leftArm);
+            
+            const rightArm = new THREE.Mesh(armGeo, mat);
+            rightArm.position.set(0.44, 0.88, 0);
+            rightArm.rotation.z = -0.12;
+            avatarGroup.add(rightArm);
+            
+            createBase(color);
+            createParticles(color);
+            scene.add(avatarGroup);
+            avatar = avatarGroup;
+            updateBranding();
+        }
+
+        // SAO - Professional Executive
+        function createSAO() {
+            clearAvatar();
+            const color = avatarColors[4];
+            const mat = createMaterial(color);
+            const wire = createWireframe(color);
+            
+            // Refined head
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 14), mat);
+            head.position.y = 1.65;
+            head.scale.set(0.95, 1.05, 0.95);
+            avatarGroup.add(head);
+            
+            // Professional glasses
+            const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.06), wire);
+            glasses.position.set(0, 1.64, 0.16);
+            avatarGroup.add(glasses);
+            
+            // Business suit
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.16, 0.65, 8), mat);
+            torso.position.y = 1.08;
+            avatarGroup.add(torso);
+            
+            // Suit jacket
+            const jacket = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.55, 0.28), wire);
+            jacket.position.set(0, 1.1, 0);
+            avatarGroup.add(jacket);
+            
+            // Tie
+            const tie = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.02), mat);
+            tie.position.set(0, 1.15, 0.15);
+            avatarGroup.add(tie);
+            
+            // Professional arms
+            const armGeo = new THREE.CylinderGeometry(0.05, 0.04, 0.52, 8);
+            const leftArm = new THREE.Mesh(armGeo, mat);
+            leftArm.position.set(-0.42, 0.87, 0);
+            leftArm.rotation.z = 0.08;
+            avatarGroup.add(leftArm);
+            
+            const rightArm = new THREE.Mesh(armGeo, mat);
+            rightArm.position.set(0.42, 0.87, 0);
+            rightArm.rotation.z = -0.08;
+            avatarGroup.add(rightArm);
+            
+            createBase(color);
+            createParticles(color);
+            scene.add(avatarGroup);
+            avatar = avatarGroup;
+            updateBranding();
+        }
+
+        // NEON - Cyberpunk Hacker
+        function createNEON() {
+            clearAvatar();
+            const color = avatarColors[5];
+            const mat = createMaterial(color);
+            const wire = createWireframe(color);
+            
+            // Masked head
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), mat);
+            head.position.y = 1.6;
+            avatarGroup.add(head);
+            
+            // Cyber mask
+            const mask = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.18), wire);
+            mask.position.set(0, 1.6, 0.1);
+            avatarGroup.add(mask);
+            
+            // Glowing eyes
+            const eyeGeo = new THREE.SphereGeometry(0.04, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2 });
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.08, 1.62, 0.22);
+            avatarGroup.add(leftEye);
+            
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.08, 1.62, 0.22);
+            avatarGroup.add(rightEye);
+            
+            // Hoodie body
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.2, 0.68, 10), mat);
+            torso.position.y = 1.02;
+            avatarGroup.add(torso);
+            
+            // Hood
+            const hood = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.06, 8, 16, Math.PI * 1.3), wire);
+            hood.position.set(0, 1.7, 0);
+            hood.rotation.z = Math.PI / 2 + 0.15;
+            avatarGroup.add(hood);
+            
+            // Tech arms
+            const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.5, 8);
+            const leftArm = new THREE.Mesh(armGeo, mat);
+            leftArm.position.set(-0.46, 0.85, 0);
+            leftArm.rotation.z = 0.15;
+            avatarGroup.add(leftArm);
+            
+            const rightArm = new THREE.Mesh(armGeo, mat);
+            rightArm.position.set(0.46, 0.85, 0);
+            rightArm.rotation.z = -0.15;
+            avatarGroup.add(rightArm);
+            
+            // Data stream particles
+            for (let i = 0; i < 15; i++) {
+                const bitGeo = new THREE.BoxGeometry(0.02, 0.02, 0.02);
+                const bit = new THREE.Mesh(bitGeo, eyeMat);
+                bit.position.set(
+                    (Math.random() - 0.5) * 1.2,
+                    0.3 + Math.random() * 1.5,
+                    (Math.random() - 0.5) * 0.8
+                );
+                avatarGroup.add(bit);
+            }
+            
+            createBase(color);
+            createParticles(color);
+            scene.add(avatarGroup);
+            avatar = avatarGroup;
+            updateBranding();
+        }
+
+        function updateBranding() {
+            const branding = document.querySelector('.branding');
+            if (branding) {
+                branding.textContent = avatarNames[currentAvatarStyle].split('').join(' ');
+                branding.style.color = '#' + avatarColors[currentAvatarStyle].toString(16).padStart(6, '0');
+            }
+            
+            // Update avatar selector dots
+            const dots = document.querySelectorAll('.avatar-dot');
+            dots.forEach((dot, index) => {
+                if (index === currentAvatarStyle) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+        }
+
+        function createAvatar(style = 0) {
+            currentAvatarStyle = style;
+            switch(style) {
+                case 0: createAVA(); break;
+                case 1: createKIRA(); break;
+                case 2: createZANE(); break;
+                case 3: createFAKER(); break;
+                case 4: createSAO(); break;
+                case 5: createNEON(); break;
+                default: createAVA();
+            }
+        }
+
+        function nextAvatar() {
+            currentAvatarStyle = (currentAvatarStyle + 1) % 6;
+            createAvatar(currentAvatarStyle);
         }
 
         function animate() {
@@ -1150,6 +1522,17 @@
                 toggleMic();
             });
 
+            // Avatar selector clicks
+            document.querySelectorAll('.avatar-dot').forEach((dot, index) => {
+                dot.addEventListener('click', () => {
+                    createAvatar(index);
+                    updateStatus('AVATAR: ' + avatarNames[index]);
+                    setTimeout(() => {
+                        if (state === 'IDLE') updateStatus('LISTA');
+                    }, 1500);
+                });
+            });
+
             document.getElementById('activate-btn').addEventListener('click', saveConfig);
 
             // Keyboard shortcut (Space)
@@ -1183,6 +1566,27 @@
                 if (e.ctrlKey && e.key === 'r') {
                     e.preventDefault();
                     resetConfig();
+                }
+
+                // Avatar selection with keys 1-6
+                if (e.key >= '1' && e.key <= '6' && !e.ctrlKey) {
+                    e.preventDefault();
+                    const avatarIndex = parseInt(e.key) - 1;
+                    createAvatar(avatarIndex);
+                    updateStatus('AVATAR: ' + avatarNames[avatarIndex]);
+                    setTimeout(() => {
+                        if (state === 'IDLE') updateStatus('LISTA');
+                    }, 1500);
+                }
+
+                // Next avatar with N
+                if (e.key === 'n' && !e.ctrlKey) {
+                    e.preventDefault();
+                    nextAvatar();
+                    updateStatus('AVATAR: ' + avatarNames[currentAvatarStyle]);
+                    setTimeout(() => {
+                        if (state === 'IDLE') updateStatus('LISTA');
+                    }, 1500);
                 }
             });
 
