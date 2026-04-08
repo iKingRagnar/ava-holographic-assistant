@@ -1,0 +1,13 @@
+{
+  "name": "ava-holographic-assistant",
+  "version": "1.0.0",
+  "description": "AVA - Asistente holográfico con OpenRouter backend",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vercel": "latest"
+  }
+}
