@@ -739,8 +739,34 @@
 
             recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
-                updateStatus('Error: ' + event.error);
+                let errorMsg = 'ERROR';
+                
+                switch(event.error) {
+                    case 'no-speech':
+                        errorMsg = 'NO SE DETECTÓ VOZ';
+                        break;
+                    case 'audio-capture':
+                        errorMsg = 'SIN MICRÓFONO';
+                        break;
+                    case 'not-allowed':
+                        errorMsg = 'PERMISO DENEGADO';
+                        break;
+                    case 'network':
+                        errorMsg = 'ERROR DE RED';
+                        break;
+                    default:
+                        errorMsg = 'ERROR: ' + event.error;
+                }
+                
+                updateStatus(errorMsg);
                 setState('IDLE');
+                
+                // Auto-reset después de 2 segundos
+                setTimeout(() => {
+                    if (state === 'IDLE') {
+                        updateStatus('LISTA');
+                    }
+                }, 2000);
             };
 
             recognition.onend = () => {
