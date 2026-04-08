@@ -880,6 +880,25 @@
                         currentVRM = vrm;
                         loadedModel = model;
 
+                        // Convertir MToon a MeshBasicMaterial para evitar shader errors con r128
+                        model.traverse((obj) => {
+                            if (obj.isMesh) {
+                                const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                                const newMats = mats.map(mat => {
+                                    const tex = (mat.uniforms && mat.uniforms.mainTex) ? mat.uniforms.mainTex.value : (mat.map || null);
+                                    const alpha = (mat.uniforms && mat.uniforms.cutoff) ? mat.uniforms.cutoff.value : (mat.alphaTest || 0);
+                                    return new THREE.MeshBasicMaterial({
+                                        map: tex,
+                                        transparent: mat.transparent || false,
+                                        opacity: mat.opacity !== undefined ? mat.opacity : 1.0,
+                                        side: mat.side !== undefined ? mat.side : THREE.FrontSide,
+                                        alphaTest: alpha,
+                                    });
+                                });
+                                obj.material = Array.isArray(obj.material) ? newMats : newMats[0];
+                            }
+                        });
+
                         avatarGroup.add(model);
                         createBase(color);
                         createParticles(color);
@@ -1704,12 +1723,8 @@
                 showConfig();
             }
 
-            // Load GLB avatar if URL is saved
-            if (GLB_URL) {
-                loadAvatar(GLB_URL);
-                // Pre-fill the GLB URL input
-                document.getElementById('glb-url-input').value = GLB_URL;
-            }
+            // Limpiar GLB URL obsoleto de localStorage
+            localStorage.removeItem('ava_glb_url');
 
             // Event listeners
             document.getElementById('mic-button').addEventListener('click', toggleMic);
