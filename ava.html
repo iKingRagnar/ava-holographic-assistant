@@ -675,36 +675,163 @@
             const color = avatarColors[0];
             const mat = createMaterial(color);
             const wire = createWireframe(color);
+            const glowMat = new THREE.MeshStandardMaterial({
+                color: color,
+                emissive: color,
+                emissiveIntensity: 0.8,
+                transparent: true,
+                opacity: 0.95
+            });
             
-            // Elegant head
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), mat);
-            head.position.y = 1.6;
-            avatarGroup.add(head);
-            const headWire = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), wire);
-            headWire.position.set(0, 1.6, 0);
-            headWire.scale.set(1.05, 1.05, 1.05);
-            avatarGroup.add(headWire);
+            // === HEAD GROUP ===
+            const headGroup = new THREE.Group();
+            headGroup.position.y = 1.65;
             
-            // Flowing body
-            const torsoWire = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.08, 0.65, 12), wire);
-            torsoWire.position.set(0, 1.05, 0);
-            torsoWire.scale.set(1.02, 1.01, 1.02);
-            avatarGroup.add(torsoWire);
-            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 0.65, 12), mat);
-            torso.position.set(0, 1.05, 0);
-            avatarGroup.add(torso);
+            // Face - oval shape
+            const headGeo = new THREE.SphereGeometry(0.22, 32, 32);
+            headGeo.scale(1, 1.15, 0.95);
+            const head = new THREE.Mesh(headGeo, mat);
+            headGroup.add(head);
             
-            // Graceful arms
-            const armGeo = new THREE.CylinderGeometry(0.05, 0.04, 0.55, 8);
+            // Hair - styled swept back
+            const hairMat = new THREE.MeshStandardMaterial({
+                color: 0xffdd88,
+                emissive: 0xffcc66,
+                emissiveIntensity: 0.3,
+                roughness: 0.4
+            });
+            
+            // Main hair volume
+            const hairGeo = new THREE.SphereGeometry(0.24, 24, 24, 0, Math.PI * 2, 0, Math.PI * 0.6);
+            const hair = new THREE.Mesh(hairGeo, hairMat);
+            hair.position.y = 0.08;
+            hair.rotation.x = -0.3;
+            hair.scale.set(1.05, 1, 1.1);
+            headGroup.add(hair);
+            
+            // Hair strands/swept back
+            for (let i = 0; i < 5; i++) {
+                const strandGeo = new THREE.CapsuleGeometry(0.03, 0.25, 4, 8);
+                const strand = new THREE.Mesh(strandGeo, hairMat);
+                const angle = (i - 2) * 0.4;
+                strand.position.set(Math.sin(angle) * 0.2, 0.15, -0.15 - Math.abs(i-2)*0.05);
+                strand.rotation.x = -0.8 - Math.random() * 0.3;
+                strand.rotation.z = angle * 0.5;
+                headGroup.add(strand);
+            }
+            
+            // Face wireframe overlay
+            const headWire = new THREE.Mesh(headGeo, wire);
+            headWire.scale.set(1.02, 1.02, 1.02);
+            headGroup.add(headWire);
+            
+            // Eyes - glowing
+            const eyeGeo = new THREE.SphereGeometry(0.035, 16, 16);
+            const eyeMat = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                emissive: color,
+                emissiveIntensity: 1.5
+            });
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.08, 0.02, 0.18);
+            headGroup.add(leftEye);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.08, 0.02, 0.18);
+            headGroup.add(rightEye);
+            
+            // Smile
+            const smileGeo = new THREE.TorusGeometry(0.06, 0.008, 8, 16, Math.PI);
+            const smile = new THREE.Mesh(smileGeo, glowMat);
+            smile.position.set(0, -0.08, 0.19);
+            smile.rotation.x = 0.2;
+            headGroup.add(smile);
+            
+            avatarGroup.add(headGroup);
+            
+            // === BODY ===
+            const bodyGroup = new THREE.Group();
+            
+            // Neck
+            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.2, 16), mat);
+            neck.position.y = 1.45;
+            avatarGroup.add(neck);
+            
+            // Torso - athletic fit with jacket
+            const torsoGeo = new THREE.CylinderGeometry(0.22, 0.18, 0.55, 16);
+            const torso = new THREE.Mesh(torsoGeo, mat);
+            torso.position.y = 1.15;
+            bodyGroup.add(torso);
+            
+            // Jacket/shirt details
+            const jacketGeo = new THREE.BoxGeometry(0.48, 0.5, 0.3);
+            const jacket = new THREE.Mesh(jacketGeo, wire);
+            jacket.position.y = 1.15;
+            bodyGroup.add(jacket);
+            
+            // Collar
+            const collarGeo = new THREE.TorusGeometry(0.12, 0.02, 8, 16, Math.PI * 1.5);
+            const collar = new THREE.Mesh(collarGeo, glowMat);
+            collar.position.set(0, 1.38, 0);
+            collar.rotation.x = 0.3;
+            collar.rotation.z = Math.PI * 0.75;
+            bodyGroup.add(collar);
+            
+            // Shoulders
+            const shoulderGeo = new THREE.SphereGeometry(0.14, 16, 16);
+            const leftShoulder = new THREE.Mesh(shoulderGeo, mat);
+            leftShoulder.position.set(-0.28, 1.32, 0);
+            bodyGroup.add(leftShoulder);
+            const rightShoulder = new THREE.Mesh(shoulderGeo, mat);
+            rightShoulder.position.set(0.28, 1.32, 0);
+            bodyGroup.add(rightShoulder);
+            
+            avatarGroup.add(bodyGroup);
+            
+            // === ARMS ===
+            // Left arm
+            const armGeo = new THREE.CylinderGeometry(0.055, 0.045, 0.45, 12);
             const leftArm = new THREE.Mesh(armGeo, mat);
-            leftArm.position.set(-0.42, 0.85, 0);
+            leftArm.position.set(-0.4, 1.0, 0);
             leftArm.rotation.z = 0.15;
             avatarGroup.add(leftArm);
             
+            // Left hand
+            const handGeo = new THREE.SphereGeometry(0.06, 12, 12);
+            const leftHand = new THREE.Mesh(handGeo, mat);
+            leftHand.position.set(-0.42, 0.75, 0.05);
+            avatarGroup.add(leftHand);
+            
+            // Right arm
             const rightArm = new THREE.Mesh(armGeo, mat);
-            rightArm.position.set(0.42, 0.85, 0);
+            rightArm.position.set(0.4, 1.0, 0);
             rightArm.rotation.z = -0.15;
             avatarGroup.add(rightArm);
+            
+            // Right hand
+            const rightHand = new THREE.Mesh(handGeo, mat);
+            rightHand.position.set(0.42, 0.75, 0.05);
+            avatarGroup.add(rightHand);
+            
+            // === LEGS ===
+            const legGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.6, 12);
+            
+            const leftLeg = new THREE.Mesh(legGeo, mat);
+            leftLeg.position.set(-0.12, 0.45, 0);
+            avatarGroup.add(leftLeg);
+            
+            const rightLeg = new THREE.Mesh(legGeo, mat);
+            rightLeg.position.set(0.12, 0.45, 0);
+            avatarGroup.add(rightLeg);
+            
+            // Shoes
+            const shoeGeo = new THREE.BoxGeometry(0.1, 0.08, 0.18);
+            const leftShoe = new THREE.Mesh(shoeGeo, glowMat);
+            leftShoe.position.set(-0.12, 0.12, 0.05);
+            avatarGroup.add(leftShoe);
+            
+            const rightShoe = new THREE.Mesh(shoeGeo, glowMat);
+            rightShoe.position.set(0.12, 0.12, 0.05);
+            avatarGroup.add(rightShoe);
             
             createBase(color);
             createParticles(color);
@@ -942,9 +1069,9 @@
             mask.position.set(0, 1.6, 0.1);
             avatarGroup.add(mask);
             
-            // Glowing eyes
+            // Glowing eyes - use standard material for emissive
             const eyeGeo = new THREE.SphereGeometry(0.04, 8, 8);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2 });
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2 });
             const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
             leftEye.position.set(-0.08, 1.62, 0.22);
             avatarGroup.add(leftEye);
