@@ -729,13 +729,27 @@
             hairBase.scale.set(1.02, 0.8, 1.05);
             headGroup.add(hairBase);
             
-            // Side swept hair detail
-            const hairSideGeo = new THREE.CapsuleGeometry(0.035, 0.3, 4, 8);
-            const hairSide = new THREE.Mesh(hairSideGeo, hairMat);
-            hairSide.position.set(0.15, 0.18, 0.1);
-            hairSide.rotation.z = -0.5;
-            hairSide.rotation.x = -0.3;
-            headGroup.add(hairSide);
+            // Side swept hair detail - using cylinder + spheres instead of capsule
+            const hairStrand = new THREE.Group();
+            const strandCenter = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.035, 0.035, 0.3, 8),
+                hairMat
+            );
+            const strandTop = new THREE.Mesh(
+                new THREE.SphereGeometry(0.035, 8, 8),
+                hairMat
+            );
+            strandTop.position.y = 0.15;
+            const strandBottom = new THREE.Mesh(
+                new THREE.SphereGeometry(0.035, 8, 8),
+                hairMat
+            );
+            strandBottom.position.y = -0.15;
+            hairStrand.add(strandCenter, strandTop, strandBottom);
+            hairStrand.position.set(0.15, 0.18, 0.1);
+            hairStrand.rotation.z = -0.5;
+            hairStrand.rotation.x = -0.3;
+            headGroup.add(hairStrand);
             
             // Small hair tuft
             const hairTuftGeo = new THREE.ConeGeometry(0.04, 0.12, 8);
