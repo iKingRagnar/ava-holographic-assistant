@@ -4,28 +4,18 @@
   "github": {
     "enabled": false
   },
-  "builds": [
+  "rewrites": [
     {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
     },
     {
-      "src": "ava.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "source": "/:path*.vrm",
+      "destination": "/public/:path*.vrm"
     },
     {
-      "src": "/(.*\\.(vrm|glb|gltf|fbx|png|jpg|jpeg|gif|svg|css|js|woff|woff2|ttf|json))",
-      "dest": "/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/ava.html"
+      "source": "/:path*",
+      "destination": "/ava.html"
     }
   ]
 }
