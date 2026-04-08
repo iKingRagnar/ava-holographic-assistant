@@ -32,9 +32,17 @@ Un asistente virtual holográfico inspirado en **Razer Project AVA**, diseñado 
 - Vitrina acrílica 12x12x24 cm con fondo negro
 - Tira LED RGB en la base (opcional)
 
-## 🚀 Instalación
+## 🚀 Repositorio
 
-### 1. Deploy Frontend (Vercel)
+**GitHub:** https://github.com/iKingRagnar/ava-holographic-assistant
+
+## 📦 Instalación
+
+### 1. Deploy en Vercel (Frontend + Backend)
+
+El proyecto incluye:
+- `ava.html` - Aplicación estática (frontend)
+- `api/chat.js` - Endpoint para OpenRouter (backend)
 
 Este es un proyecto estático, puedes deployarlo directamente:
 

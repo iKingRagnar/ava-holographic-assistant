@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "public": true,
+  "github": {
+    "enabled": false
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/ava.html"
+    }
+  ],
+  "env": {
+    "OPENROUTER_KEY": "@openrouter-key"
+  }
+}
