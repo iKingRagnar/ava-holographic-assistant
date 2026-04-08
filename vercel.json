@@ -1,10 +1,19 @@
 {
   "version": 2,
-  "name": "ava-holographic-assistant",
   "public": true,
   "github": {
     "enabled": false
   },
+  "builds": [
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "ava.html",
+      "use": "@vercel/static"
+    }
+  ],
   "routes": [
     {
       "src": "/api/(.*)",
