@@ -363,6 +363,47 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Text input for testing mode */
+        .text-input-container {
+            position: fixed;
+            bottom: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 55;
+            width: 80%;
+            max-width: 400px;
+            display: none;
+        }
+
+        .text-input-container.active {
+            display: block;
+        }
+
+        .text-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff9d;
+            border-radius: 25px;
+            color: #00ff9d;
+            font-size: 14px;
+            outline: none;
+            text-align: center;
+        }
+
+        .text-input::placeholder {
+            color: rgba(0, 255, 157, 0.5);
+        }
+
+        .test-mode-hint {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            color: rgba(0, 255, 157, 0.3);
+            font-size: 10px;
+            z-index: 50;
+        }
     </style>
 </head>
 <body>
@@ -398,6 +439,14 @@
             <path d="M6 6h12v12H6z"/>
         </svg>
     </div>
+
+    <!-- Text input for testing mode (press T) -->
+    <div class="text-input-container" id="text-input-container">
+        <input type="text" class="text-input" id="text-input" placeholder="Escribe tu mensaje y presiona Enter...">
+    </div>
+
+    <!-- Test mode hint -->
+    <div class="test-mode-hint">Presiona T para modo texto</div>
 
     <!-- Config overlay -->
     <div class="config-overlay" id="config-overlay">
@@ -708,6 +757,45 @@
         }
 
         // ==========================================
+        // MICROPHONE CHECK
+        // ==========================================
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let dataArray = null;
+
+        async function checkMicrophone() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Create audio context for visualization
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+                analyser.fftSize = 256;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                
+                console.log('Microphone access granted');
+                return true;
+            } catch (err) {
+                console.error('Microphone access denied:', err);
+                updateStatus('PERMISO DE MIC DENEGADO');
+                return false;
+            }
+        }
+
+        function getAudioLevel() {
+            if (!analyser) return 0;
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            return sum / dataArray.length;
+        }
+
+        // ==========================================
         // SPEECH RECOGNITION
         // ==========================================
         function initSpeechRecognition() {
@@ -722,12 +810,31 @@
             recognition.lang = 'es-MX';
             recognition.continuous = false;
             recognition.interimResults = true;
+            
+            // Increase sensitivity
+            recognition.maxAlternatives = 1;
 
             recognition.onstart = () => {
                 setState('LISTENING');
-                updateStatus('ESCUCHANDO...');
+                updateStatus('ESCUCHANDO... (habla ahora)');
                 document.getElementById('transcript').textContent = '';
+                
+                // Check audio levels during listening
+                checkAudioDuringListening();
             };
+            
+            function checkAudioDuringListening() {
+                if (state !== 'LISTENING') return;
+                
+                const level = getAudioLevel();
+                if (level > 10) {
+                    updateStatus('ESCUCHANDO... ✓');
+                }
+                
+                if (state === 'LISTENING') {
+                    requestAnimationFrame(checkAudioDuringListening);
+                }
+            }
 
             recognition.onresult = (event) => {
                 let transcript = '';
@@ -780,7 +887,7 @@
             };
         }
 
-        function toggleMic() {
+        async function toggleMic() {
             if (state === 'TALKING') {
                 stopSpeaking();
                 return;
@@ -793,11 +900,22 @@
                 return;
             }
 
+            // First check microphone access
+            updateStatus('VERIFICANDO MIC...');
+            const hasMic = await checkMicrophone();
+            
+            if (!hasMic) {
+                updateStatus('SIN ACCESO A MIC');
+                setTimeout(() => updateStatus('LISTA'), 3000);
+                return;
+            }
+
             if (recognition) {
                 try {
                     recognition.start();
                 } catch (e) {
                     console.error('Error starting recognition:', e);
+                    updateStatus('ERROR AL INICIAR');
                 }
             }
         }
@@ -1036,13 +1154,48 @@
 
             // Keyboard shortcut (Space)
             document.addEventListener('keydown', (e) => {
-                if (e.code === 'Space' && !e.repeat) {
+                const textContainer = document.getElementById('text-input-container');
+                const textInput = document.getElementById('text-input');
+
+                // Toggle text mode with T
+                if (e.key === 't' && !e.ctrlKey && !e.repeat && state !== 'TALKING') {
+                    e.preventDefault();
+                    textContainer.classList.toggle('active');
+                    if (textContainer.classList.contains('active')) {
+                        textInput.focus();
+                        updateStatus('MODO TEXTO');
+                    } else {
+                        updateStatus('LISTA');
+                    }
+                    return;
+                }
+
+                // Close text mode with Escape
+                if (e.key === 'Escape') {
+                    textContainer.classList.remove('active');
+                    if (state === 'IDLE') updateStatus('LISTA');
+                }
+
+                if (e.code === 'Space' && !e.repeat && !textContainer.classList.contains('active')) {
                     e.preventDefault();
                     toggleMic();
                 }
                 if (e.ctrlKey && e.key === 'r') {
                     e.preventDefault();
                     resetConfig();
+                }
+            });
+
+            // Text input handler
+            document.getElementById('text-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const text = e.target.value.trim();
+                    if (text) {
+                        document.getElementById('transcript').textContent = text;
+                        processMessage(text);
+                        e.target.value = '';
+                        document.getElementById('text-input-container').classList.remove('active');
+                    }
                 }
             });
 
