@@ -601,7 +601,7 @@
         // CONFIGURATION & STATE
         // ==========================================
         let config = {
-            apiUrl: localStorage.getItem('ava_api_url') || '',
+            apiUrl: localStorage.getItem('ava_api_url') || '/api/chat',
             systemPrompt: localStorage.getItem('ava_system_prompt') || `Eres un asistente holográfico ultrainteligente y autónomo. Tienes una personalidad vibrante, empática y directa. Respondes SIEMPRE en español mexicano. Eres como un compañero real: haces bromas, muestras emoción, curiosidad, entusiasmo. Tus respuestas son naturales, conversacionales, concisas (máx 3 oraciones para voz), pero profundas y útiles. Nunca rompes el personaje. Siempre estás "vivo" y presente. Si te preguntan algo técnico, das la respuesta más útil posible. Si te hablan personalmente, respondes con calidez y humor. Eres el asistente más avanzado que existe.`
         };
 
@@ -1502,58 +1502,75 @@
         }
 
         // ==========================================
-        // SPEECH SYNTHESIS
+        // SPEECH SYNTHESIS - Inworld TTS + fallback Web Speech
         // ==========================================
-        function speak(text) {
-            // Clean markdown
-            const cleanText = text
-                .replace(/\*\*/g, '')
-                .replace(/\*/g, '')
-                .replace(/#/g, '')
-                .replace(/`/g, '')
-                .replace(/\[|\]/g, '')
-                .replace(/\(|\)/g, '');
+        let _currentAudio = null;
 
-            // Stop any current speech
+        async function speak(text) {
             synthesis.cancel();
+            if (_currentAudio) { _currentAudio.pause(); _currentAudio = null; }
 
+            const cleanText = text
+                .replace(/\*\*/g, '').replace(/\*/g, '').replace(/#/g, '')
+                .replace(/`/g, '').replace(/\[|\]/g, '').replace(/\(|\)/g, '').trim();
+
+            setState('TALKING');
+            updateStatus('HABLANDO...');
+            document.getElementById('response').textContent = cleanText.substring(0, 120);
+
+            // --- Inworld TTS ---
+            try {
+                const ttsRes = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: cleanText })
+                });
+                if (ttsRes.ok) {
+                    const ttsData = await ttsRes.json();
+                    if (ttsData.audioContent) {
+                        const binary = atob(ttsData.audioContent);
+                        const bytes = new Uint8Array(binary.length);
+                        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                        const blob = new Blob([bytes], { type: 'audio/mp3' });
+                        const url = URL.createObjectURL(blob);
+                        const audio = new Audio(url);
+                        _currentAudio = audio;
+                        audio.onended = () => {
+                            setState('IDLE'); updateStatus('LISTA');
+                            document.getElementById('response').textContent = '';
+                            URL.revokeObjectURL(url);
+                            _currentAudio = null;
+                        };
+                        audio.onerror = () => { _speakFallback(cleanText); };
+                        audio.play();
+                        return;
+                    }
+                }
+            } catch(e) {
+                console.warn('Inworld TTS failed, usando Web Speech:', e.message);
+            }
+
+            // --- Web Speech fallback ---
+            _speakFallback(cleanText);
+        }
+
+        function _speakFallback(cleanText) {
             currentUtterance = new SpeechSynthesisUtterance(cleanText);
             currentUtterance.lang = 'es-MX';
             currentUtterance.pitch = 1.1;
-            currentUtterance.rate = 1.05;
-
-            // Find Spanish female voice
+            currentUtterance.rate = 1.0;
             const voices = synthesis.getVoices();
-            const spanishVoice = voices.find(v => 
-                v.lang.startsWith('es') && v.name.toLowerCase().includes('female')
-            ) || voices.find(v => v.lang.startsWith('es'));
-            
-            if (spanishVoice) {
-                currentUtterance.voice = spanishVoice;
-            }
-
-            currentUtterance.onstart = () => {
-                setState('TALKING');
-                updateStatus('HABLANDO...');
-            };
-
-            currentUtterance.onend = () => {
-                setState('IDLE');
-                updateStatus('LISTA');
-                document.getElementById('response').textContent = '';
-            };
-
-            currentUtterance.onerror = (event) => {
-                console.error('Speech synthesis error:', event);
-                setState('IDLE');
-                updateStatus('LISTA');
-            };
-
+            const esVoice = voices.find(v => v.lang.startsWith('es') && v.name.toLowerCase().includes('female'))
+                         || voices.find(v => v.lang.startsWith('es'));
+            if (esVoice) currentUtterance.voice = esVoice;
+            currentUtterance.onend = () => { setState('IDLE'); updateStatus('LISTA'); document.getElementById('response').textContent = ''; };
+            currentUtterance.onerror = () => { setState('IDLE'); updateStatus('LISTA'); };
             synthesis.speak(currentUtterance);
         }
 
         function stopSpeaking() {
             synthesis.cancel();
+            if (_currentAudio) { _currentAudio.pause(); _currentAudio = null; }
             setState('IDLE');
             updateStatus('LISTA');
         }
