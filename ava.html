@@ -1334,9 +1334,10 @@
 
         // TTS chain — best quality first, auto-fallback
         const ttsProviders = [
-            { url: '/api/tts-elevenlabs', label: 'ElevenLabs' },
-            { url: '/api/tts-openai',     label: 'OpenAI TTS' },
-            { url: '/api/tts-edge',       label: 'Edge Neural' },
+            { url: '/api/tts-elevenlabs', label: 'ElevenLabs'   },
+            { url: '/api/tts-deepgram',   label: 'Deepgram Aura' },
+            { url: '/api/tts-openai',     label: 'OpenAI TTS'   },
+            { url: '/api/tts-edge',       label: 'Edge Neural'  },
         ];
         for (const p of ttsProviders) {
             try {
