@@ -1,7 +1,16 @@
 {
   "version": 2,
-  "framework": null,
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/ava.html" }
+  "builds": [
+    { "src": "api/*.js", "use": "@vercel/node" },
+    { "src": "ava.html", "use": "@vercel/static" },
+    { "src": "public/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/chat", "dest": "api/chat.js" },
+    { "src": "/api/tts", "dest": "api/tts.js" },
+    { "src": "/api/tts-edge", "dest": "api/tts-edge.js" },
+    { "src": "/api/three-vrm.js", "dest": "api/three-vrm.js" },
+    { "src": "/([0-9]+\\.vrm)", "dest": "/public/$1" },
+    { "src": "/(.*)", "dest": "/ava.html" }
   ]
 }
