@@ -53,26 +53,46 @@ export default async function handler(req, res) {
   const name = (avatarName || 'AVA').toUpperCase();
   const systemPrompt = system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA;
 
-  try {
-    const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+  // Try models in order of preference (handles API keys with limited access)
+  const MODELS = [
+    'claude-3-5-sonnet-20241022',
+    'claude-3-5-haiku-20241022',
+    'claude-3-haiku-20240307',
+    'claude-3-sonnet-20240229',
+    'claude-3-opus-20240229',
+  ];
 
-    const response = await client.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 300,
-      system: systemPrompt,
-      messages: messages.slice(-12).map(m => ({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: String(m.content).substring(0, 2000)
-      }))
-    });
+  const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+  const msgList = messages.slice(-12).map(m => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: String(m.content).substring(0, 2000)
+  }));
 
-    const text = response.content?.[0]?.text || '';
-    res.json({ message: text, source: 'claude' });
-  } catch (error) {
-    console.error('Claude API error:', error);
-    const msg = error.status === 401
-      ? 'API key inválida. Revisa ANTHROPIC_API_KEY.'
-      : 'Error de IA: ' + (error.message || 'desconocido');
-    res.status(500).json({ message: msg, source: 'error' });
+  let lastError = null;
+  for (const model of MODELS) {
+    try {
+      const response = await client.messages.create({
+        model,
+        max_tokens: 300,
+        system: systemPrompt,
+        messages: msgList
+      });
+      const text = response.content?.[0]?.text || '';
+      return res.json({ message: text, source: 'claude', model });
+    } catch (error) {
+      lastError = error;
+      if (error.status === 404 || error.status === 400) {
+        console.warn(`Model ${model} not available, trying next...`);
+        continue;
+      }
+      // Non-404 error (auth, rate limit, etc) — stop immediately
+      break;
+    }
   }
+
+  console.error('All Claude models failed:', lastError?.message);
+  const msg = lastError?.status === 401
+    ? 'API key inválida. Revisa ANTHROPIC_API_KEY en Vercel.'
+    : 'Error de IA: ' + (lastError?.message || 'desconocido');
+  res.status(500).json({ message: msg, source: 'error' });
 }
