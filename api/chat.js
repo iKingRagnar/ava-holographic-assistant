@@ -106,6 +106,29 @@ async function tryGemini(systemPrompt, msgList) {
   return null;
 }
 
+// ── DEEPSEEK V3 (high performance, low cost) ───────────────────────────────
+async function tryDeepSeek(systemPrompt, msgList) {
+  const key = process.env.DEEPSEEK_API_KEY;
+  if (!key) return null;
+
+  try {
+    const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        max_tokens: 300,
+        messages: [{ role: 'system', content: systemPrompt }, ...msgList]
+      })
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const text = d.choices?.[0]?.message?.content || '';
+    if (text) return { text, source: 'deepseek', model: 'deepseek-chat' };
+  } catch (e) { console.warn('DeepSeek failed:', e.message); }
+  return null;
+}
+
 // ── GROQ (free tier, very fast) ─────────────────────────────────────────────
 async function tryGroq(systemPrompt, msgList) {
   const key = process.env.GROQ_API_KEY;
@@ -150,7 +173,7 @@ export default async function handler(req, res) {
   }));
 
   // Try each provider in order — first success wins
-  const providers = [tryAnthropic, tryOpenAI, tryGemini, tryGroq];
+  const providers = [tryAnthropic, tryOpenAI, tryGemini, tryDeepSeek, tryGroq];
   for (const provider of providers) {
     try {
       const result = await provider(systemPrompt, msgList);
@@ -168,6 +191,7 @@ export default async function handler(req, res) {
     process.env.ANTHROPIC_API_KEY && 'ANTHROPIC_API_KEY',
     process.env.OPENAI_API_KEY    && 'OPENAI_API_KEY',
     process.env.GEMINI_API_KEY    && 'GEMINI_API_KEY',
+    process.env.DEEPSEEK_API_KEY  && 'DEEPSEEK_API_KEY',
     process.env.GROQ_API_KEY      && 'GROQ_API_KEY',
   ].filter(Boolean);
 

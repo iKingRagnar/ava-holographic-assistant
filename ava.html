@@ -1109,6 +1109,91 @@
         }
     }
 
+    // Deepgram STT via MediaRecorder — server-side, ultra fast
+    // Falls back to Web Speech if DEEPGRAM_API_KEY not set or mic unavailable
+    async function startListeningDeepgram() {
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch(e) {
+            console.warn('Mic access denied, falling back to Web Speech:', e.message);
+            startListening();
+            return;
+        }
+
+        setState('LISTENING');
+        updateStatus('ESCUCHANDO...');
+        document.getElementById('transcript').textContent = '';
+
+        const chunks = [];
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus' : 'audio/webm';
+        const recorder = new MediaRecorder(stream, { mimeType });
+
+        recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+        recorder.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+            if (state !== 'LISTENING') return;
+            if (chunks.length === 0) { setState('IDLE'); updateStatus('LISTA'); return; }
+
+            updateStatus('PROCESANDO...');
+            const blob = new Blob(chunks, { type: mimeType });
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const b64 = reader.result.split(',')[1];
+                try {
+                    const r = await fetch('/api/stt-deepgram', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ audio: b64, mimeType })
+                    });
+                    const d = await r.json();
+                    if (d.transcript && d.transcript.trim()) {
+                        document.getElementById('transcript').textContent = d.transcript;
+                        processMessage(d.transcript.trim());
+                    } else {
+                        setState('IDLE'); updateStatus('LISTA');
+                    }
+                } catch(e) {
+                    console.warn('Deepgram STT failed, trying Web Speech fallback');
+                    setState('IDLE'); updateStatus('LISTA');
+                }
+            };
+            reader.readAsDataURL(blob);
+        };
+
+        // Auto-stop after silence: use Web Audio silence detection
+        const actx = new AudioContext();
+        const src = actx.createMediaStreamSource(stream);
+        const analyser = actx.createAnalyser();
+        analyser.fftSize = 512;
+        src.connect(analyser);
+        const buf = new Uint8Array(analyser.frequencyBinCount);
+        let silenceMs = 0;
+        const CHECK_MS = 100;
+        const SILENCE_THRESHOLD = 10;
+        const SILENCE_STOP_MS = 1800;
+        const MAX_MS = 15000;
+        let elapsed = 0;
+
+        recorder.start(100);
+
+        const silenceCheck = setInterval(() => {
+            if (state !== 'LISTENING') { clearInterval(silenceCheck); recorder.stop(); actx.close(); return; }
+            analyser.getByteFrequencyData(buf);
+            const avg = buf.reduce((a,b) => a+b, 0) / buf.length;
+            elapsed += CHECK_MS;
+            if (avg < SILENCE_THRESHOLD) silenceMs += CHECK_MS;
+            else silenceMs = 0;
+            if (silenceMs >= SILENCE_STOP_MS || elapsed >= MAX_MS) {
+                clearInterval(silenceCheck);
+                recorder.stop();
+                actx.close();
+            }
+        }, CHECK_MS);
+    }
+
     function startListening() {
         if (!_SRClass) return;
 
@@ -1199,12 +1284,20 @@
             return;
         }
 
-        // Small delay to let any previous instance fully close
-        setTimeout(startListening, 80);
+        // Use Deepgram (server-side, best accuracy) if available, else Web Speech
+        if (window._deepgramAvailable === undefined) {
+            // First time: probe if Deepgram key is configured
+            fetch('/api/stt-deepgram', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({audio:'',mimeType:'audio/webm'}) })
+                .then(r => { window._deepgramAvailable = (r.status !== 503); })
+                .catch(() => { window._deepgramAvailable = false; })
+                .finally(() => setTimeout(() => window._deepgramAvailable ? startListeningDeepgram() : startListening(), 80));
+        } else {
+            setTimeout(() => window._deepgramAvailable ? startListeningDeepgram() : startListening(), 80);
+        }
     }
 
     // ================================================================
-    // TTS — Edge Neural → Browser fallback
+    // TTS — ElevenLabs → OpenAI → Edge Neural → Browser fallback
     // ================================================================
     let _userInteracted = false;
 
@@ -1239,41 +1332,30 @@
             return;
         }
 
-        // 1st: OpenAI TTS — tts-1-hd, most natural voices
-        try {
-            const r = await fetch('/api/tts-openai', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: clean.substring(0, 600), avatarIndex: currentIdx })
-            });
-            if (r.ok) {
-                const d = await r.json();
-                if (d.audioContent) {
-                    console.log('TTS: using', d.source, d.voice);
-                    await playBase64Audio(d.audioContent);
-                    return;
+        // TTS chain — best quality first, auto-fallback
+        const ttsProviders = [
+            { url: '/api/tts-elevenlabs', label: 'ElevenLabs' },
+            { url: '/api/tts-openai',     label: 'OpenAI TTS' },
+            { url: '/api/tts-edge',       label: 'Edge Neural' },
+        ];
+        for (const p of ttsProviders) {
+            try {
+                const r = await fetch(p.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: clean.substring(0, 500), avatarIndex: currentIdx })
+                });
+                if (r.ok) {
+                    const d = await r.json();
+                    if (d.audioContent) {
+                        console.log('TTS:', p.label, d.voice || '');
+                        await playBase64Audio(d.audioContent);
+                        return;
+                    }
                 }
-            }
-        } catch(e) { console.warn('OpenAI TTS fail:', e.message); }
-
-        // 2nd: Edge Neural TTS (Microsoft, no key needed)
-        try {
-            const r = await fetch('/api/tts-edge', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: clean.substring(0, 500), avatarIndex: currentIdx })
-            });
-            if (r.ok) {
-                const d = await r.json();
-                if (d.audioContent) {
-                    console.log('TTS: using', d.source, d.voice);
-                    await playBase64Audio(d.audioContent);
-                    return;
-                }
-            }
-        } catch(e) { console.warn('Edge TTS fail:', e.message); }
-
-        // 3rd: browser Web Speech
+            } catch(e) { console.warn(p.label, 'fail:', e.message); }
+        }
+        // Last resort: browser Web Speech
         speakBrowser(clean);
     }
 
