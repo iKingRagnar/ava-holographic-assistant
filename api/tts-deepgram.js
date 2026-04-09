@@ -30,13 +30,13 @@ export default async function handler(req, res) {
   const clean = text.substring(0, 2000);
 
   try {
-    const r = await fetch('https://api.deepgram.com/v1/speak?encoding=mp3', {
+    const r = await fetch('https://api.deepgram.com/v1/speak', {
       method: 'POST',
       headers: {
         'Authorization': `Token ${key}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ text: clean, model }),
+      body: JSON.stringify({ text: clean, model, encoding: 'mp3' }),
     });
 
     if (!r.ok) {
