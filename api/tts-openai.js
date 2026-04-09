@@ -1,19 +1,19 @@
-// OpenAI TTS — tts-1-hd model, neural female voices per avatar
+// OpenAI TTS — tts-1-hd, voz latina "paloma" (es-MX) para todos los avatares
+// El idioma sale del texto; paloma mantiene acento mexicano natural.
 // Requires OPENAI_API_KEY in Vercel environment variables
 
-// Per-avatar voice mapping (OpenAI voices: alloy, echo, fable, onyx, nova, shimmer)
-// Female-sounding: nova (warm), shimmer (clear/bright), fable (expressive)
+// Velocidad ligeramente distinta por avatar (misma voz paloma)
 const AVATAR_VOICES = [
-  { voice: 'nova',    speed: 1.0  }, // AVA     — profesional, cálida
-  { voice: 'shimmer', speed: 1.08 }, // KIRA    — energética, brillante
-  { voice: 'nova',    speed: 0.95 }, // ZANE    — firme, pausada
-  { voice: 'shimmer', speed: 1.05 }, // FAKER   — precisa
-  { voice: 'fable',   speed: 0.92 }, // SAO     — elegante, expresiva
-  { voice: 'shimmer', speed: 1.12 }, // NEON    — rápida
-  { voice: 'nova',    speed: 1.0  }, // YUKI    — suave
-  { voice: 'fable',   speed: 1.0  }, // REI     — técnica
-  { voice: 'nova',    speed: 0.9  }, // MIRA    — tranquila
-  { voice: 'shimmer', speed: 1.1  }, // KAI     — carismática
+  { voice: 'paloma', speed: 1.0  }, // AVA
+  { voice: 'paloma', speed: 1.06 }, // KIRA
+  { voice: 'paloma', speed: 0.94 }, // ZANE
+  { voice: 'paloma', speed: 1.04 }, // FAKER
+  { voice: 'paloma', speed: 0.92 }, // SAO
+  { voice: 'paloma', speed: 1.1  }, // NEON
+  { voice: 'paloma', speed: 1.02 }, // YUKI
+  { voice: 'paloma', speed: 0.98 }, // REI
+  { voice: 'paloma', speed: 0.9  }, // MIRA
+  { voice: 'paloma', speed: 1.08 }, // KAI
 ];
 
 export default async function handler(req, res) {

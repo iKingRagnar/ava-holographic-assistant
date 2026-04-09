@@ -195,7 +195,9 @@
         <button class="chat-send" id="chat-send">&#9654;</button>
     </div>
 
-    <div class="mic-label" id="mic-label">&#127908; Clic o Space para hablar</div>
+    <video id="vision-cam" playsinline muted autoplay style="position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;z-index:0" aria-hidden="true"></video>
+
+    <div class="mic-label" id="mic-label">&#127908; Di &quot;AVA&quot; o &quot;despierta&quot; — o Space / mic</div>
     <div class="mic-btn" id="mic-btn">
         <svg viewBox="0 0 24 24" id="mic-icon"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
         <svg viewBox="0 0 24 24" id="stop-icon" style="display:none"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
@@ -212,6 +214,12 @@
             <input type="text" class="cfg-input" id="cfg-api" placeholder="/api/chat">
             <label class="cfg-label">URL base de avatares VRM (opcional)</label>
             <input type="text" class="cfg-input" id="cfg-vrm" placeholder="https://tu-cdn.com/vrm/ (deja vacío para usar /public/)">
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:12px;cursor:pointer">
+                <input type="checkbox" id="cfg-wake" checked> Activación por voz (AVA, despierta, empieza…)
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:16px;cursor:pointer">
+                <input type="checkbox" id="cfg-vision" checked> Cámara + visión (Gemini/OpenAI) para ver el entorno
+            </label>
             <button class="cfg-btn" id="cfg-go">ACTIVAR AVA</button>
             <div class="cfg-hint">Ctrl+R resetea config | T: texto | Space: voz | 1-0: avatar</div>
         </div>
@@ -266,14 +274,21 @@
     let cfg = {
         apiUrl: localStorage.getItem('ava_api') || '/api/chat',
         userName: localStorage.getItem('ava_user') || '',
-        vrmBase: localStorage.getItem('ava_vrm_base') || ''
+        vrmBase: localStorage.getItem('ava_vrm_base') || '',
+        wakeWord: localStorage.getItem('ava_wake') !== '0',
+        useVision: localStorage.getItem('ava_vision') !== '0'
     };
 
     let state = 'IDLE';
     let currentIdx = 0;
     let msgHistory = [];
     let recognition = null;
+    let wakeRec = null;
+    let wakeRestartTimer = null;
     const synth = window.speechSynthesis;
+
+    let visionVideo = null;
+    let visionReady = false;
 
     // ================================================================
     // THREE.JS
@@ -310,13 +325,13 @@
         greetArm: false,
         nextState(t) {
             const r = Math.random();
-            if      (r < 0.22) { this.state = 'WALK';    this.timer = 2 + Math.random() * 3;   this.targetX = (Math.random()-0.5)*1.4; this.targetRY = (Math.random()-0.5)*0.8; }
-            else if (r < 0.38) { this.state = 'GREET';   this.timer = 1.5 + Math.random();     this.greetArm = Math.random() > 0.5; }
-            else if (r < 0.52) { this.state = 'POINT';   this.timer = 1.2 + Math.random();     this.greetArm = Math.random() > 0.5; }
-            else if (r < 0.63) { this.state = 'SHRUG';   this.timer = 1.0 + Math.random()*0.8; }
-            else if (r < 0.72) { this.state = 'STRETCH'; this.timer = 1.5 + Math.random();     }
-            else if (r < 0.78) { this.state = 'DANCE';   this.timer = 2.5 + Math.random()*2;   }
-            else               { this.state = 'STOP';    this.timer = 1.5 + Math.random() * 2; }
+            if      (r < 0.28) { this.state = 'WALK';    this.timer = 1.4 + Math.random() * 2.6;   this.targetX = (Math.random()-0.5)*1.5; this.targetRY = (Math.random()-0.5)*0.95; }
+            else if (r < 0.44) { this.state = 'GREET';   this.timer = 1.2 + Math.random() * 0.9;  this.greetArm = Math.random() > 0.5; }
+            else if (r < 0.58) { this.state = 'POINT';   this.timer = 1.0 + Math.random() * 0.9;  this.greetArm = Math.random() > 0.5; }
+            else if (r < 0.68) { this.state = 'SHRUG';   this.timer = 0.85 + Math.random() * 0.75; }
+            else if (r < 0.76) { this.state = 'STRETCH'; this.timer = 1.2 + Math.random() * 0.8;  }
+            else if (r < 0.84) { this.state = 'DANCE';   this.timer = 2.0 + Math.random() * 2.2;   }
+            else               { this.state = 'STOP';    this.timer = 1.0 + Math.random() * 1.6; }
         }
     };
 
@@ -544,6 +559,7 @@
 
                 // Apply natural rest pose immediately (avoid T-pose on load)
                 applyRestPose(vrm);
+                if (typeof vrm.update === 'function') vrm.update(0);
 
                 avatarGroup.add(model);
                 addBase(color);
@@ -1068,15 +1084,27 @@
         }
     }
 
+    // Huesos VRM 0.x/1.x — three-vrm usa getBoneNode('leftUpperArm'); humanBones es opcional
+    function vrmBoneNode(vrm, name) {
+        const h = vrm && vrm.humanoid;
+        if (!h) return null;
+        if (typeof h.getBoneNode === 'function') {
+            const n = h.getBoneNode(name);
+            if (n) return n;
+        }
+        const hb = h.humanBones;
+        if (hb) {
+            const e = typeof hb.get === 'function' ? hb.get(name) : hb[name];
+            if (e && e.node) return e.node;
+        }
+        return null;
+    }
+
     // ================================================================
-    // INSTANT REST POSE — eliminates T-pose on avatar load
+    // INSTANT REST POSE — elimina T-pose al cargar el VRM
     // ================================================================
     function applyRestPose(vrm) {
-        const bones = vrm.humanoid?.humanBones;
-        if (!bones) return;
-        const get = name => bones[name]?.node;
-
-        // Arms: rotate DOWN from T-pose (z = +/-1.4 rad ≈ 80° down)
+        const get = name => vrmBoneNode(vrm, name);
         const la = get('leftUpperArm'),  ra = get('rightUpperArm');
         const lf = get('leftLowerArm'),  rf = get('rightLowerArm');
         const lh = get('leftHand'),      rh = get('rightHand');
@@ -1087,16 +1115,13 @@
         if (lh) { lh.rotation.z =  0.05; }
         if (rh) { rh.rotation.z = -0.05; }
 
-        // Hips: slight weight shift
         const hips = get('hips');
         if (hips) { hips.rotation.z = 0.02; hips.rotation.x = 0.01; }
 
-        // Spine: gentle S-curve
         const spine = get('spine'), chest = get('chest');
         if (spine) { spine.rotation.x = 0.03; spine.rotation.z = 0.01; }
         if (chest) { chest.rotation.x = 0.02; }
 
-        // Legs: feet together, slight natural bend
         const ll = get('leftUpperLeg'),  rl = get('rightUpperLeg');
         const lll = get('leftLowerLeg'), rll = get('rightLowerLeg');
         if (ll)  { ll.rotation.x  = -0.04; ll.rotation.z  =  0.04; }
@@ -1134,6 +1159,7 @@
     // AI CHAT (Claude via /api/chat)
     // ================================================================
     async function processMessage(text) {
+        stopWakeWord();
         setState('THINKING');
         updateStatus('PENSANDO...');
         document.getElementById('response').textContent = '';
@@ -1142,13 +1168,18 @@
         if (msgHistory.length > 12) msgHistory = msgHistory.slice(-12);
 
         try {
+            const payload = {
+                messages: msgHistory,
+                avatarName: NAMES[currentIdx]
+            };
+            if (cfg.useVision) {
+                const vis = captureVisionForChat();
+                if (vis) payload.vision = vis;
+            }
             const res = await fetch(cfg.apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    messages: msgHistory,
-                    avatarName: NAMES[currentIdx]
-                })
+                body: JSON.stringify(payload)
             });
 
             if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1198,9 +1229,118 @@
         }
     }
 
+    function stopWakeWord() {
+        if (wakeRec) {
+            try { wakeRec.stop(); } catch (e) {}
+            wakeRec = null;
+        }
+    }
+
+    function hasWakePhrase(text) {
+        const n = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return /\b(ava|hey\s*ava|despierta|empieza|escuchame|oye\s*ava)\b/i.test(n);
+    }
+
+    function stripWakePhrases(text) {
+        return text
+            .replace(/\b(ava|hey\s*ava|despierta|empieza|escuchame|oye\s*ava)\b/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function startWakeWord() {
+        if (!_SRClass || !cfg.wakeWord) return;
+        if (state !== 'IDLE') return;
+        const overlay = document.getElementById('config-overlay');
+        if (overlay && !overlay.classList.contains('hidden')) return;
+        if (!cfg.userName) return;
+        stopWakeWord();
+        wakeRec = new _SRClass();
+        wakeRec.lang = 'es-MX';
+        wakeRec.continuous = true;
+        wakeRec.interimResults = true;
+        wakeRec.onresult = (e) => {
+            let line = '';
+            for (let i = 0; i < e.results.length; i++) line += e.results[i][0].transcript;
+            const low = line.trim();
+            if (!hasWakePhrase(low)) return;
+            const rest = stripWakePhrases(low);
+            stopWakeWord();
+            _userInteracted = true;
+            if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (ttsCtx.state === 'suspended') ttsCtx.resume().catch(() => {});
+            if (rest.length > 2) {
+                document.getElementById('transcript').textContent = rest;
+                processMessage(rest);
+            } else if (window.MediaRecorder && navigator.mediaDevices) {
+                startListeningDeepgram();
+            } else {
+                startListening();
+            }
+        };
+        wakeRec.onerror = (e) => {
+            if (e.error === 'aborted') return;
+            console.warn('Wake STT:', e.error);
+        };
+        wakeRec.onend = () => {
+            wakeRec = null;
+            if (cfg.wakeWord && state === 'IDLE' && cfg.userName) {
+                clearTimeout(wakeRestartTimer);
+                wakeRestartTimer = setTimeout(() => startWakeWord(), 500);
+            }
+        };
+        try { wakeRec.start(); } catch (e) { console.warn('Wake start:', e.message); }
+    }
+
+    function scheduleWakeRestart() {
+        if (!cfg.wakeWord) return;
+        clearTimeout(wakeRestartTimer);
+        wakeRestartTimer = setTimeout(() => {
+            if (state === 'IDLE' && cfg.userName) startWakeWord();
+        }, 900);
+    }
+
+    async function ensureVisionCamera() {
+        if (!cfg.useVision) return false;
+        visionVideo = document.getElementById('vision-cam');
+        if (visionReady && visionVideo && visionVideo.srcObject) return true;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+                audio: false
+            });
+            visionVideo.srcObject = stream;
+            await visionVideo.play();
+            visionReady = true;
+            return true;
+        } catch (e) {
+            console.warn('Cámara visión:', e.message);
+            visionReady = false;
+            return false;
+        }
+    }
+
+    function captureVisionForChat() {
+        if (!cfg.useVision || !visionReady || !visionVideo || visionVideo.readyState < 2) return null;
+        const w = visionVideo.videoWidth;
+        const h = visionVideo.videoHeight;
+        if (w < 16 || h < 16) return null;
+        const c = document.createElement('canvas');
+        const mx = Math.min(w, 768);
+        const scale = mx / w;
+        c.width = mx;
+        c.height = Math.round(h * scale);
+        const ctx = c.getContext('2d');
+        ctx.drawImage(visionVideo, 0, 0, c.width, c.height);
+        const data = c.toDataURL('image/jpeg', 0.72);
+        const base64 = data.split(',')[1];
+        return { base64, mimeType: 'image/jpeg' };
+    }
+
     // Deepgram STT via MediaRecorder — server-side, ultra fast
     // Falls back to Web Speech if DEEPGRAM_API_KEY not set or mic unavailable
     async function startListeningDeepgram() {
+        stopWakeWord();
         let stream;
         try {
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1290,6 +1430,7 @@
 
     function startListening() {
         if (!_SRClass) return;
+        stopWakeWord();
 
         // Always create a fresh instance — reusing causes channel-closed errors
         recognition = new _SRClass();
@@ -1358,10 +1499,12 @@
     }
 
     async function toggleMic() {
+        stopWakeWord();
         // Unlock AudioContext on any user gesture
         if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (ttsCtx.state === 'suspended') await ttsCtx.resume();
         _userInteracted = true;
+        if (cfg.useVision) ensureVisionCamera();
 
         if (state === 'TALKING') { stopSpeaking(); return; }
 
@@ -1540,6 +1683,7 @@
         mic.className = 'mic-btn' + (s === 'LISTENING' ? ' listening' : s === 'TALKING' ? ' talking' : '');
         micI.style.display = (s === 'IDLE' || s === 'LISTENING') ? 'block' : 'none';
         stopI.style.display = (s === 'IDLE' || s === 'LISTENING') ? 'none' : 'block';
+        if (s === 'IDLE') scheduleWakeRestart();
     }
 
     function updateStatus(t) { document.getElementById('status-text').textContent = t; }
@@ -1571,6 +1715,8 @@
         const user = document.getElementById('cfg-user').value.trim();
         const api = document.getElementById('cfg-api').value.trim() || '/api/chat';
         const vrm = document.getElementById('cfg-vrm').value.trim();
+        cfg.wakeWord = document.getElementById('cfg-wake').checked;
+        cfg.useVision = document.getElementById('cfg-vision').checked;
 
         cfg.userName = user;
         cfg.apiUrl = api;
@@ -1579,9 +1725,14 @@
         localStorage.setItem('ava_user', user);
         localStorage.setItem('ava_api', api);
         localStorage.setItem('ava_vrm_base', vrm);
+        localStorage.setItem('ava_wake', cfg.wakeWord ? '1' : '0');
+        localStorage.setItem('ava_vision', cfg.useVision ? '1' : '0');
 
         hideConfig();
         loadVRMAvatar(currentIdx);
+        _userInteracted = true;
+        if (cfg.useVision) ensureVisionCamera();
+        scheduleWakeRestart();
     }
 
     function resetConfig() {
@@ -1589,7 +1740,9 @@
         localStorage.removeItem('ava_user');
         localStorage.removeItem('ava_api');
         localStorage.removeItem('ava_vrm_base');
-        cfg = { apiUrl: '/api/chat', userName: '', vrmBase: '' };
+        localStorage.removeItem('ava_wake');
+        localStorage.removeItem('ava_vision');
+        cfg = { apiUrl: '/api/chat', userName: '', vrmBase: '', wakeWord: true, useVision: true };
         showConfig();
     }
 
@@ -1614,9 +1767,20 @@
         document.getElementById('cfg-user').value = cfg.userName;
         document.getElementById('cfg-api').value = cfg.apiUrl;
         document.getElementById('cfg-vrm').value = cfg.vrmBase;
+        document.getElementById('cfg-wake').checked = cfg.wakeWord;
+        document.getElementById('cfg-vision').checked = cfg.useVision;
 
         if (!cfg.userName && cfg.apiUrl === '/api/chat') {
             showConfig();
+        } else if (cfg.userName && cfg.useVision) {
+            ensureVisionCamera();
+        }
+
+        if (cfg.userName && cfg.wakeWord) {
+            try {
+                const p = await navigator.permissions.query({ name: 'microphone' });
+                if (p.state === 'granted') scheduleWakeRestart();
+            } catch (_) {}
         }
 
         // Event listeners
@@ -1688,7 +1852,7 @@
         '¿Sabías que puedo hablar de {cap}? Solo pregunta.',
         'Buen momento para explorar algo nuevo.',
         // Prompts to interact
-        'Presiona Space o el micrófono para hablarme.',
+        'Di «AVA» o «despierta» para hablar sin tocar nada, o usa el micrófono.',
         'También puedes escribirme abajo si lo prefieres.',
         '¿Tienes algo en mente? Cuéntame.',
         'Estoy escuchando... cuando quieras.',

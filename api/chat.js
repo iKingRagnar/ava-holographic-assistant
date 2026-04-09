@@ -74,16 +74,43 @@ async function tryOpenAI(systemPrompt, msgList) {
   return null;
 }
 
-// ── GOOGLE GEMINI ───────────────────────────────────────────────────────────
-async function tryGemini(systemPrompt, msgList) {
+// ── GOOGLE GEMINI (texto; visión opcional en el último turno de usuario) ─────
+async function tryGemini(systemPrompt, msgList, vision) {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) return null;
 
-  const MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
-  const contents = msgList.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }]
-  }));
+  const MODELS = [
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash',
+    'gemini-pro',
+  ];
+
+  const contents = [];
+  for (let i = 0; i < msgList.length; i++) {
+    const m = msgList[i];
+    const isLast = i === msgList.length - 1;
+    const role = m.role === 'assistant' ? 'model' : 'user';
+    if (isLast && m.role === 'user' && vision?.base64) {
+      contents.push({
+        role: 'user',
+        parts: [
+          {
+            inline_data: {
+              mime_type: vision.mimeType || 'image/jpeg',
+              data: vision.base64,
+            },
+          },
+          { text: m.content },
+        ],
+      });
+    } else {
+      contents.push({
+        role,
+        parts: [{ text: m.content }],
+      });
+    }
+  }
 
   for (const model of MODELS) {
     try {
@@ -94,14 +121,69 @@ async function tryGemini(systemPrompt, msgList) {
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },
           contents,
-          generationConfig: { maxOutputTokens: 300, temperature: 0.7 }
-        })
+          generationConfig: { maxOutputTokens: 300, temperature: 0.7 },
+        }),
       });
       if (!r.ok) continue;
       const d = await r.json();
       const text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
       if (text) return { text, source: 'gemini', model };
-    } catch (e) { continue; }
+    } catch (e) {
+      continue;
+    }
+  }
+  return null;
+}
+
+// ── OPENAI GPT-4o (visión) ────────────────────────────────────────────────────
+async function tryOpenAIVision(systemPrompt, msgList, vision) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key || !vision?.base64) return null;
+
+  const MODELS = ['gpt-4o-mini', 'gpt-4o'];
+  const last = msgList[msgList.length - 1];
+  if (!last || last.role !== 'user') return null;
+
+  const prior = msgList.slice(0, -1).map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
+  const imageUrl = `data:${vision.mimeType || 'image/jpeg'};base64,${vision.base64}`;
+
+  for (const model of MODELS) {
+    try {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 300,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...prior,
+            {
+              role: 'user',
+              content: [
+                { type: 'image_url', image_url: { url: imageUrl } },
+                { type: 'text', text: last.content },
+              ],
+            },
+          ],
+        }),
+      });
+      if (r.status === 404 || r.status === 400) continue;
+      if (r.status === 401) return null;
+      if (!r.ok) continue;
+      const d = await r.json();
+      const text = d.choices?.[0]?.message?.content || '';
+      if (text) return { text, source: 'openai-vision', model };
+    } catch (e) {
+      continue;
+    }
   }
   return null;
 }
@@ -160,23 +242,47 @@ async function tryGroq(systemPrompt, msgList) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { messages, system, avatarName } = req.body;
+  const { messages, system, avatarName, vision } = req.body;
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages array required' });
   }
 
   const name = (avatarName || 'AVA').toUpperCase();
-  const systemPrompt = (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX;
-  const msgList = messages.slice(-12).map(m => ({
+  const visionHint =
+    vision?.base64
+      ? '\nPuedes ver una foto reciente de la cámara del usuario junto con su último mensaje; describe solo lo relevante si te preguntan por lo visual.'
+      : '';
+  const systemPrompt =
+    (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX + visionHint;
+  const msgList = messages.slice(-12).map((m) => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
-    content: String(m.content).substring(0, 2000)
+    content: String(m.content).substring(0, 2000),
   }));
 
-  // Try each provider in order — first success wins
-  const providers = [tryAnthropic, tryOpenAI, tryGemini, tryDeepSeek, tryGroq];
+  const hasVision = !!(vision && vision.base64 && String(vision.base64).length > 100);
+
+  // Con imagen: primero modelos multimodales, luego el resto sin imagen
+  const providers = hasVision
+    ? [
+        () => tryGemini(systemPrompt, msgList, vision),
+        () => tryOpenAIVision(systemPrompt, msgList, vision),
+        () => tryAnthropic(systemPrompt, msgList),
+        () => tryOpenAI(systemPrompt, msgList),
+        () => tryGemini(systemPrompt, msgList, null),
+        () => tryDeepSeek(systemPrompt, msgList),
+        () => tryGroq(systemPrompt, msgList),
+      ]
+    : [
+        () => tryAnthropic(systemPrompt, msgList),
+        () => tryOpenAI(systemPrompt, msgList),
+        () => tryGemini(systemPrompt, msgList, null),
+        () => tryDeepSeek(systemPrompt, msgList),
+        () => tryGroq(systemPrompt, msgList),
+      ];
+
   for (const provider of providers) {
     try {
-      const result = await provider(systemPrompt, msgList);
+      const result = await provider();
       if (result?.text) {
         console.log(`Chat answered by ${result.source} (${result.model})`);
         return res.json({ message: result.text, source: result.source, model: result.model });
