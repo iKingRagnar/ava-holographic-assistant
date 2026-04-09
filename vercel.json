@@ -28,8 +28,8 @@
       "destination": "/public/:file.vrm"
     },
     {
-      "source": "/vendor/:path*",
-      "destination": "/public/vendor/:path*"
+      "source": "/three-vrm-0.6.11.js",
+      "destination": "/public/three-vrm-0.6.11.js"
     },
     {
       "source": "/(.*)",
