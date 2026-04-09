@@ -43,7 +43,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'tts-1-hd',
+        model: 'tts-1',
         input: clean,
         voice: v.voice,
         speed: v.speed,
