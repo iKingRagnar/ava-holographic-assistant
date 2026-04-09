@@ -347,8 +347,21 @@
     function cacheBlendShapes(vrm) {
         vrmBlend = {mouth:null, blink:null, all:[]};
         const proxy = vrm.blendShapeProxy;
-        if (!proxy || !proxy._blendShapeGroups) return;
-        const names = proxy._blendShapeGroups.map(g => g.name).filter(Boolean);
+        if (!proxy) return;
+
+        // Collect blend shape names (handle different internal structures)
+        let names = [];
+        if (proxy._blendShapeGroups && Array.isArray(proxy._blendShapeGroups)) {
+            names = proxy._blendShapeGroups.map(g => g.name).filter(Boolean);
+        } else if (proxy._expressionMap) {
+            names = Object.keys(proxy._expressionMap);
+        } else {
+            // Try common VRM 0.6.x preset names
+            const presets = ['a','i','u','e','o','aa','ih','ou','ee','oh','blink','blink_l','blink_r','joy','angry','sorrow','fun','neutral'];
+            presets.forEach(n => {
+                try { proxy.setValue(n, 0); names.push(n); } catch(e) {}
+            });
+        }
         vrmBlend.all = names;
 
         // Find mouth blend shape
@@ -426,7 +439,7 @@
 
                 currentVRM = vrm;
                 loadedModel = model;
-                cacheBlendShapes(vrm);
+                try { cacheBlendShapes(vrm); } catch(e) { console.warn('BlendShape cache skipped:', e.message); }
 
                 model.traverse(o => {
                     if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
@@ -488,7 +501,9 @@
         avatarGroup.add(le, re);
 
         // Neck
-        avatarGroup.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.09, 16), mat(0xeeddcc, c, 0.8)), {position: new THREE.Vector3(0, 0.42, 0)}));
+        const neckMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.09, 16), mat(0xeeddcc, c, 0.8));
+        neckMesh.position.set(0, 0.42, 0);
+        avatarGroup.add(neckMesh);
 
         // Torso
         const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.075, 0.38, 20), mat(c, c, 0.85));
@@ -508,7 +523,9 @@
         avatarGroup.add(la, ra);
 
         // Hips
-        avatarGroup.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.12, 16), mat(c, c, 0.75)), {position: new THREE.Vector3(0, -0.06, 0)}));
+        const hipsMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.12, 16), mat(c, c, 0.75));
+        hipsMesh.position.set(0, -0.06, 0);
+        avatarGroup.add(hipsMesh);
 
         // Legs
         const legGeo = new THREE.CylinderGeometry(0.035, 0.025, 0.4, 12);
