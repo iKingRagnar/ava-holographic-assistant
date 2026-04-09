@@ -30,7 +30,7 @@ export default async function handler(req, res) {
   const clean = text.substring(0, 2000);
 
   try {
-    const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}&encoding=mp3&container=none`;
+    const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}&encoding=mp3`;
     const r = await fetch(url, {
       method: 'POST',
       headers: {
