@@ -197,7 +197,7 @@
 
     <video id="vision-cam" playsinline muted autoplay style="position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;z-index:0" aria-hidden="true"></video>
 
-    <div class="mic-label" id="mic-label">&#127908; Di &quot;AVA&quot; o &quot;despierta&quot; — o Space / mic</div>
+    <div class="mic-label" id="mic-label">&#127908; Di «AVA» y habla sin parar; «para» o texto cierra el modo. Space / mic</div>
     <div class="mic-btn" id="mic-btn">
         <svg viewBox="0 0 24 24" id="mic-icon"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
         <svg viewBox="0 0 24 24" id="stop-icon" style="display:none"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
@@ -289,6 +289,11 @@
 
     let visionVideo = null;
     let visionReady = false;
+    /** Tras decir «AVA», el micrófono se reabre solo tras cada respuesta (conversación continua). */
+    let voiceConversationActive = false;
+    let _activeListenCleanup = null;
+    /** Se pone a false si /api/stt-deepgram falla (p. ej. sin DEEPGRAM_API_KEY en Vercel). */
+    window._deepgramAvailable = true;
 
     // ================================================================
     // THREE.JS
@@ -1273,6 +1278,26 @@
     // AI CHAT (Claude via /api/chat)
     // ================================================================
     async function processMessage(text) {
+        const raw = String(text || '').trim();
+        const norm = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (voiceConversationActive && /^(para|silencio|cierra|adios|chao|stop|listo|ya basta)(\s|$)/i.test(norm)) {
+            voiceConversationActive = false;
+            stopActiveListen();
+            updateStatus('LISTA — di «AVA» para conversación de voz');
+            setState('IDLE');
+            return;
+        }
+
+        let sendText = raw;
+        if (voiceConversationActive) {
+            sendText = stripWakePhrases(raw).trim();
+            if (!sendText) {
+                setState('IDLE');
+                updateStatus('LISTA');
+                return;
+            }
+        }
+
         stopWakeWord();
         setState('THINKING');
         updateStatus('PENSANDO...');
@@ -1282,7 +1307,7 @@
             try { await ensureVisionCamera(); } catch (_) {}
         }
 
-        msgHistory.push({ role: 'user', content: text });
+        msgHistory.push({ role: 'user', content: sendText });
         if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
 
         try {
@@ -1339,10 +1364,15 @@
     function initSTT() {
         _SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!_SRClass) {
-            updateStatus('USA EL TEXTO PARA CHATEAR ↓');
             const micBtn = document.getElementById('mic-btn');
-            micBtn.title = 'Sin soporte de voz — usa Chrome o Edge';
-            micBtn.onclick = () => { document.getElementById('chat-input').focus(); };
+            const canServerStt = window.MediaRecorder && navigator.mediaDevices;
+            if (canServerStt) {
+                updateStatus('LISTA — di «AVA» (STT por servidor) o pulsa el mic');
+                micBtn.title = 'Sin Web Speech en este navegador (p. ej. Firefox): la voz va por STT en servidor. Chrome/Edge pueden usar «AVA» local.';
+            } else {
+                updateStatus('USA EL TEXTO PARA CHATEAR ↓');
+                micBtn.title = 'Sin Web Speech ni grabación de audio en este dispositivo';
+            }
             console.warn('SpeechRecognition not available');
         }
     }
@@ -1370,6 +1400,7 @@
 
     function startWakeWord() {
         if (!_SRClass || !cfg.wakeWord) return;
+        if (voiceConversationActive) return;
         if (state !== 'IDLE') return;
         const overlay = document.getElementById('config-overlay');
         if (overlay && !overlay.classList.contains('hidden')) return;
@@ -1384,6 +1415,7 @@
             for (let i = 0; i < e.results.length; i++) line += e.results[i][0].transcript;
             const low = line.trim();
             if (!hasWakePhrase(low)) return;
+            voiceConversationActive = true;
             const rest = stripWakePhrases(low);
             stopWakeWord();
             _userInteracted = true;
@@ -1409,6 +1441,7 @@
         };
         wakeRec.onend = () => {
             wakeRec = null;
+            if (voiceConversationActive) return;
             if (cfg.wakeWord && state === 'IDLE' && cfg.userName) {
                 clearTimeout(wakeRestartTimer);
                 wakeRestartTimer = setTimeout(() => startWakeWord(), 220);
@@ -1418,11 +1451,30 @@
     }
 
     function scheduleWakeRestart() {
-        if (!cfg.wakeWord) return;
         clearTimeout(wakeRestartTimer);
         wakeRestartTimer = setTimeout(() => {
-            if (state === 'IDLE' && cfg.userName) startWakeWord();
-        }, 380);
+            if (state !== 'IDLE' || !cfg.userName) return;
+            const overlay = document.getElementById('config-overlay');
+            if (overlay && !overlay.classList.contains('hidden')) return;
+            if (voiceConversationActive) {
+                if (window.MediaRecorder && navigator.mediaDevices) {
+                    startListeningDeepgram({ silenceStopMs: 2650, minBeforeEnd: 580, rmsSpeech: 0.014 });
+                } else if (_SRClass) {
+                    startListening({});
+                }
+            } else if (cfg.wakeWord) {
+                if (_SRClass) {
+                    startWakeWord();
+                } else if (window.MediaRecorder && navigator.mediaDevices && window._deepgramAvailable !== false) {
+                    startListeningDeepgram({
+                        wakeMode: true,
+                        silenceStopMs: 3200,
+                        minBeforeEnd: 700,
+                        rmsSpeech: 0.015
+                    });
+                }
+            }
+        }, 340);
     }
 
     async function ensureVisionCamera() {
@@ -1470,6 +1522,15 @@
         return { base64, mimeType: 'image/jpeg' };
     }
 
+    /** Detiene grabación Deepgram o Web Speech (p. ej. al pulsar mic o cambiar modo). */
+    function stopActiveListen() {
+        if (typeof _activeListenCleanup === 'function') {
+            try { _activeListenCleanup(); } catch (e) {}
+            _activeListenCleanup = null;
+        }
+        try { if (recognition) recognition.stop(); } catch (e) {}
+    }
+
     // Deepgram STT via MediaRecorder — server-side, ultra fast
     // Falls back to Web Speech if DEEPGRAM_API_KEY not set or mic unavailable
     async function startListeningDeepgram(opts) {
@@ -1477,31 +1538,66 @@
         const SILENCE_STOP_MS = opts.silenceStopMs != null ? opts.silenceStopMs : 3200;
         const MIN_MS_BEFORE_END = opts.minBeforeEnd != null ? opts.minBeforeEnd : 700;
         const RMS_SPEECH = opts.rmsSpeech != null ? opts.rmsSpeech : 0.015;
+        stopActiveListen();
         stopWakeWord();
         let stream;
         try {
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch(e) {
             console.warn('Mic access denied, falling back to Web Speech:', e.message);
-            startListening();
+            if (_SRClass) {
+                startListening(opts);
+            } else {
+                setState('IDLE');
+                updateStatus('Permite el micrófono o escribe abajo');
+                if (opts.wakeMode) scheduleWakeRestart();
+            }
             return;
         }
 
         setState('LISTENING');
-        updateStatus('ESCUCHANDO...');
+        {
+            let label = 'ESCUCHANDO...';
+            if (voiceConversationActive) label = 'TE ESCUCHO…';
+            else if (opts.wakeMode) label = 'ESCUCHANDO — di «AVA»…';
+            updateStatus(label);
+        }
         document.getElementById('transcript').textContent = '';
 
         const chunks = [];
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
             ? 'audio/webm;codecs=opus' : 'audio/webm';
-        const recorder = new MediaRecorder(stream, { mimeType });
+        let recorder = new MediaRecorder(stream, { mimeType });
+        let actx = new AudioContext();
+        let silenceIntervalId = null;
+
+        const endSilenceMonitor = () => {
+            if (silenceIntervalId) {
+                clearInterval(silenceIntervalId);
+                silenceIntervalId = null;
+            }
+            try { if (actx && actx.state !== 'closed') actx.close(); } catch (e) {}
+            actx = null;
+        };
+
+        _activeListenCleanup = () => {
+            endSilenceMonitor();
+            try { if (recorder && recorder.state === 'recording') recorder.stop(); } catch (e) {}
+        };
 
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
 
         recorder.onstop = async () => {
+            _activeListenCleanup = null;
+            endSilenceMonitor();
             stream.getTracks().forEach(t => t.stop());
             if (state !== 'LISTENING') return;
-            if (chunks.length === 0) { setState('IDLE'); updateStatus('LISTA'); return; }
+            if (chunks.length === 0) {
+                setState('IDLE');
+                updateStatus('LISTA');
+                if (opts.wakeMode) scheduleWakeRestart();
+                return;
+            }
 
             updateStatus('PROCESANDO...');
             const blob = new Blob(chunks, { type: mimeType });
@@ -1519,24 +1615,55 @@
                     const txt = (d.transcript || '').trim();
                     if (txt) {
                         document.getElementById('transcript').textContent = txt;
-                        processMessage(txt);
+                        if (opts.wakeMode) {
+                            if (!hasWakePhrase(txt)) {
+                                setState('IDLE');
+                                updateStatus('LISTA');
+                                scheduleWakeRestart();
+                                return;
+                            }
+                            voiceConversationActive = true;
+                            const rest = stripWakePhrases(txt).trim();
+                            document.getElementById('transcript').textContent = rest || txt;
+                            const afterWakeFast = { silenceStopMs: 1550, minBeforeEnd: 380, rmsSpeech: 0.012 };
+                            const primeVision = () => { if (cfg.useVision) ensureVisionCamera(); };
+                            if (rest.length > 2) {
+                                primeVision();
+                                processMessage(rest);
+                            } else if (window.MediaRecorder && navigator.mediaDevices) {
+                                primeVision();
+                                startListeningDeepgram(afterWakeFast);
+                            } else if (_SRClass) {
+                                primeVision();
+                                startListening({ fastSilence: true });
+                            } else {
+                                setState('IDLE');
+                                updateStatus('LISTA');
+                                scheduleWakeRestart();
+                            }
+                        } else {
+                            processMessage(txt);
+                        }
                     } else {
-                        // No speech detected
-                        setState('IDLE'); updateStatus('LISTA');
+                        setState('IDLE');
+                        updateStatus('LISTA');
+                        if (opts.wakeMode) scheduleWakeRestart();
                     }
                 } catch(e) {
                     console.warn('Deepgram STT unavailable, switching to Web Speech:', e.message);
                     window._deepgramAvailable = false;
-                    setState('IDLE'); updateStatus('LISTA');
-                    setTimeout(startListening, 100);
+                    setState('IDLE');
+                    updateStatus('LISTA');
+                    if (_SRClass) {
+                        setTimeout(() => startListening(opts), 100);
+                    } else {
+                        updateStatus('VOZ: revisa DEEPGRAM_API_KEY en Vercel o usa Chrome/Edge');
+                    }
                 }
             };
             reader.readAsDataURL(blob);
         };
 
-        // Auto-stop tras silencio — RMS en tiempo (más fiable que FFT para voz)
-        // Pausas naturales entre palabras (p. ej. "hola" … "cómo estás") NO deben cortar a 1s
-        const actx = new AudioContext();
         const src = actx.createMediaStreamSource(stream);
         const analyser = actx.createAnalyser();
         analyser.fftSize = 1024;
@@ -1549,8 +1676,13 @@
 
         recorder.start(100);
 
-        const silenceCheck = setInterval(() => {
-            if (state !== 'LISTENING') { clearInterval(silenceCheck); recorder.stop(); actx.close(); return; }
+        silenceIntervalId = setInterval(() => {
+            if (state !== 'LISTENING') {
+                clearInterval(silenceIntervalId);
+                silenceIntervalId = null;
+                try { if (recorder && recorder.state === 'recording') recorder.stop(); } catch (e) {}
+                return;
+            }
             analyser.getByteTimeDomainData(buf);
             let s = 0;
             for (let i = 0; i < buf.length; i++) {
@@ -1563,9 +1695,9 @@
             else silenceMs += CHECK_MS;
             const canEndOnSilence = elapsed >= MIN_MS_BEFORE_END && silenceMs >= SILENCE_STOP_MS;
             if (canEndOnSilence || elapsed >= MAX_MS) {
-                clearInterval(silenceCheck);
-                recorder.stop();
-                actx.close();
+                clearInterval(silenceIntervalId);
+                silenceIntervalId = null;
+                try { if (recorder && recorder.state === 'recording') recorder.stop(); } catch (e) {}
             }
         }, CHECK_MS);
     }
@@ -1573,6 +1705,7 @@
     function startListening(opts) {
         opts = opts || {};
         if (!_SRClass) return;
+        stopActiveListen();
         stopWakeWord();
 
         // Always create a fresh instance — reusing causes channel-closed errors
@@ -1588,7 +1721,7 @@
 
         recognition.onstart = () => {
             setState('LISTENING');
-            updateStatus('ESCUCHANDO...');
+            updateStatus(voiceConversationActive ? 'TE ESCUCHO…' : 'ESCUCHANDO...');
             document.getElementById('transcript').textContent = '';
             finalTranscript = '';
         };
@@ -1650,9 +1783,9 @@
         if (state === 'TALKING') { stopSpeaking(); return; }
 
         if (state === 'LISTENING') {
-            // Stop current session
-            try { recognition && recognition.stop(); } catch(e) {}
-            setState('IDLE'); updateStatus('LISTA');
+            stopActiveListen();
+            setState('IDLE');
+            updateStatus(voiceConversationActive ? 'LISTA — sigue en modo voz' : 'LISTA');
             return;
         }
 
@@ -1895,6 +2028,8 @@
 
     function resetConfig() {
         if (!confirm('¿Resetear configuración?')) return;
+        voiceConversationActive = false;
+        stopActiveListen();
         localStorage.removeItem('ava_user');
         localStorage.removeItem('ava_api');
         localStorage.removeItem('ava_vrm_base');
@@ -1959,12 +2094,12 @@
         const chatIn = document.getElementById('chat-input');
         document.getElementById('chat-send').addEventListener('click', () => {
             const t = chatIn.value.trim();
-            if (t) { document.getElementById('transcript').textContent = t; processMessage(t); chatIn.value = ''; }
+            if (t) { document.getElementById('transcript').textContent = t; voiceConversationActive = false; processMessage(t); chatIn.value = ''; }
         });
         chatIn.addEventListener('keypress', e => {
             if (e.key === 'Enter') {
                 const t = chatIn.value.trim();
-                if (t) { document.getElementById('transcript').textContent = t; processMessage(t); chatIn.value = ''; }
+                if (t) { document.getElementById('transcript').textContent = t; voiceConversationActive = false; processMessage(t); chatIn.value = ''; }
             }
         });
 
