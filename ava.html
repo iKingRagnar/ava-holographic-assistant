@@ -952,21 +952,31 @@
             _emotionTimer = Math.max(0, _emotionTimer - delta);
             const emo = _emotionTimer > 0 ? _emotion : 'neutral';
             const eStrength = _emotionTimer > 1 ? 1 : _emotionTimer; // fade out
-            const JOY  = vrmBlend.all.find(n => /joy|happy|fun|smile/i.test(n));
-            const SAD  = vrmBlend.all.find(n => /sorrow|sad/i.test(n));
-            const ANG  = vrmBlend.all.find(n => /angry|anger/i.test(n));
-            const SURP = vrmBlend.all.find(n => /surpris|wow/i.test(n));
-            // Reset all expression blends first
+            // Use exact names from available blendshapes (case-sensitive match first, then regex)
+            const findBlend = (...keys) => {
+                for (const k of keys) {
+                    const exact = vrmBlend.all.find(n => n === k);
+                    if (exact) return exact;
+                }
+                for (const k of keys) {
+                    const fuzzy = vrmBlend.all.find(n => new RegExp(k, 'i').test(n));
+                    if (fuzzy) return fuzzy;
+                }
+                return null;
+            };
+            const JOY  = findBlend('Joy', 'Fun', 'joy', 'fun', 'happy', 'smile');
+            const SAD  = findBlend('Sorrow', 'sorrow', 'sad');
+            const SURP = findBlend('Surprised', 'surprised', 'Angry', 'angry'); // use Angry for excitement if no surprise
+            // Reset all
             if (JOY)  setBlend(proxy, JOY,  0);
             if (SAD)  setBlend(proxy, SAD,  0);
-            if (ANG)  setBlend(proxy, ANG,  0);
             if (SURP) setBlend(proxy, SURP, 0);
             // Apply current emotion
-            if (emo === 'happy'   && JOY)  setBlend(proxy, JOY,  eStrength * 0.8);
-            if (emo === 'excited' && SURP) setBlend(proxy, SURP, eStrength * 0.7);
-            if (emo === 'excited' && JOY)  setBlend(proxy, JOY,  eStrength * 0.4);
-            if (emo === 'calm'    && SAD)  setBlend(proxy, SAD,  eStrength * 0.15); // subtle
-            if (emo === 'curious' && SURP) setBlend(proxy, SURP, eStrength * 0.4);
+            if (emo === 'happy'   && JOY)  setBlend(proxy, JOY,  eStrength * 0.75);
+            if (emo === 'excited' && JOY)  setBlend(proxy, JOY,  eStrength * 0.5);
+            if (emo === 'excited' && SURP) setBlend(proxy, SURP, eStrength * 0.35);
+            if (emo === 'calm'    && SAD)  setBlend(proxy, SAD,  eStrength * 0.12);
+            if (emo === 'curious' && JOY)  setBlend(proxy, JOY,  eStrength * 0.3);
 
             if (state === 'TALKING') {
                 let mOpen = Math.abs(Math.sin(t * 8)) * 0.75;
@@ -1448,12 +1458,21 @@
         return new Promise(done => {
             const audio = new Audio('data:audio/mp3;base64,' + b64);
             _curAudio = audio;
-            const finish = () => { ttsAnalyser = null; ttsFreq = null; setState('IDLE'); updateStatus('LISTA'); document.getElementById('response').textContent = ''; done(); };
+            const finish = () => {
+                ttsAnalyser = null; ttsFreq = null;
+                setState('IDLE'); updateStatus('LISTA');
+                document.getElementById('response').textContent = '';
+                done();
+            };
             audio.onended = finish;
-            audio.onerror = finish;
+            audio.onerror = (e) => { console.warn('Audio error:', e); finish(); };
             (async () => {
                 try {
-                    if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    // Always create a FRESH AudioContext — reusing causes createMediaElementSource errors
+                    if (ttsCtx && ttsCtx.state !== 'closed') {
+                        try { ttsCtx.close(); } catch(_) {}
+                    }
+                    ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
                     await ttsCtx.resume();
                     const src = ttsCtx.createMediaElementSource(audio);
                     ttsAnalyser = ttsCtx.createAnalyser();
@@ -1462,8 +1481,10 @@
                     ttsFreq = new Uint8Array(ttsAnalyser.frequencyBinCount);
                     src.connect(ttsAnalyser);
                     ttsAnalyser.connect(ttsCtx.destination);
-                } catch(e) { console.warn('Lip-sync ctx fail:', e); }
-                try { await audio.play(); } catch(e) { console.warn('Play fail:', e); finish(); }
+                } catch(e) {
+                    console.warn('Lip-sync ctx fail (playing without analyser):', e.message);
+                }
+                try { await audio.play(); } catch(e) { console.warn('Play fail:', e.message); finish(); }
             })();
         });
     }
