@@ -33,7 +33,7 @@ export default async function handler(req, res) {
 
   const idx = Math.max(0, Math.min(9, parseInt(avatarIndex) || 0));
   const v = AVATAR_VOICES[idx];
-  const clean = text.substring(0, 600);
+  const clean = text.substring(0, 2500);
 
   try {
     const response = await fetch('https://api.openai.com/v1/audio/speech', {

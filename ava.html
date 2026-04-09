@@ -1175,7 +1175,7 @@
         document.getElementById('response').textContent = '';
 
         msgHistory.push({ role: 'user', content: text });
-        if (msgHistory.length > 12) msgHistory = msgHistory.slice(-12);
+        if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
 
         try {
             const payload = {
@@ -1407,30 +1407,38 @@
             reader.readAsDataURL(blob);
         };
 
-        // Auto-stop after silence: use Web Audio silence detection
+        // Auto-stop tras silencio — RMS en tiempo (más fiable que FFT para voz)
+        // Pausas naturales entre palabras (p. ej. "hola" … "cómo estás") NO deben cortar a 1s
         const actx = new AudioContext();
         const src = actx.createMediaStreamSource(stream);
         const analyser = actx.createAnalyser();
-        analyser.fftSize = 512;
+        analyser.fftSize = 1024;
         src.connect(analyser);
-        const buf = new Uint8Array(analyser.frequencyBinCount);
+        const buf = new Uint8Array(analyser.fftSize);
         let silenceMs = 0;
         const CHECK_MS = 50;
-        const SILENCE_THRESHOLD = 12;
-        const SILENCE_STOP_MS = 1000;
-        const MAX_MS = 12000;
+        const RMS_SPEECH = 0.015;
+        const SILENCE_STOP_MS = 3200;
+        const MIN_MS_BEFORE_END = 700;
+        const MAX_MS = 60000;
         let elapsed = 0;
 
         recorder.start(100);
 
         const silenceCheck = setInterval(() => {
             if (state !== 'LISTENING') { clearInterval(silenceCheck); recorder.stop(); actx.close(); return; }
-            analyser.getByteFrequencyData(buf);
-            const avg = buf.reduce((a,b) => a+b, 0) / buf.length;
+            analyser.getByteTimeDomainData(buf);
+            let s = 0;
+            for (let i = 0; i < buf.length; i++) {
+                const x = (buf[i] - 128) / 128;
+                s += x * x;
+            }
+            const rms = Math.sqrt(s / buf.length);
             elapsed += CHECK_MS;
-            if (avg < SILENCE_THRESHOLD) silenceMs += CHECK_MS;
-            else silenceMs = 0;
-            if (silenceMs >= SILENCE_STOP_MS || elapsed >= MAX_MS) {
+            if (rms >= RMS_SPEECH) silenceMs = 0;
+            else silenceMs += CHECK_MS;
+            const canEndOnSilence = elapsed >= MIN_MS_BEFORE_END && silenceMs >= SILENCE_STOP_MS;
+            if (canEndOnSilence || elapsed >= MAX_MS) {
                 clearInterval(silenceCheck);
                 recorder.stop();
                 actx.close();
@@ -1451,7 +1459,7 @@
 
         let finalTranscript = '';
         let silenceTimer = null;
-        const SILENCE_MS = 1200; // fin más rápido tras pausa (Web Speech)
+        const SILENCE_MS = 2800; // pausa larga tras último resultado (frases completas)
 
         recognition.onstart = () => {
             setState('LISTENING');
@@ -1594,7 +1602,7 @@
                 const r = await fetch(p.url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: clean.substring(0, 500), avatarIndex: currentIdx })
+                    body: JSON.stringify({ text: clean.substring(0, 1200), avatarIndex: currentIdx })
                 });
                 if (r.ok) {
                     const d = await r.json();

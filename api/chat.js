@@ -3,7 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 const AVATAR_PROMPTS = {
-  AVA:   `Eres AVA, asistente holográfica de alta gama. Experta en TI, Business Intelligence, datos y operaciones. Español neutro, tono profesional, claro y cercano. Sofisticada pero accesible. Respuestas breves para voz (2-4 oraciones). No inventes datos.`,
+  AVA:   `Eres AVA, asistente holográfica de alta gama. Experta en TI, Business Intelligence, datos y operaciones. Español neutro, tono profesional, claro y cercano. Sofisticada pero accesible. Adapta la longitud al mensaje del usuario; en temas complejos sé exhaustiva dentro del límite de voz. No inventes datos.`,
   KIRA:  `Eres KIRA, compañera de gaming entusiasta. Das apoyo en partidas, analizas estrategias y motivas. Español juvenil y energético. Respuestas cortas y dinámicas.`,
   ZANE:  `Eres ZANE, aliado táctico. Especialista en estrategia y gestión de presión. Español firme y seguro. Directo, sin rodeos.`,
   FAKER: `Eres FAKER, coach de esports de élite. Técnicas avanzadas, análisis de rendimiento. Español técnico pero accesible. Preciso y motivador.`,
@@ -15,7 +15,10 @@ const AVATAR_PROMPTS = {
   KAI:   `Eres KAI, experto en comunicación y networking. Eventos, comunidad, conexiones sociales. Amigable, carismático, práctico.`
 };
 
-const SYSTEM_SUFFIX = '\nIMPORTANTE: Responde siempre en español. Máximo 3 oraciones cortas, optimizado para voz.';
+const MAX_REPLY_TOKENS = 512;
+
+const SYSTEM_SUFFIX = `\nIMPORTANTE: Español siempre. Mantén coherencia con todo el historial: no ignores el contexto ni repitas saludos genéricos si el usuario ya está en conversación.
+Si el usuario solo saluda, responde breve; si pregunta, argumenta o pide detalle, sé precisa y útil (hasta ~6 oraciones cortas si el tema lo requiere), optimizado para voz.`;
 
 // ── CLAUDE (Anthropic) ──────────────────────────────────────────────────────
 async function tryAnthropic(systemPrompt, msgList) {
@@ -33,7 +36,7 @@ async function tryAnthropic(systemPrompt, msgList) {
   const client = new Anthropic({ apiKey: key });
   for (const model of MODELS) {
     try {
-      const r = await client.messages.create({ model, max_tokens: 300, system: systemPrompt, messages: msgList });
+      const r = await client.messages.create({ model, max_tokens: MAX_REPLY_TOKENS, system: systemPrompt, messages: msgList });
       return { text: r.content?.[0]?.text || '', source: 'claude', model };
     } catch (e) {
       if (e.status === 404 || e.status === 400) continue;
@@ -52,7 +55,7 @@ async function tryOpenAI(systemPrompt, msgList) {
   const MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
   const body = (model) => JSON.stringify({
     model,
-    max_tokens: 300,
+    max_tokens: MAX_REPLY_TOKENS,
     messages: [{ role: 'system', content: systemPrompt }, ...msgList]
   });
 
@@ -121,7 +124,7 @@ async function tryGemini(systemPrompt, msgList, vision) {
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },
           contents,
-          generationConfig: { maxOutputTokens: 300, temperature: 0.7 },
+          generationConfig: { maxOutputTokens: MAX_REPLY_TOKENS, temperature: 0.7 },
         }),
       });
       if (!r.ok) continue;
@@ -161,7 +164,7 @@ async function tryOpenAIVision(systemPrompt, msgList, vision) {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 300,
+          max_tokens: MAX_REPLY_TOKENS,
           messages: [
             { role: 'system', content: systemPrompt },
             ...prior,
@@ -199,7 +202,7 @@ async function tryDeepSeek(systemPrompt, msgList) {
       headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        max_tokens: 300,
+        max_tokens: MAX_REPLY_TOKENS,
         messages: [{ role: 'system', content: systemPrompt }, ...msgList]
       })
     });
@@ -225,7 +228,7 @@ async function tryGroq(systemPrompt, msgList) {
         headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model,
-          max_tokens: 300,
+          max_tokens: MAX_REPLY_TOKENS,
           messages: [{ role: 'system', content: systemPrompt }, ...msgList]
         })
       });
@@ -254,9 +257,9 @@ export default async function handler(req, res) {
       : '';
   const systemPrompt =
     (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX + visionHint;
-  const msgList = messages.slice(-12).map((m) => ({
+  const msgList = messages.slice(-20).map((m) => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
-    content: String(m.content).substring(0, 2000),
+    content: String(m.content).substring(0, 4000),
   }));
 
   const hasVision = !!(vision && vision.base64 && String(vision.base64).length > 100);
