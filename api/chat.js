@@ -55,11 +55,18 @@ export default async function handler(req, res) {
 
   // Try models in order of preference (handles API keys with limited access)
   const MODELS = [
+    'claude-opus-4-5',
+    'claude-sonnet-4-5',
+    'claude-haiku-4-5',
     'claude-3-5-sonnet-20241022',
     'claude-3-5-haiku-20241022',
+    'claude-3-5-sonnet-20240620',
     'claude-3-haiku-20240307',
     'claude-3-sonnet-20240229',
     'claude-3-opus-20240229',
+    'claude-2.1',
+    'claude-2.0',
+    'claude-instant-1.2',
   ];
 
   const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
