@@ -594,8 +594,6 @@
     <!-- Three.js r134 (tiene soporte nativo alphaToMask en ShaderMaterial) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
-    <!-- CDN: en Vercel el rewrite SPA devolvía HTML en rutas /vendor/*.js y /three-vrm*.js → sin THREE_VRM. Los .vrm en /public/ sí van bien vía rewrite. -->
-    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.11/lib/three-vrm.js"></script>
 
     <script>
         // ==========================================
@@ -651,6 +649,40 @@ Objetivo: que el usuario salga con un siguiente paso claro (qué revisar, qué m
             var pack = g.THREE_VRM || (typeof THREE_VRM !== 'undefined' ? THREE_VRM : null);
             if (pack && pack.VRM) return pack.VRM;
             return undefined;
+        }
+
+        function loadScriptOnce(src) {
+            return new Promise(function (resolve, reject) {
+                var s = document.createElement('script');
+                s.async = false;
+                s.src = src;
+                s.onload = function () { resolve(); };
+                s.onerror = function () { reject(new Error('load failed: ' + src)); };
+                document.head.appendChild(s);
+            });
+        }
+
+        /** Carga three-vrm antes del avatar: primero mismo origen (API proxy), luego CDNs. */
+        async function ensureThreeVrmLoaded() {
+            if (getVRMConstructor()) return;
+            var sources = [
+                '/api/three-vrm.js',
+                'https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.11/lib/three-vrm.js',
+                'https://unpkg.com/@pixiv/three-vrm@0.6.11/lib/three-vrm.js'
+            ];
+            var i;
+            for (i = 0; i < sources.length; i++) {
+                try {
+                    await loadScriptOnce(sources[i]);
+                    if (getVRMConstructor()) {
+                        console.log('three-vrm listo desde:', sources[i]);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('three-vrm intento falló:', sources[i], e);
+                }
+            }
+            console.error('No se pudo cargar @pixiv/three-vrm desde ninguna fuente.');
         }
 
         function refreshBlendShapeCache(vrm) {
@@ -987,6 +1019,7 @@ Objetivo: que el usuario salga con un siguiente paso claro (qué revisar, qué m
 
             if (!VRM) {
                 console.warn('three-vrm no disponible (THREE_VRM.VRM / THREE.VRM), usando placeholder');
+                updateStatus('SIN LIB VRM — revisa red / consola');
                 createPlaceholderAvatar(index);
                 return;
             }
@@ -2030,7 +2063,9 @@ Objetivo: que el usuario salga con un siguiente paso claro (qué revisar, qué m
         // ==========================================
         // INITIALIZATION
         // ==========================================
-        function init() {
+        async function init() {
+            await ensureThreeVrmLoaded();
+
             // Initialize Three.js
             initThreeJS();
 
