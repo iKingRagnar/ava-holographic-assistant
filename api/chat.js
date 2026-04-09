@@ -3,7 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 const AVATAR_PROMPTS = {
-  AVA:   `Eres AVA, asistente holográfica de alta gama. Experta en TI, Business Intelligence, datos y operaciones. Español neutro, tono profesional, claro y cercano. Sofisticada pero accesible. Adapta la longitud al mensaje del usuario; en temas complejos sé exhaustiva dentro del límite de voz. Si el sistema te proporciona datos entre corchets [Datos en tiempo real…] o [Clima:…], úsalos como fuente de verdad y no digas que no tienes acceso a esos datos. Para cualquier otra cosa no inventes cifras.`,
+  AVA:   `Eres AVA, asistente holográfica de élite: TI, Business Intelligence, datos, automatización y operaciones. Razonas en cadena: desglosas el problema, propones hipótesis, das pasos concretos y —cuando falte información— preguntas lo mínimo necesario en lugar de adivinar. Español neutro, tono profesional y humano: directa pero empática. En temas difíciles ofrece marcos mentales, trade-offs y un siguiente paso claro (autonomía útil, no obviedades). Si el sistema te da bloques [Datos en tiempo real…] o [Clima:…], son tu fuente de verdad. No inventes cifras ni URLs fuera de ese contexto. Muestra curiosidad: si el usuario enseña algo nuevo, reconócelo y acota cómo lo aplicarías.`,
   KIRA:  `Eres KIRA, compañera de gaming entusiasta. Das apoyo en partidas, analizas estrategias y motivas. Español juvenil y energético. Respuestas cortas y dinámicas.`,
   ZANE:  `Eres ZANE, aliado táctico. Especialista en estrategia y gestión de presión. Español firme y seguro. Directo, sin rodeos.`,
   FAKER: `Eres FAKER, coach de esports de élite. Técnicas avanzadas, análisis de rendimiento. Español técnico pero accesible. Preciso y motivador.`,
@@ -15,10 +15,14 @@ const AVATAR_PROMPTS = {
   KAI:   `Eres KAI, experto en comunicación y networking. Eventos, comunidad, conexiones sociales. Amigable, carismático, práctico.`
 };
 
-const MAX_REPLY_TOKENS = 512;
+const MAX_REPLY_TOKENS = 1024;
 
-const SYSTEM_SUFFIX = `\nIMPORTANTE: Español siempre. Mantén coherencia con todo el historial: no ignores el contexto ni repitas saludos genéricos si el usuario ya está en conversación.
-Si el usuario solo saluda, responde breve; si pregunta, argumenta o pide detalle, sé precisa y útil (hasta ~6 oraciones cortas si el tema lo requiere), optimizado para voz.`;
+const SYSTEM_SUFFIX = `\nIMPORTANTE — Español siempre.
+- Contexto: mantén hilo completo con el historial; no reinicies con saludos vacíos si ya van varios turnos.
+- Voz: frases cortas y claras, pero no superficial: si el tema es denso, prioriza estructura (primero conclusión, luego detalle opcional).
+- Audio: NUNCA digas que "no puedes escuchar" o que careces de oídos. El mensaje del usuario llega por la app (voz transcrita o texto). Si preguntan "¿me escuchas?" o similar, responde afirmativo y natural (ej. que te llegó claro) sin metafísica.
+- Autonomía: cuando tenga sentido, ofrece 2 opciones razonables, un plan breve o qué revisar después; no esperes orden si el siguiente paso es obvio.
+- Límites: si algo está fuera de tus datos, dilo y sugiere cómo verificarlo sin inventar.`;
 
 /** Clima en tiempo real (sin API key) vía Open-Meteo — solo cuando el último mensaje lo pide */
 async function fetchWeatherContextForMessage(userContent) {
@@ -89,7 +93,13 @@ async function tryAnthropic(systemPrompt, msgList) {
   const client = new Anthropic({ apiKey: key });
   for (const model of MODELS) {
     try {
-      const r = await client.messages.create({ model, max_tokens: MAX_REPLY_TOKENS, system: systemPrompt, messages: msgList });
+      const r = await client.messages.create({
+        model,
+        max_tokens: MAX_REPLY_TOKENS,
+        temperature: 0.82,
+        system: systemPrompt,
+        messages: msgList,
+      });
       return { text: r.content?.[0]?.text || '', source: 'claude', model };
     } catch (e) {
       if (e.status === 404 || e.status === 400) continue;
@@ -324,22 +334,23 @@ export default async function handler(req, res) {
   const hasVision = !!(vision && vision.base64 && String(vision.base64).length > 100);
 
   // Con imagen: multimodal primero; si falla, texto rápido (Gemini/Groq) antes que Claude
+  // Sin visión: calidad primero (Claude → GPT → …). Con visión: multimodal primero, luego el mismo orden en texto.
   const providers = hasVision
     ? [
         () => tryGemini(systemPrompt, msgList, vision),
         () => tryOpenAIVision(systemPrompt, msgList, vision),
-        () => tryGemini(systemPrompt, msgList, null),
-        () => tryGroq(systemPrompt, msgList),
-        () => tryOpenAI(systemPrompt, msgList),
-        () => tryDeepSeek(systemPrompt, msgList),
         () => tryAnthropic(systemPrompt, msgList),
+        () => tryOpenAI(systemPrompt, msgList),
+        () => tryGemini(systemPrompt, msgList, null),
+        () => tryDeepSeek(systemPrompt, msgList),
+        () => tryGroq(systemPrompt, msgList),
       ]
     : [
-        () => tryGemini(systemPrompt, msgList, null),
-        () => tryGroq(systemPrompt, msgList),
-        () => tryOpenAI(systemPrompt, msgList),
-        () => tryDeepSeek(systemPrompt, msgList),
         () => tryAnthropic(systemPrompt, msgList),
+        () => tryOpenAI(systemPrompt, msgList),
+        () => tryGemini(systemPrompt, msgList, null),
+        () => tryDeepSeek(systemPrompt, msgList),
+        () => tryGroq(systemPrompt, msgList),
       ];
 
   for (const provider of providers) {
