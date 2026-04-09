@@ -52,61 +52,64 @@
         .cap-skills{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
         .skill-tag{background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.25);padding:2px 8px;border-radius:12px;font-size:9px}
 
-        /* === Base ring === */
-        .base-ring{width:180px;height:48px;
-            border:2px solid #00ff9d;border-radius:50%;z-index:20;transition:.3s;
-            box-shadow:0 0 20px rgba(0,255,157,.4),inset 0 0 15px rgba(0,255,157,.15);
-            flex-shrink:0;
-        }
+        /* === Base ring (3D decoration behind avatar) === */
+        .base-ring{position:fixed;bottom:8vh;left:50%;transform:translateX(-50%);
+            width:200px;height:52px;border:2px solid #00ff9d;border-radius:50%;z-index:20;transition:.3s;
+            box-shadow:0 0 20px rgba(0,255,157,.4),inset 0 0 15px rgba(0,255,157,.15);pointer-events:none}
         .base-ring::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-            width:158px;height:38px;border:1px solid rgba(0,255,157,.35);border-radius:50%;
-        }
+            width:178px;height:42px;border:1px solid rgba(0,255,157,.35);border-radius:50%}
         .base-ring.idle{animation:pulse-slow 3s ease-in-out infinite}
-        .base-ring.listening{border-color:#00aaff;box-shadow:0 0 30px rgba(0,170,255,.5),inset 0 0 25px rgba(0,170,255,.25);animation:pulse-fast .8s ease-in-out infinite}
-        .base-ring.thinking{border-color:#ffaa00;box-shadow:0 0 25px rgba(255,170,0,.4),inset 0 0 20px rgba(255,170,0,.15);animation:blink-ring .5s ease-in-out infinite}
-        .base-ring.talking{border-color:#00ff9d;box-shadow:0 0 40px rgba(0,255,157,.7),inset 0 0 30px rgba(0,255,157,.3);animation:pulse-talk .3s ease-in-out infinite}
-        @keyframes pulse-slow{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.02)}}
-        @keyframes pulse-fast{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}
+        .base-ring.listening{border-color:#00aaff;box-shadow:0 0 30px rgba(0,170,255,.5);animation:pulse-fast .8s ease-in-out infinite}
+        .base-ring.thinking{border-color:#ffaa00;box-shadow:0 0 25px rgba(255,170,0,.4);animation:blink-ring .5s ease-in-out infinite}
+        .base-ring.talking{border-color:#00ff9d;box-shadow:0 0 40px rgba(0,255,157,.7);animation:pulse-talk .3s ease-in-out infinite}
+        @keyframes pulse-slow{0%,100%{opacity:.55;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.02)}}
+        @keyframes pulse-fast{0%,100%{opacity:.7;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.05)}}
         @keyframes blink-ring{0%,100%{opacity:1}50%{opacity:.25}}
-        @keyframes pulse-talk{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
-
-        /* === Bottom HUD — fixed compact layout === */
-        .bottom-hud{position:fixed;bottom:0;left:0;right:0;z-index:60;
-            display:flex;flex-direction:column;align-items:center;padding-bottom:14px;gap:8px;pointer-events:none}
-        .bottom-hud > *{pointer-events:auto}
+        @keyframes pulse-talk{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.07)}}
 
         /* === Status & response === */
-        .status-area{text-align:center;width:90%;max-width:500px}
+        .status-area{position:fixed;bottom:230px;left:50%;transform:translateX(-50%);
+            z-index:60;text-align:center;width:90%;max-width:500px;pointer-events:none}
         .status-text{font-size:11px;color:rgba(0,255,157,.65);text-transform:uppercase;letter-spacing:3px;margin-bottom:4px}
         .transcript{font-size:13px;color:#fff;min-height:18px;text-shadow:0 0 8px rgba(255,255,255,.2)}
         .response{font-size:14px;color:#00ff9d;margin-top:4px;text-shadow:0 0 12px rgba(0,255,157,.4);line-height:1.35;max-height:56px;overflow:hidden}
 
         /* === Chat input === */
-        .chat-box{width:88vw;max-width:420px;display:flex;gap:6px}
+        .chat-box{position:fixed;bottom:168px;left:50%;transform:translateX(-50%);
+            z-index:65;width:88vw;max-width:440px;display:flex;gap:8px}
         .chat-box.hidden{display:none}
-        .chat-input{flex:1;padding:9px 16px;background:rgba(0,0,0,.8);border:1.5px solid rgba(0,255,157,.4);border-radius:22px;
-            color:#00ff9d;font-size:14px;outline:none;backdrop-filter:blur(8px)}
-        .chat-input::placeholder{color:rgba(0,255,157,.35)}
-        .chat-input:focus{border-color:#00ff9d;box-shadow:0 0 15px rgba(0,255,157,.2)}
-        .chat-send{width:38px;height:38px;min-width:38px;border-radius:50%;border:none;background:rgba(0,255,157,.15);color:#00ff9d;
-            font-size:18px;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center}
-        .chat-send:hover{background:rgba(0,255,157,.3)}
+        .chat-input{flex:1;padding:11px 18px;background:rgba(0,0,0,.85);
+            border:2px solid rgba(0,255,157,.5);border-radius:26px;
+            color:#00ff9d;font-size:14px;outline:none}
+        .chat-input::placeholder{color:rgba(0,255,157,.4)}
+        .chat-input:focus{border-color:#00ff9d;box-shadow:0 0 18px rgba(0,255,157,.25)}
+        .chat-send{width:44px;height:44px;min-width:44px;border-radius:50%;border:2px solid rgba(0,255,157,.6);
+            background:rgba(0,255,157,.15);color:#00ff9d;font-size:18px;cursor:pointer;
+            transition:.2s;display:flex;align-items:center;justify-content:center}
+        .chat-send:hover{background:rgba(0,255,157,.3);border-color:#00ff9d}
 
-        /* === Mic button === */
-        .mic-row{display:flex;flex-direction:column;align-items:center;gap:4px}
-        .mic-label{color:rgba(0,255,157,.5);font-size:9px;letter-spacing:2px;text-transform:uppercase;
-            pointer-events:none;animation:fade-pulse 3s ease-in-out infinite}
-        @keyframes fade-pulse{0%,100%{opacity:.3}50%{opacity:.8}}
-        .mic-btn{width:62px;height:62px;border-radius:50%;
-            background:radial-gradient(circle,rgba(0,255,157,.15) 0%,transparent 70%);border:2.5px solid #00ff9d;
-            cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.3s}
-        .mic-btn:active{transform:scale(.93)}
-        .mic-btn svg{width:26px;height:26px;fill:#00ff9d;filter:drop-shadow(0 0 6px rgba(0,255,157,.7))}
-        .mic-btn.listening{border-color:#00aaff;background:radial-gradient(circle,rgba(0,170,255,.25) 0%,transparent 70%);animation:mic-glow 1s ease-in-out infinite}
+        /* === MIC BUTTON — always visible, big, centered === */
+        .mic-btn{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);
+            width:72px;height:72px;border-radius:50%;z-index:70;
+            background:rgba(0,0,0,.7);border:3px solid #00ff9d;
+            cursor:pointer;display:flex;align-items:center;justify-content:center;
+            box-shadow:0 0 25px rgba(0,255,157,.5),0 0 60px rgba(0,255,157,.15);
+            transition:.3s}
+        .mic-btn:hover{box-shadow:0 0 35px rgba(0,255,157,.8),0 0 80px rgba(0,255,157,.25)}
+        .mic-btn:active{transform:translateX(-50%) scale(.92)}
+        .mic-btn svg{width:30px;height:30px;fill:#00ff9d;filter:drop-shadow(0 0 8px rgba(0,255,157,.9))}
+        .mic-btn.listening{border-color:#00aaff;background:rgba(0,60,120,.8);
+            box-shadow:0 0 30px rgba(0,170,255,.7),0 0 80px rgba(0,170,255,.3);
+            animation:mic-glow 0.8s ease-in-out infinite}
         .mic-btn.listening svg{fill:#00aaff}
         .mic-btn.talking{border-color:#00ff9d;animation:mic-glow-talk .4s ease-in-out infinite}
-        @keyframes mic-glow{0%,100%{box-shadow:0 0 15px rgba(0,170,255,.4)}50%{box-shadow:0 0 35px rgba(0,170,255,.7)}}
-        @keyframes mic-glow-talk{0%,100%{box-shadow:0 0 15px rgba(0,255,157,.4)}50%{box-shadow:0 0 40px rgba(0,255,157,.8)}}
+        @keyframes mic-glow{0%,100%{box-shadow:0 0 20px rgba(0,170,255,.5),0 0 60px rgba(0,170,255,.2)}50%{box-shadow:0 0 45px rgba(0,170,255,.9),0 0 100px rgba(0,170,255,.4)}}
+        @keyframes mic-glow-talk{0%,100%{box-shadow:0 0 20px rgba(0,255,157,.5)}50%{box-shadow:0 0 50px rgba(0,255,157,.9)}}
+        .mic-label{position:fixed;bottom:74px;left:50%;transform:translateX(-50%);
+            z-index:70;color:rgba(0,255,157,.7);font-size:10px;letter-spacing:2px;
+            text-transform:uppercase;pointer-events:none;white-space:nowrap;
+            animation:fade-pulse 3s ease-in-out infinite}
+        @keyframes fade-pulse{0%,100%{opacity:.4}50%{opacity:1}}
 
         /* === Config overlay === */
         .config-overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
@@ -163,27 +166,23 @@
         <div class="cap-skills" id="cap-skills"></div>
     </div>
 
-    <div class="bottom-hud">
-        <div class="status-area">
-            <div class="status-text" id="status-text">INICIANDO...</div>
-            <div class="transcript" id="transcript"></div>
-            <div class="response" id="response"></div>
-        </div>
+    <div class="base-ring idle" id="base-ring"></div>
 
-        <div class="chat-box" id="chat-box">
-            <input type="text" class="chat-input" id="chat-input" placeholder="Escribe tu mensaje...">
-            <button class="chat-send" id="chat-send">&#9654;</button>
-        </div>
+    <div class="status-area">
+        <div class="status-text" id="status-text">INICIANDO...</div>
+        <div class="transcript" id="transcript"></div>
+        <div class="response" id="response"></div>
+    </div>
 
-        <div class="mic-row">
-            <div class="mic-label" id="mic-label">Clic o Space para hablar</div>
-            <div class="mic-btn" id="mic-btn">
-                <svg viewBox="0 0 24 24" id="mic-icon"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-                <svg viewBox="0 0 24 24" id="stop-icon" style="display:none"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
-            </div>
-        </div>
+    <div class="chat-box" id="chat-box">
+        <input type="text" class="chat-input" id="chat-input" placeholder="Escribe tu mensaje...">
+        <button class="chat-send" id="chat-send">&#9654;</button>
+    </div>
 
-        <div class="base-ring idle" id="base-ring"></div>
+    <div class="mic-label" id="mic-label">&#127908; Clic o Space para hablar</div>
+    <div class="mic-btn" id="mic-btn">
+        <svg viewBox="0 0 24 24" id="mic-icon"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+        <svg viewBox="0 0 24 24" id="stop-icon" style="display:none"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
     </div>
 
     <div class="loading" id="loading"><div class="spinner"></div><div class="load-text" id="load-text">CARGANDO</div></div>
