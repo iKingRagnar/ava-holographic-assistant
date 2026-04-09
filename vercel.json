@@ -18,18 +18,18 @@
       "use": "@vercel/static"
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
-      "source": "/:file.vrm",
-      "destination": "/public/:file.vrm"
+      "src": "/([0-9]+\\.vrm)",
+      "dest": "/public/$1"
     },
     {
-      "source": "/(.*)",
-      "destination": "/ava.html"
+      "src": "/(.*)",
+      "dest": "/ava.html"
     }
   ]
 }
