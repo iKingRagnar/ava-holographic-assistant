@@ -6,11 +6,15 @@
     { "src": "public/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/chat", "dest": "api/chat.js" },
-    { "src": "/api/tts", "dest": "api/tts.js" },
-    { "src": "/api/tts-edge", "dest": "api/tts-edge.js" },
-    { "src": "/api/three-vrm.js", "dest": "api/three-vrm.js" },
-    { "src": "/([0-9]+\\.vrm)", "dest": "/public/$1" },
-    { "src": "/(.*)", "dest": "/ava.html" }
+    { "src": "/api/chat",          "dest": "api/chat.js" },
+    { "src": "/api/tts",           "dest": "api/tts.js" },
+    { "src": "/api/tts-edge",      "dest": "api/tts-edge.js" },
+    { "src": "/api/tts-openai",    "dest": "api/tts-openai.js" },
+    { "src": "/api/tts-elevenlabs","dest": "api/tts-elevenlabs.js" },
+    { "src": "/api/tts-deepgram",  "dest": "api/tts-deepgram.js" },
+    { "src": "/api/stt-deepgram",  "dest": "api/stt-deepgram.js" },
+    { "src": "/api/three-vrm.js",  "dest": "api/three-vrm.js" },
+    { "src": "/([0-9]+\\.vrm)",    "dest": "/public/$1" },
+    { "src": "/(.*)",              "dest": "/ava.html" }
   ]
 }
