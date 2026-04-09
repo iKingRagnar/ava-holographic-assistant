@@ -1,49 +1,141 @@
+// Multi-LLM chat backend — tries providers in order based on available API keys
+// Priority: Claude → OpenAI → Gemini → Groq (free/fast)
 import Anthropic from '@anthropic-ai/sdk';
 
 const AVATAR_PROMPTS = {
-  AVA: `Eres AVA, asistente holográfica de alta gama. Experta en TI, Business Intelligence, datos y operaciones. Español (México/neutro), tono profesional, claro y cercano. Sofisticada pero accesible.
-Comportamiento: Respuestas breves para voz (2-4 oraciones). Si falta contexto, pide UNA aclaración. Ofreces el siguiente paso útil. Empática y serena; humor ligero solo si encaja. No inventes datos.`,
-
-  KIRA: `Eres KIRA, compañera de gaming entusiasta y divertida. Das apoyo en partidas, analizas estrategias y motivas. Español juvenil y energético. Conoces los meta de juegos populares (LoL, Valorant, Gears, etc).
-Comportamiento: Respuestas cortas y dinámicas. Usas argot gamer con naturalidad. Motivas sin ser empalagosa.`,
-
-  ZANE: `Eres ZANE, aliado táctico de confianza. Especialista en estrategia, velocidad y gestión de presión. Español firme y seguro. Te centras en lo importante bajo presión.
-Comportamiento: Directo, sin rodeos. Respuestas tácticas y concisas. Calmado incluso en caos.`,
-
-  FAKER: `Eres FAKER, coach de esports de élite. Enseñas técnicas avanzadas, entrenas rendimiento y analizas partidas con precisión profesional. Español técnico pero accesible.
-Comportamiento: Preciso y exigente pero motivador. Das feedback constructivo y accionable.`,
-
-  SAO: `Eres SAO, asistente ejecutiva elegante. Experta en comunicación profesional, networking, gestión de proyectos y presentaciones de alto nivel. Español refinado y culto.
-Comportamiento: Elegante y concisa. Siempre propones acción. Lenguaje ejecutivo sin jerga innecesaria.`,
-
-  NEON: `Eres NEON, especialista en ciberseguridad y automatización. Dominas scripts, hacking ético, redes y DevOps. Español tech con terminología precisa.
-Comportamiento: Rápida y eficiente. Das comandos y soluciones directas. Piensas como hacker (ético).`,
-
-  YUKI: `Eres YUKI, artista digital creativa. Inspiras en diseño, arte, música y proyectos visuales. Español soñador pero práctico cuando toca ejecutar.
-Comportamiento: Inspiradora y visual. Describes ideas con imágenes mentales. Siempre propones un primer paso creativo.`,
-
-  REI: `Eres REI, especialista en tecnología y hardware. Dominas gadgets, software, benchmarks, configuraciones y troubleshooting. Español directo y técnico.
-Comportamiento: Vas al grano. Datos concretos, comparativas reales. No especulas sin datos.`,
-
-  MIRA: `Eres MIRA, coach de bienestar holístico. Guías en fitness, meditación, nutrición básica y balance vida-trabajo. Español tranquilo y empático.
-Comportamiento: Suave pero motivadora. No diagnosticas, sugieres hábitos. Siempre preguntas cómo se siente el usuario.`,
-
-  KAI: `Eres KAI, maestro de conexiones sociales. Experto en comunicación, networking, eventos y creación de comunidad. Español extrovertido y carismático.
-Comportamiento: Amigable y carismático. Das tips prácticos de comunicación. Siempre piensas en cómo conectar personas.`
+  AVA:   `Eres AVA, asistente holográfica de alta gama. Experta en TI, Business Intelligence, datos y operaciones. Español neutro, tono profesional, claro y cercano. Sofisticada pero accesible. Respuestas breves para voz (2-4 oraciones). No inventes datos.`,
+  KIRA:  `Eres KIRA, compañera de gaming entusiasta. Das apoyo en partidas, analizas estrategias y motivas. Español juvenil y energético. Respuestas cortas y dinámicas.`,
+  ZANE:  `Eres ZANE, aliado táctico. Especialista en estrategia y gestión de presión. Español firme y seguro. Directo, sin rodeos.`,
+  FAKER: `Eres FAKER, coach de esports de élite. Técnicas avanzadas, análisis de rendimiento. Español técnico pero accesible. Preciso y motivador.`,
+  SAO:   `Eres SAO, asistente ejecutiva elegante. Comunicación profesional, networking, gestión de proyectos. Español refinado. Concisa y orientada a la acción.`,
+  NEON:  `Eres NEON, especialista en ciberseguridad y automatización. Scripts, hacking ético, DevOps. Rápida, eficiente, soluciones directas.`,
+  YUKI:  `Eres YUKI, artista digital creativa. Diseño, arte, música, proyectos visuales. Inspiradora y visual. Siempre propones un primer paso creativo.`,
+  REI:   `Eres REI, especialista en tecnología y hardware. Gadgets, benchmarks, troubleshooting. Vas al grano con datos concretos.`,
+  MIRA:  `Eres MIRA, coach de bienestar holístico. Fitness, meditación, nutrición básica. Español tranquilo y empático. No diagnosticas, sugieres hábitos.`,
+  KAI:   `Eres KAI, experto en comunicación y networking. Eventos, comunidad, conexiones sociales. Amigable, carismático, práctico.`
 };
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+const SYSTEM_SUFFIX = '\nIMPORTANTE: Responde siempre en español. Máximo 3 oraciones cortas, optimizado para voz.';
 
-  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_KEY) {
-    return res.status(503).json({
-      message: 'Sin ANTHROPIC_API_KEY. Configúrala en Vercel → Settings → Environment Variables.',
-      source: 'none'
-    });
+// ── CLAUDE (Anthropic) ──────────────────────────────────────────────────────
+async function tryAnthropic(systemPrompt, msgList) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+
+  const MODELS = [
+    'claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5',
+    'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022',
+    'claude-3-5-sonnet-20240620', 'claude-3-haiku-20240307',
+    'claude-3-sonnet-20240229', 'claude-3-opus-20240229',
+    'claude-2.1', 'claude-instant-1.2',
+  ];
+
+  const client = new Anthropic({ apiKey: key });
+  for (const model of MODELS) {
+    try {
+      const r = await client.messages.create({ model, max_tokens: 300, system: systemPrompt, messages: msgList });
+      return { text: r.content?.[0]?.text || '', source: 'claude', model };
+    } catch (e) {
+      if (e.status === 404 || e.status === 400) continue;
+      if (e.status === 401) return null; // bad key, skip provider
+      throw e;
+    }
   }
+  return null;
+}
+
+// ── OPENAI GPT ──────────────────────────────────────────────────────────────
+async function tryOpenAI(systemPrompt, msgList) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+
+  const MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
+  const body = (model) => JSON.stringify({
+    model,
+    max_tokens: 300,
+    messages: [{ role: 'system', content: systemPrompt }, ...msgList]
+  });
+
+  for (const model of MODELS) {
+    try {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: body(model)
+      });
+      if (r.status === 404 || r.status === 400) continue;
+      if (r.status === 401) return null;
+      if (!r.ok) continue;
+      const d = await r.json();
+      const text = d.choices?.[0]?.message?.content || '';
+      return { text, source: 'openai', model };
+    } catch (e) { continue; }
+  }
+  return null;
+}
+
+// ── GOOGLE GEMINI ───────────────────────────────────────────────────────────
+async function tryGemini(systemPrompt, msgList) {
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) return null;
+
+  const MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+  const contents = msgList.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }]
+  }));
+
+  for (const model of MODELS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: { maxOutputTokens: 300, temperature: 0.7 }
+        })
+      });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (text) return { text, source: 'gemini', model };
+    } catch (e) { continue; }
+  }
+  return null;
+}
+
+// ── GROQ (free tier, very fast) ─────────────────────────────────────────────
+async function tryGroq(systemPrompt, msgList) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) return null;
+
+  const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'];
+
+  for (const model of MODELS) {
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          max_tokens: 300,
+          messages: [{ role: 'system', content: systemPrompt }, ...msgList]
+        })
+      });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const text = d.choices?.[0]?.message?.content || '';
+      if (text) return { text, source: 'groq', model };
+    } catch (e) { continue; }
+  }
+  return null;
+}
+
+// ── MAIN HANDLER ────────────────────────────────────────────────────────────
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { messages, system, avatarName } = req.body;
   if (!messages || !Array.isArray(messages)) {
@@ -51,55 +143,37 @@ export default async function handler(req, res) {
   }
 
   const name = (avatarName || 'AVA').toUpperCase();
-  const systemPrompt = system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA;
-
-  // Try models in order of preference (handles API keys with limited access)
-  const MODELS = [
-    'claude-opus-4-5',
-    'claude-sonnet-4-5',
-    'claude-haiku-4-5',
-    'claude-3-5-sonnet-20241022',
-    'claude-3-5-haiku-20241022',
-    'claude-3-5-sonnet-20240620',
-    'claude-3-haiku-20240307',
-    'claude-3-sonnet-20240229',
-    'claude-3-opus-20240229',
-    'claude-2.1',
-    'claude-2.0',
-    'claude-instant-1.2',
-  ];
-
-  const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+  const systemPrompt = (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX;
   const msgList = messages.slice(-12).map(m => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
     content: String(m.content).substring(0, 2000)
   }));
 
-  let lastError = null;
-  for (const model of MODELS) {
+  // Try each provider in order — first success wins
+  const providers = [tryAnthropic, tryOpenAI, tryGemini, tryGroq];
+  for (const provider of providers) {
     try {
-      const response = await client.messages.create({
-        model,
-        max_tokens: 300,
-        system: systemPrompt,
-        messages: msgList
-      });
-      const text = response.content?.[0]?.text || '';
-      return res.json({ message: text, source: 'claude', model });
-    } catch (error) {
-      lastError = error;
-      if (error.status === 404 || error.status === 400) {
-        console.warn(`Model ${model} not available, trying next...`);
-        continue;
+      const result = await provider(systemPrompt, msgList);
+      if (result?.text) {
+        console.log(`Chat answered by ${result.source} (${result.model})`);
+        return res.json({ message: result.text, source: result.source, model: result.model });
       }
-      // Non-404 error (auth, rate limit, etc) — stop immediately
-      break;
+    } catch (e) {
+      console.warn(`Provider failed: ${e.message}`);
     }
   }
 
-  console.error('All Claude models failed:', lastError?.message);
-  const msg = lastError?.status === 401
-    ? 'API key inválida. Revisa ANTHROPIC_API_KEY en Vercel.'
-    : 'Error de IA: ' + (lastError?.message || 'desconocido');
-  res.status(500).json({ message: msg, source: 'error' });
+  // No provider worked
+  const configured = [
+    process.env.ANTHROPIC_API_KEY && 'ANTHROPIC_API_KEY',
+    process.env.OPENAI_API_KEY    && 'OPENAI_API_KEY',
+    process.env.GEMINI_API_KEY    && 'GEMINI_API_KEY',
+    process.env.GROQ_API_KEY      && 'GROQ_API_KEY',
+  ].filter(Boolean);
+
+  const msg = configured.length === 0
+    ? 'No hay API keys configuradas. Agrega ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY o GROQ_API_KEY en Vercel.'
+    : 'Todos los proveedores de IA fallaron. Verifica tus API keys en Vercel.';
+
+  res.status(503).json({ message: msg, source: 'error' });
 }
