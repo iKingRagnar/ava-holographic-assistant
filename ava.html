@@ -1191,7 +1191,24 @@
             return;
         }
 
-        // 1st: Edge Neural TTS (natural Microsoft voices)
+        // 1st: OpenAI TTS — tts-1-hd, most natural voices
+        try {
+            const r = await fetch('/api/tts-openai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: clean.substring(0, 600), avatarIndex: currentIdx })
+            });
+            if (r.ok) {
+                const d = await r.json();
+                if (d.audioContent) {
+                    console.log('TTS: using', d.source, d.voice);
+                    await playBase64Audio(d.audioContent);
+                    return;
+                }
+            }
+        } catch(e) { console.warn('OpenAI TTS fail:', e.message); }
+
+        // 2nd: Edge Neural TTS (Microsoft, no key needed)
         try {
             const r = await fetch('/api/tts-edge', {
                 method: 'POST',
@@ -1208,7 +1225,7 @@
             }
         } catch(e) { console.warn('Edge TTS fail:', e.message); }
 
-        // Fallback: browser Web Speech
+        // 3rd: browser Web Speech
         speakBrowser(clean);
     }
 
