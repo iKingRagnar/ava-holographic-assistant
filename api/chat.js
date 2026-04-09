@@ -1,9 +1,9 @@
 // Multi-LLM chat backend — tries providers in order based on available API keys
-// Priority: Claude → OpenAI → Gemini → Groq (free/fast)
+// Texto: Gemini → Groq → OpenAI → DeepSeek → Claude (latencia primero). Visión: modelos multimodales y luego texto rápido.
 import Anthropic from '@anthropic-ai/sdk';
 
 const AVATAR_PROMPTS = {
-  AVA:   `Eres AVA, asistente holográfica de alta gama. Experta en TI, Business Intelligence, datos y operaciones. Español neutro, tono profesional, claro y cercano. Sofisticada pero accesible. Adapta la longitud al mensaje del usuario; en temas complejos sé exhaustiva dentro del límite de voz. No inventes datos.`,
+  AVA:   `Eres AVA, asistente holográfica de alta gama. Experta en TI, Business Intelligence, datos y operaciones. Español neutro, tono profesional, claro y cercano. Sofisticada pero accesible. Adapta la longitud al mensaje del usuario; en temas complejos sé exhaustiva dentro del límite de voz. Si el sistema te proporciona datos entre corchets [Datos en tiempo real…] o [Clima:…], úsalos como fuente de verdad y no digas que no tienes acceso a esos datos. Para cualquier otra cosa no inventes cifras.`,
   KIRA:  `Eres KIRA, compañera de gaming entusiasta. Das apoyo en partidas, analizas estrategias y motivas. Español juvenil y energético. Respuestas cortas y dinámicas.`,
   ZANE:  `Eres ZANE, aliado táctico. Especialista en estrategia y gestión de presión. Español firme y seguro. Directo, sin rodeos.`,
   FAKER: `Eres FAKER, coach de esports de élite. Técnicas avanzadas, análisis de rendimiento. Español técnico pero accesible. Preciso y motivador.`,
@@ -19,6 +19,59 @@ const MAX_REPLY_TOKENS = 512;
 
 const SYSTEM_SUFFIX = `\nIMPORTANTE: Español siempre. Mantén coherencia con todo el historial: no ignores el contexto ni repitas saludos genéricos si el usuario ya está en conversación.
 Si el usuario solo saluda, responde breve; si pregunta, argumenta o pide detalle, sé precisa y útil (hasta ~6 oraciones cortas si el tema lo requiere), optimizado para voz.`;
+
+/** Clima en tiempo real (sin API key) vía Open-Meteo — solo cuando el último mensaje lo pide */
+async function fetchWeatherContextForMessage(userContent) {
+  const raw = String(userContent || '');
+  const t = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!/\b(clima|temperatura|tiempo|lluvia|llov|frio|fri[oó]|calor|grados|weather|pronostic|pron[oó]stico|hace frio|hace calor)\b/.test(t)) {
+    return '';
+  }
+  let city = '';
+  const tryCity = (s) => {
+    const m = s.match(/\b(?:en|de|para)\s+([^?.,!\n]{2,48})/i);
+    if (!m) return '';
+    return m[1].replace(/\s+(ahorita|ahora|hoy|mismo)\b/gi, '').trim();
+  };
+  city = tryCity(raw);
+  if (!city || city.length < 2) {
+    const m2 = raw.match(/\b(?:qu[eé]|cu[aá]l)\s+.+\s+(?:en|de)\s+([^?.,!\n]{2,45})/i);
+    if (m2) city = m2[1].trim();
+  }
+  if (!city || city.length < 2) return '';
+
+  const abortMs = (ms) => {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+      return AbortSignal.timeout(ms);
+    }
+    const c = new AbortController();
+    setTimeout(() => c.abort(), ms);
+    return c.signal;
+  };
+
+  try {
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=2&language=es`;
+    const geoR = await fetch(geoUrl, { signal: abortMs(8000) });
+    if (!geoR.ok) return '';
+    const geoJ = await geoR.json();
+    const r = geoJ.results?.[0];
+    if (!r) {
+      return `\n[Clima: no encontré "${city}" en el geocodificador. Pide una ciudad más cercana o el nombre completo.]\n`;
+    }
+    const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${r.latitude}&longitude=${r.longitude}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`;
+    const wR = await fetch(wUrl, { signal: abortMs(8000) });
+    if (!wR.ok) return '';
+    const wJ = await wR.json();
+    const cur = wJ.current;
+    if (!cur) return '';
+    const place = [r.name, r.admin1].filter(Boolean).join(', ');
+    const country = r.country || '';
+    return `\n[Datos en tiempo real (Open-Meteo): ${place}${country ? ` (${country})` : ''}: ${cur.temperature_2m}°C, humedad ${cur.relative_humidity_2m}%. Responde de forma breve y natural usando exactamente estos valores.]\n`;
+  } catch (e) {
+    console.warn('weather:', e.message);
+    return '';
+  }
+}
 
 // ── CLAUDE (Anthropic) ──────────────────────────────────────────────────────
 async function tryAnthropic(systemPrompt, msgList) {
@@ -251,36 +304,42 @@ export default async function handler(req, res) {
   }
 
   const name = (avatarName || 'AVA').toUpperCase();
-  const visionHint =
-    vision?.base64
-      ? '\nPuedes ver una foto reciente de la cámara del usuario junto con su último mensaje; describe solo lo relevante si te preguntan por lo visual.'
-      : '';
-  const systemPrompt =
-    (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX + visionHint;
   const msgList = messages.slice(-20).map((m) => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
     content: String(m.content).substring(0, 4000),
   }));
 
+  const visionHint =
+    vision?.base64
+      ? '\nPuedes ver una foto reciente de la cámara del usuario junto con su último mensaje; describe solo lo relevante si te preguntan por lo visual.'
+      : '';
+  const lastUserMsg = [...msgList].reverse().find((m) => m.role === 'user');
+  let weatherCtx = '';
+  try {
+    if (lastUserMsg?.content) weatherCtx = await fetchWeatherContextForMessage(lastUserMsg.content);
+  } catch (_) {}
+  const systemPrompt =
+    (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX + visionHint + weatherCtx;
+
   const hasVision = !!(vision && vision.base64 && String(vision.base64).length > 100);
 
-  // Con imagen: primero modelos multimodales, luego el resto sin imagen
+  // Con imagen: multimodal primero; si falla, texto rápido (Gemini/Groq) antes que Claude
   const providers = hasVision
     ? [
         () => tryGemini(systemPrompt, msgList, vision),
         () => tryOpenAIVision(systemPrompt, msgList, vision),
-        () => tryAnthropic(systemPrompt, msgList),
-        () => tryOpenAI(systemPrompt, msgList),
         () => tryGemini(systemPrompt, msgList, null),
-        () => tryDeepSeek(systemPrompt, msgList),
         () => tryGroq(systemPrompt, msgList),
+        () => tryOpenAI(systemPrompt, msgList),
+        () => tryDeepSeek(systemPrompt, msgList),
+        () => tryAnthropic(systemPrompt, msgList),
       ]
     : [
-        () => tryAnthropic(systemPrompt, msgList),
-        () => tryOpenAI(systemPrompt, msgList),
         () => tryGemini(systemPrompt, msgList, null),
-        () => tryDeepSeek(systemPrompt, msgList),
         () => tryGroq(systemPrompt, msgList),
+        () => tryOpenAI(systemPrompt, msgList),
+        () => tryDeepSeek(systemPrompt, msgList),
+        () => tryAnthropic(systemPrompt, msgList),
       ];
 
   for (const provider of providers) {

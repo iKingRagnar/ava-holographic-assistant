@@ -1278,6 +1278,10 @@
         updateStatus('PENSANDO...');
         document.getElementById('response').textContent = '';
 
+        if (cfg.useVision) {
+            try { await ensureVisionCamera(); } catch (_) {}
+        }
+
         msgHistory.push({ role: 'user', content: text });
         if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
 
@@ -1352,12 +1356,14 @@
 
     function hasWakePhrase(text) {
         const n = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        return /\b(ava|hey\s*ava|despierta|empieza|escuchame|oye\s*ava)\b/i.test(n);
+        // "aba" = error común de reconocimiento; inicio de frase o tras pausa
+        return /\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|escuchame|oye\s*ava)\b/i.test(n)
+            || /(?:^|[\s,;])(ava|aba)(?:[\s,;]|$)/i.test(n);
     }
 
     function stripWakePhrases(text) {
         return text
-            .replace(/\b(ava|hey\s*ava|despierta|empieza|escuchame|oye\s*ava)\b/gi, ' ')
+            .replace(/\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|esc[uú]chame|oye\s*ava)\b/gi, ' ')
             .replace(/\s+/g, ' ')
             .trim();
     }
@@ -1383,13 +1389,18 @@
             _userInteracted = true;
             if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (ttsCtx.state === 'suspended') ttsCtx.resume().catch(() => {});
+            const afterWakeFast = { silenceStopMs: 1550, minBeforeEnd: 380, rmsSpeech: 0.012 };
+            const primeVision = () => { if (cfg.useVision) ensureVisionCamera(); };
             if (rest.length > 2) {
                 document.getElementById('transcript').textContent = rest;
+                primeVision();
                 processMessage(rest);
             } else if (window.MediaRecorder && navigator.mediaDevices) {
-                startListeningDeepgram();
+                primeVision();
+                startListeningDeepgram(afterWakeFast);
             } else {
-                startListening();
+                primeVision();
+                startListening({ fastSilence: true });
             }
         };
         wakeRec.onerror = (e) => {
@@ -1400,7 +1411,7 @@
             wakeRec = null;
             if (cfg.wakeWord && state === 'IDLE' && cfg.userName) {
                 clearTimeout(wakeRestartTimer);
-                wakeRestartTimer = setTimeout(() => startWakeWord(), 500);
+                wakeRestartTimer = setTimeout(() => startWakeWord(), 220);
             }
         };
         try { wakeRec.start(); } catch (e) { console.warn('Wake start:', e.message); }
@@ -1411,7 +1422,7 @@
         clearTimeout(wakeRestartTimer);
         wakeRestartTimer = setTimeout(() => {
             if (state === 'IDLE' && cfg.userName) startWakeWord();
-        }, 900);
+        }, 380);
     }
 
     async function ensureVisionCamera() {
@@ -1420,11 +1431,19 @@
         if (visionReady && visionVideo && visionVideo.srcObject) return true;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: false
             });
             visionVideo.srcObject = stream;
             await visionVideo.play();
+            if (visionVideo.readyState < 2) {
+                await new Promise((resolve) => {
+                    const done = () => resolve();
+                    visionVideo.onloadeddata = done;
+                    visionVideo.oncanplay = done;
+                    setTimeout(done, 900);
+                });
+            }
             visionReady = true;
             return true;
         } catch (e) {
@@ -1453,7 +1472,11 @@
 
     // Deepgram STT via MediaRecorder — server-side, ultra fast
     // Falls back to Web Speech if DEEPGRAM_API_KEY not set or mic unavailable
-    async function startListeningDeepgram() {
+    async function startListeningDeepgram(opts) {
+        opts = opts || {};
+        const SILENCE_STOP_MS = opts.silenceStopMs != null ? opts.silenceStopMs : 3200;
+        const MIN_MS_BEFORE_END = opts.minBeforeEnd != null ? opts.minBeforeEnd : 700;
+        const RMS_SPEECH = opts.rmsSpeech != null ? opts.rmsSpeech : 0.015;
         stopWakeWord();
         let stream;
         try {
@@ -1521,9 +1544,6 @@
         const buf = new Uint8Array(analyser.fftSize);
         let silenceMs = 0;
         const CHECK_MS = 50;
-        const RMS_SPEECH = 0.015;
-        const SILENCE_STOP_MS = 3200;
-        const MIN_MS_BEFORE_END = 700;
         const MAX_MS = 60000;
         let elapsed = 0;
 
@@ -1550,7 +1570,8 @@
         }, CHECK_MS);
     }
 
-    function startListening() {
+    function startListening(opts) {
+        opts = opts || {};
         if (!_SRClass) return;
         stopWakeWord();
 
@@ -1563,7 +1584,7 @@
 
         let finalTranscript = '';
         let silenceTimer = null;
-        const SILENCE_MS = 2800; // pausa larga tras último resultado (frases completas)
+        const SILENCE_MS = opts.fastSilence ? 1450 : 2800;
 
         recognition.onstart = () => {
             setState('LISTENING');
