@@ -2,18 +2,18 @@
 // El idioma sale del texto; paloma mantiene acento mexicano natural.
 // Requires OPENAI_API_KEY in Vercel environment variables
 
-// Velocidad ligeramente distinta por avatar (misma voz paloma)
+// Voz DISTINTA por avatar — personalidad única (OpenAI voices: alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer)
 const AVATAR_VOICES = [
-  { voice: 'paloma', speed: 1.0  }, // AVA
-  { voice: 'paloma', speed: 1.06 }, // KIRA
-  { voice: 'paloma', speed: 0.94 }, // ZANE
-  { voice: 'paloma', speed: 1.04 }, // FAKER
-  { voice: 'paloma', speed: 0.92 }, // SAO
-  { voice: 'paloma', speed: 1.1  }, // NEON
-  { voice: 'paloma', speed: 1.02 }, // YUKI
-  { voice: 'paloma', speed: 0.98 }, // REI
-  { voice: 'paloma', speed: 0.9  }, // MIRA
-  { voice: 'paloma', speed: 1.08 }, // KAI
+  { voice: 'nova',    speed: 1.0  }, // AVA   — cálida, profesional (female)
+  { voice: 'shimmer', speed: 1.08 }, // KIRA  — brillante, enérgica (female)
+  { voice: 'onyx',    speed: 0.95 }, // ZANE  — grave, firme (male)
+  { voice: 'echo',    speed: 1.02 }, // FAKER — preciso, coach (male)
+  { voice: 'coral',   speed: 0.94 }, // SAO   — suave, elegante (female)
+  { voice: 'ash',     speed: 1.1  }, // NEON  — rápido, tech (male)
+  { voice: 'fable',   speed: 1.0  }, // YUKI  — narrativa, creativa (female)
+  { voice: 'sage',    speed: 1.04 }, // REI   — autoridad, técnico (male)
+  { voice: 'alloy',   speed: 0.92 }, // MIRA  — neutral, calmada (female)
+  { voice: 'ballad',  speed: 1.06 }, // KAI   — melódico, carismático (male)
 ];
 
 export default async function handler(req, res) {

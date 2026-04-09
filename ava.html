@@ -242,17 +242,19 @@
     const COLORS  = [0x00ff9d,0xff69b4,0xff3333,0x00aaff,0xaa66ff,0xffaa00,0x00ffff,0xff0066,0x6600ff,0x66ff00];
     // Voice profiles per avatar: [pitch, rate, lang preference]
     const VOICES = {
-        0: {pitch:1.05, rate:1.0,  pref:'female'},   // AVA - profesional, serena
-        1: {pitch:1.35, rate:1.15, pref:'female'},   // KIRA - enérgica, joven
-        2: {pitch:0.85, rate:0.92, pref:'female'},   // ZANE - firme, grave
-        3: {pitch:0.95, rate:1.05, pref:'female'},   // FAKER - coach, precisa
-        4: {pitch:1.15, rate:0.95, pref:'female'},   // SAO - elegante, pausada
-        5: {pitch:1.25, rate:1.1,  pref:'female'},   // NEON - rápida, tech
-        6: {pitch:1.4,  rate:1.0,  pref:'female'},   // YUKI - suave, creativa
-        7: {pitch:0.9,  rate:1.08, pref:'female'},   // REI - directa, técnica
-        8: {pitch:1.2,  rate:0.88, pref:'female'},   // MIRA - tranquila, empática
-        9: {pitch:1.1,  rate:1.12, pref:'female'},   // KAI - carismática, social
+        0: {pitch:1.05, rate:1.0,  pref:'female'}, // AVA
+        1: {pitch:1.35, rate:1.15, pref:'female'}, // KIRA
+        2: {pitch:0.88, rate:0.92, pref:'male'},    // ZANE — alineado con TTS masculino
+        3: {pitch:0.92, rate:1.02, pref:'male'},    // FAKER
+        4: {pitch:1.15, rate:0.95, pref:'female'},  // SAO
+        5: {pitch:1.08, rate:1.12, pref:'male'},    // NEON — cyber masculino
+        6: {pitch:1.4,  rate:1.0,  pref:'female'}, // YUKI
+        7: {pitch:0.9,  rate:1.06, pref:'male'},   // REI
+        8: {pitch:1.2,  rate:0.88, pref:'female'}, // MIRA
+        9: {pitch:1.02, rate:1.1,  pref:'male'},    // KAI
     };
+    const VOICE_MALE_HINTS = ['Jorge', 'Tomás', 'Lorenzo', 'Alvaro', 'Gonzalo', 'Pablo', 'Diego', 'Roberto', 'Carlos', 'Miguel', 'Enrique', 'David', 'Javier', 'Manuel', 'Álvaro', 'Héctor', 'Mateo', 'Raul', 'Saul', 'Dante', 'Male'];
+    const VOICE_FEMALE_HINTS = ['Dalia', 'Marina', 'Salome', 'Camila', 'Elena', 'Female', 'Mia', 'Sofia', 'Laura', 'Helena'];
     const CAPS = {
         0:{t:'ASISTENTE HOLOGRÁFICA',s:['BI & Datos','Gestión de agenda','Asistente personal','Apoyo emocional']},
         1:{t:'COMPAÑERA DE GAMING',s:['Coaching','Análisis de partidas','Estrategias','Motivación']},
@@ -904,6 +906,7 @@
             const autoX = Math.sin(t * 0.22) * 0.11 + Math.cos(t * 0.32) * 0.07;
             let tgtY = mx * 0.52 * mouseW + autoY * autoW;
             let tgtX = my * 0.32 * mouseW + autoX * autoW - 0.03;
+            if (state === 'LISTENING') { tgtY += Math.sin(t * 1.85) * 0.06; tgtX += Math.sin(t * 2.2 + 0.5) * 0.04; }
             if (state === 'THINKING') { tgtY += Math.sin(t * 0.8) * 0.2; tgtX += 0.11; }
             if (state === 'TALKING')  { tgtY += Math.sin(t * 3) * 0.09; tgtX += Math.sin(t * 5) * 0.045; }
             P.headY = damp(P.headY, tgtY, ph.headDamp);
@@ -1102,6 +1105,8 @@
             if (emo === 'calm'    && SAD)  setBlend(proxy, SAD,  eStrength * 0.12);
             if (emo === 'curious' && JOY)  setBlend(proxy, JOY,  eStrength * 0.3);
 
+            const BL = findBlend('Blink_L', 'blink_l', 'EyeBlinkLeft');
+            const BR = findBlend('Blink_R', 'blink_r', 'EyeBlinkRight');
             if (state === 'TALKING') {
                 let mOpen = Math.abs(Math.sin(t * 8)) * 0.75;
                 if (ttsAnalyser && ttsFreq) {
@@ -1112,11 +1117,17 @@
                 }
                 setBlend(proxy, vrmBlend.mouth, mOpen);
                 setBlend(proxy, vrmBlend.blink, 0);
+                if (BL) setBlend(proxy, BL, 0);
+                if (BR) setBlend(proxy, BR, 0);
             } else {
                 setBlend(proxy, vrmBlend.mouth, 0);
-                const blinkT = t % (3 + Math.sin(t * 0.1) * 1.5);
-                const isBlinking = blinkT > 2.8;
-                setBlend(proxy, vrmBlend.blink, isBlinking ? 1 : 0);
+                const blinkPeriod = 2.35 + Math.sin(t * 0.13) * 0.45 + organic(t, 0.4) * 0.25;
+                const u = (t % blinkPeriod) / blinkPeriod;
+                const blinkPulse = Math.exp(-Math.pow((u - 0.982) / 0.018, 2));
+                const bAmt = Math.min(1, blinkPulse * 0.95);
+                setBlend(proxy, vrmBlend.blink, bAmt);
+                if (BL) setBlend(proxy, BL, bAmt * (0.92 + Math.sin(t * 11) * 0.06));
+                if (BR) setBlend(proxy, BR, bAmt * (0.92 - Math.sin(t * 11) * 0.06));
             }
         }
 
@@ -1945,17 +1956,31 @@
         u.rate = vp.rate;
         const pickVoice = () => {
             const all = synth.getVoices();
-            // Priority 1: Neural/Natural Spanish voices (modern browsers)
-            const neural = all.filter(v => v.lang.startsWith('es') &&
-                (v.name.includes('Neural') || v.name.includes('Natural') ||
-                 v.name.includes('Dalia') || v.name.includes('Marina') ||
-                 v.name.includes('Elvira') || v.name.includes('Paulina') ||
-                 v.name.includes('Abril') || v.name.includes('Ximena')));
+            const wantMale = vp.pref === 'male';
+            const matchGender = (v) => {
+                const n = v.name || '';
+                const maleHit = VOICE_MALE_HINTS.some(h => n.includes(h));
+                const femHit = VOICE_FEMALE_HINTS.some(h => n.includes(h));
+                if (wantMale) return maleHit || (!femHit && /male|hombre|masculino/i.test(n));
+                return femHit || (!maleHit && /female|mujer|femenino/i.test(n));
+            };
+            const neural = all.filter(v => v.lang.startsWith('es') && matchGender(v) &&
+                (v.name.includes('Neural') || v.name.includes('Natural') || v.name.includes('Online')));
             if (neural.length) return neural[currentIdx % neural.length];
-            // Priority 2: any online Spanish voice (online = better quality)
-            const esOnline = all.filter(v => v.lang.startsWith('es') && !v.localService);
-            if (esOnline.length) return esOnline[currentIdx % esOnline.length];
-            // Priority 3: any Spanish voice
+            const esG = all.filter(v => v.lang.startsWith('es') && matchGender(v));
+            if (esG.length) return esG[currentIdx % esG.length];
+            if (wantMale) {
+                const anyMale = all.filter(v => {
+                    const n = v.name || '';
+                    return VOICE_MALE_HINTS.some(h => n.includes(h)) ||
+                        /male|hombre|masculino|David|Guy|Mark|Fred|George|Brian|Daniel|James|Aaron|Microsoft\s+David|Google\s+UK\s+English\s+Male/i.test(n);
+                });
+                if (anyMale.length) return anyMale[currentIdx % anyMale.length];
+            }
+            const neuralAny = all.filter(v => v.lang.startsWith('es') &&
+                (v.name.includes('Neural') || v.name.includes('Natural') ||
+                 v.name.includes('Dalia') || v.name.includes('Marina')));
+            if (neuralAny.length) return neuralAny[currentIdx % neuralAny.length];
             const es = all.filter(v => v.lang.startsWith('es'));
             if (es.length) return es[currentIdx % es.length];
             return null;

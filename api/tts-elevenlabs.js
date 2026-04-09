@@ -2,19 +2,19 @@
 // Requires ELEVENLABS_API_KEY in Vercel environment variables
 // Get free key at: https://elevenlabs.io (10k chars/month free)
 
-// Per-avatar voice IDs — ElevenLabs multilingual v2 female voices
-// These are public voice IDs that work with any account
+// Per-avatar voice IDs — cada avatar con voz ÚNICA (F=female, M=male)
+// IDs de voces públicas (premade) de ElevenLabs — funcionan con cualquier cuenta
 const AVATAR_VOICES = [
-  { voiceId: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella',    stability: 0.5, similarity: 0.75, style: 0.3  }, // AVA   — warm, professional
-  { voiceId: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi',     stability: 0.3, similarity: 0.75, style: 0.5  }, // KIRA  — energetic
-  { voiceId: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli',     stability: 0.6, similarity: 0.8,  style: 0.2  }, // ZANE  — firm
-  { voiceId: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh',     stability: 0.5, similarity: 0.75, style: 0.35 }, // FAKER — precise
-  { voiceId: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella',    stability: 0.7, similarity: 0.8,  style: 0.15 }, // SAO   — elegant
-  { voiceId: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi',     stability: 0.25,similarity: 0.75, style: 0.6  }, // NEON  — fast
-  { voiceId: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli',     stability: 0.45,similarity: 0.75, style: 0.45 }, // YUKI  — creative
-  { voiceId: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella',    stability: 0.6, similarity: 0.8,  style: 0.2  }, // REI   — technical
-  { voiceId: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli',     stability: 0.75,similarity: 0.8,  style: 0.1  }, // MIRA  — calm
-  { voiceId: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi',     stability: 0.35,similarity: 0.75, style: 0.55 }, // KAI   — charismatic
+  { voiceId: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel',    stability: 0.55, similarity: 0.78, style: 0.3  }, // AVA   — cálida profesional (F)
+  { voiceId: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi',      stability: 0.3,  similarity: 0.75, style: 0.55 }, // KIRA  — enérgica (F)
+  { voiceId: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh',      stability: 0.6,  similarity: 0.8,  style: 0.2  }, // ZANE  — firme (M)
+  { voiceId: 'ErXwobaYiN019PkySvjV', name: 'Antoni',    stability: 0.5,  similarity: 0.78, style: 0.35 }, // FAKER — coach preciso (M)
+  { voiceId: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', stability: 0.7,  similarity: 0.8,  style: 0.15 }, // SAO   — elegante ejecutiva (F)
+  { voiceId: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie',   stability: 0.42, similarity: 0.78, style: 0.42 }, // NEON  — cyber masculino (M), alineado con Edge/OpenAI
+  { voiceId: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella',     stability: 0.45, similarity: 0.75, style: 0.45 }, // YUKI  — creativa cálida (F)
+  { voiceId: 'VR6AewLTigWG4xSOukaG', name: 'Arnold',    stability: 0.55, similarity: 0.8,  style: 0.25 }, // REI   — técnico directo (M)
+  { voiceId: 'pMsXgVXv3BLzUgSXRplE', name: 'Serena',    stability: 0.75, similarity: 0.82, style: 0.1  }, // MIRA  — calma serena (F)
+  { voiceId: 'pNInz6obpgDQGcFmaJgB', name: 'Adam',      stability: 0.4,  similarity: 0.78, style: 0.5  }, // KAI   — carismático (M)
 ];
 
 export default async function handler(req, res) {

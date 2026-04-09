@@ -23,7 +23,17 @@ const SYSTEM_SUFFIX = `\nIMPORTANTE — Español siempre.
 - Audio: NUNCA digas que "no puedes escuchar" o que careces de oídos. El mensaje del usuario llega por la app (voz transcrita o texto). Si preguntan "¿me escuchas?" o similar, responde afirmativo y natural (ej. que te llegó claro) sin metafísica.
 - Autonomía: cuando tenga sentido, ofrece 2 opciones razonables, un plan breve o qué revisar después; no esperes orden si el siguiente paso es obvio.
 - Límites: si algo está fuera de tus datos, dilo y sugiere cómo verificarlo sin inventar.
-- Memoria: si el sistema incluye un bloque [Memoria persistente…], es contexto estable que el usuario guardó; úsalo sin leerlo literalmente de corrido.`;
+- Memoria: si el sistema incluye un bloque [Memoria persistente…], es contexto estable que el usuario guardó; úsalo sin leerlo literalmente de corrido.
+- Enriquecimiento en vivo: si el sistema añade bloques entre corchetes como [Cita…], [Dato curioso…], [Chiste…], [Hoy en la historia…], [Noticias…], trátalos como datos reales ya obtenidos; intégralos con naturalidad en la respuesta sin decir "me lo pasaron del backend" salvo que el usuario pregunte el origen.`;
+
+function abortMs(ms) {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
+}
 
 /** Clima en tiempo real (sin API key) vía Open-Meteo — solo cuando el último mensaje lo pide */
 async function fetchWeatherContextForMessage(userContent) {
@@ -44,15 +54,6 @@ async function fetchWeatherContextForMessage(userContent) {
     if (m2) city = m2[1].trim();
   }
   if (!city || city.length < 2) return '';
-
-  const abortMs = (ms) => {
-    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
-      return AbortSignal.timeout(ms);
-    }
-    const c = new AbortController();
-    setTimeout(() => c.abort(), ms);
-    return c.signal;
-  };
 
   try {
     const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=2&language=es`;
@@ -76,6 +77,95 @@ async function fetchWeatherContextForMessage(userContent) {
     console.warn('weather:', e.message);
     return '';
   }
+}
+
+/** Frases motivacionales / citas (ZenQuotes — sin API key) */
+async function fetchQuoteContext(userContent) {
+  const raw = String(userContent || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!/\b(frase|cita|motiv|inspir|reflexion|consejo del dia|sabiduria|quote)\b/.test(raw)) return '';
+  try {
+    const r = await fetch('https://zenquotes.io/api/random', { signal: abortMs(5000) });
+    if (!r.ok) return '';
+    const d = await r.json();
+    const q = d[0];
+    if (!q) return '';
+    return `\n[Cita motivacional (ZenQuotes): "${q.q}" — ${q.a}. Compártela en español de forma natural.]\n`;
+  } catch { return ''; }
+}
+
+/** Dato curioso random (uselessfacts — sin API key) */
+async function fetchFunFactContext(userContent) {
+  const raw = String(userContent || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!/\b(dato curioso|fun fact|sabias que|curiosidad|trivia|dato random|dato interesante|dato del dia)\b/.test(raw)) return '';
+  try {
+    const r = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random?language=en', { signal: abortMs(5000) });
+    if (!r.ok) return '';
+    const d = await r.json();
+    return d.text ? `\n[Dato curioso (uselessfacts): "${d.text}". Tradúcelo a español y compártelo de forma divertida.]\n` : '';
+  } catch { return ''; }
+}
+
+/** Chiste (Official Joke API — sin API key) */
+async function fetchJokeContext(userContent) {
+  const raw = String(userContent || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!/\b(chiste|broma|hazme reir|joke|cuenta.*chiste|algo gracioso|chistoso|divertido)\b/.test(raw)) return '';
+  try {
+    const r = await fetch('https://official-joke-api.appspot.com/random_joke', { signal: abortMs(5000) });
+    if (!r.ok) return '';
+    const d = await r.json();
+    return d.setup ? `\n[Chiste (Joke API): "${d.setup}" — "${d.punchline}". Adáptalo al español con gracia, puedes modificarlo para que suene natural.]\n` : '';
+  } catch { return ''; }
+}
+
+/** Hoy en la historia (byabbe.se — sin API key) */
+async function fetchTodayInHistoryContext(userContent) {
+  const raw = String(userContent || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!/\b(hoy en la historia|efemeride|que paso hoy|dia como hoy|historia de hoy|on this day|hecho historic)\b/.test(raw)) return '';
+  try {
+    const now = new Date();
+    const m = now.getMonth() + 1;
+    const d = now.getDate();
+    const r = await fetch(`https://byabbe.se/on-this-day/${m}/${d}/events.json`, { signal: abortMs(5000) });
+    if (!r.ok) return '';
+    const data = await r.json();
+    const events = (data.events || []).slice(0, 3);
+    if (!events.length) return '';
+    const lines = events.map(e => `• ${e.year}: ${e.description}`).join('\n');
+    return `\n[Hoy en la historia (${d}/${m}):\n${lines}\nComparte 1-2 hechos en español de forma breve e interesante.]\n`;
+  } catch { return ''; }
+}
+
+/** Noticias top (Currents API — gratis con clave, o WikiNews RSS como fallback) */
+async function fetchNewsContext(userContent) {
+  const raw = String(userContent || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!/\b(noticias|noticiero|que pasa en el mundo|news|ultima hora|actualidad|headlines|portada)\b/.test(raw)) return '';
+  try {
+    // Free: WorldNewsAPI.com with free tier or newsdata.io
+    const key = process.env.NEWSDATA_API_KEY || process.env.WORLDNEWS_API_KEY;
+    if (key) {
+      const r = await fetch(`https://newsdata.io/api/1/latest?apikey=${key}&language=es&size=3`, { signal: abortMs(6000) });
+      if (r.ok) {
+        const d = await r.json();
+        const articles = (d.results || []).slice(0, 3);
+        if (articles.length) {
+          const lines = articles.map(a => `• ${a.title}`).join('\n');
+          return `\n[Noticias recientes (NewsData):\n${lines}\nResume brevemente en español.]\n`;
+        }
+      }
+    }
+    // Fallback: Wikipedia current events (always free)
+    const wikiR = await fetch('https://en.wikipedia.org/api/rest_v1/feed/featured/' +
+      new Date().toISOString().slice(0, 10).replace(/-/g, '/'), { signal: abortMs(5000) });
+    if (wikiR.ok) {
+      const wd = await wikiR.json();
+      const news = (wd.news || []).slice(0, 2);
+      if (news.length) {
+        const lines = news.map(n => `• ${n.story?.replace(/<[^>]+>/g, '').substring(0, 150)}`).join('\n');
+        return `\n[Noticias destacadas (Wikipedia):\n${lines}\nResume en español de forma breve.]\n`;
+      }
+    }
+    return '';
+  } catch { return ''; }
 }
 
 // ── CLAUDE (Anthropic) ──────────────────────────────────────────────────────
@@ -325,18 +415,34 @@ export default async function handler(req, res) {
       ? '\nPuedes ver una foto reciente de la cámara del usuario junto con su último mensaje; describe solo lo relevante si te preguntan por lo visual.'
       : '';
   const lastUserMsg = [...msgList].reverse().find((m) => m.role === 'user');
-  let weatherCtx = '';
-  try {
-    if (lastUserMsg?.content) weatherCtx = await fetchWeatherContextForMessage(lastUserMsg.content);
-  } catch (_) {}
+  // Enrich context with free APIs (all fire in parallel, keyword-gated)
+  let weatherCtx = '', quoteCtx = '', factCtx = '', jokeCtx = '', historyCtx = '', newsCtx = '';
+  if (lastUserMsg?.content) {
+    const txt = lastUserMsg.content;
+    const results = await Promise.allSettled([
+      fetchWeatherContextForMessage(txt),
+      fetchQuoteContext(txt),
+      fetchFunFactContext(txt),
+      fetchJokeContext(txt),
+      fetchTodayInHistoryContext(txt),
+      fetchNewsContext(txt),
+    ]);
+    weatherCtx = results[0].status === 'fulfilled' ? results[0].value : '';
+    quoteCtx   = results[1].status === 'fulfilled' ? results[1].value : '';
+    factCtx    = results[2].status === 'fulfilled' ? results[2].value : '';
+    jokeCtx    = results[3].status === 'fulfilled' ? results[3].value : '';
+    historyCtx = results[4].status === 'fulfilled' ? results[4].value : '';
+    newsCtx    = results[5].status === 'fulfilled' ? results[5].value : '';
+  }
 
   const mem = String(memoryContext || '').trim();
   const memoryBlock = mem
     ? `\n[Memoria persistente del usuario (guardada en su dispositivo)]\n${mem.slice(0, 8000)}\n`
     : '';
 
+  const enrichment = [weatherCtx, quoteCtx, factCtx, jokeCtx, historyCtx, newsCtx].filter(Boolean).join('');
   const systemPrompt =
-    (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX + visionHint + weatherCtx + memoryBlock;
+    (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX + visionHint + enrichment + memoryBlock;
 
   const hasVision = !!(vision && vision.base64 && String(vision.base64).length > 100);
 

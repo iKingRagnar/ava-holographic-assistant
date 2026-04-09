@@ -2,22 +2,20 @@
 // Reuses the same DEEPGRAM_API_KEY used for STT
 // Spanish Aura-2 voices: aura-2-andromeda-es, aura-2-luna-es, aura-2-stella-es
 
-// Per-avatar voice mapping — Deepgram Aura (v1), female voices
-// Available: aura-asteria-en, aura-luna-en, aura-stella-en, aura-athena-en,
-//            aura-hera-en, aura-orion-en, aura-arcas-en, aura-perseus-en,
-//            aura-angus-en, aura-orpheus-en, aura-helios-en, aura-zeus-en
+// Voz ÚNICA por avatar — Deepgram Aura v1, mixed gender
+// Female: asteria, luna, stella, athena, hera | Male: orion, arcas, perseus, angus, orpheus, helios, zeus
 // Note: Aura speaks any language, model just sets voice character
 const AVATAR_VOICES = [
-  'aura-asteria-en',  // AVA   — warm, professional (female)
-  'aura-luna-en',     // KIRA  — energetic (female)
-  'aura-stella-en',   // ZANE  — confident (female)
-  'aura-athena-en',   // FAKER — precise (female)
-  'aura-hera-en',     // SAO   — elegant (female)
-  'aura-luna-en',     // NEON  — fast (female)
-  'aura-asteria-en',  // YUKI  — soft (female)
-  'aura-stella-en',   // REI   — technical (female)
-  'aura-asteria-en',  // MIRA  — calm (female)
-  'aura-luna-en',     // KAI   — charismatic (female)
+  'aura-asteria-en',  // AVA   — cálida profesional (F)
+  'aura-luna-en',     // KIRA  — brillante enérgica (F)
+  'aura-orion-en',    // ZANE  — firme, profundo (M)
+  'aura-perseus-en',  // FAKER — preciso coach (M)
+  'aura-hera-en',     // SAO   — elegante ejecutiva (F)
+  'aura-helios-en',   // NEON  — claro rápido (M)
+  'aura-stella-en',   // YUKI  — suave creativa (F)
+  'aura-arcas-en',    // REI   — directo técnico (M)
+  'aura-athena-en',   // MIRA  — calma empática (F)
+  'aura-orpheus-en',  // KAI   — carismático social (M)
 ];
 
 export default async function handler(req, res) {

@@ -2,17 +2,18 @@
 // Uses the same WebSocket protocol as the edge-tts Python package
 import { createHash } from 'crypto';
 
+// Voz ÚNICA por avatar — gender + regional accent + personalidad
 const AVATAR_VOICES = [
-  { name: 'es-MX-DaliaNeural',    rate: '+0%',  pitch: '+0%',  style: 'cheerful'  }, // AVA
-  { name: 'es-MX-MarinaNeural',   rate: '+8%',  pitch: '+8%',  style: null        }, // KIRA
-  { name: 'es-CO-SalomeNeural',   rate: '-5%',  pitch: '-5%',  style: null        }, // ZANE
-  { name: 'es-AR-ElenaNeural',    rate: '+5%',  pitch: '+3%',  style: null        }, // FAKER
-  { name: 'es-MX-DaliaNeural',    rate: '-8%',  pitch: '+5%',  style: null        }, // SAO
-  { name: 'es-MX-MarinaNeural',   rate: '+12%', pitch: '+4%',  style: null        }, // NEON
-  { name: 'es-PE-CamilaNeural',   rate: '+0%',  pitch: '+10%', style: null        }, // YUKI
-  { name: 'es-CO-SalomeNeural',   rate: '+6%',  pitch: '-4%',  style: null        }, // REI
-  { name: 'es-MX-DaliaNeural',    rate: '-10%', pitch: '+6%',  style: null        }, // MIRA
-  { name: 'es-MX-MarinaNeural',   rate: '+10%', pitch: '+2%',  style: null        }, // KAI
+  { name: 'es-MX-DaliaNeural',    rate: '+0%',  pitch: '+0%',  style: 'cheerful'  }, // AVA   — cálida mexicana (F)
+  { name: 'es-CO-SalomeNeural',   rate: '+10%', pitch: '+6%',  style: null        }, // KIRA  — enérgica colombiana (F)
+  { name: 'es-MX-JorgeNeural',    rate: '-3%',  pitch: '-4%',  style: null        }, // ZANE  — firme mexicano (M)
+  { name: 'es-AR-TomasNeural',    rate: '+5%',  pitch: '+0%',  style: null        }, // FAKER — preciso argentino (M)
+  { name: 'es-PE-CamilaNeural',   rate: '-6%',  pitch: '+3%',  style: null        }, // SAO   — elegante peruana (F)
+  { name: 'es-CL-LorenzoNeural',  rate: '+12%', pitch: '+0%',  style: null        }, // NEON  — rápido chileno (M)
+  { name: 'es-MX-MarinaNeural',   rate: '+0%',  pitch: '+8%',  style: null        }, // YUKI  — suave creativa (F)
+  { name: 'es-ES-AlvaroNeural',   rate: '+6%',  pitch: '-2%',  style: null        }, // REI   — directo español (M)
+  { name: 'es-AR-ElenaNeural',    rate: '-8%',  pitch: '+4%',  style: null        }, // MIRA  — calma argentina (F)
+  { name: 'es-CO-GonzaloNeural',  rate: '+8%',  pitch: '+2%',  style: null        }, // KAI   — carismático colombiano (M)
 ];
 
 function uuid() {
