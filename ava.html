@@ -1426,12 +1426,12 @@
             return;
         }
 
-        // TTS chain — best quality first, auto-fallback
+        // TTS chain — Latin Spanish voices first
         const ttsProviders = [
-            { url: '/api/tts-elevenlabs', label: 'ElevenLabs'   },
-            { url: '/api/tts-deepgram',   label: 'Deepgram Aura' },
-            { url: '/api/tts-openai',     label: 'OpenAI TTS'   },
-            { url: '/api/tts-edge',       label: 'Edge Neural'  },
+            { url: '/api/tts-elevenlabs', label: 'ElevenLabs'      }, // es (if key works)
+            { url: '/api/tts-openai',     label: 'OpenAI TTS'      }, // es-MX Paloma
+            { url: '/api/tts-edge',       label: 'Edge Dalia/MX'   }, // es-MX-DaliaNeural FREE
+            { url: '/api/tts-deepgram',   label: 'Deepgram Aura'   }, // en voice fallback
         ];
         for (const p of ttsProviders) {
             try {

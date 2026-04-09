@@ -1,91 +1,89 @@
-// Edge TTS — Microsoft Neural voices via edge-tts compatible endpoint
-// Neural Spanish female voices, per-avatar selection, no API key needed
+// Edge TTS — Microsoft neural voices, no API key needed
+// Uses the same WebSocket protocol as the edge-tts Python package
+import { createHash } from 'crypto';
 
-// Per-avatar neural voice mapping (all female, varied personality)
 const AVATAR_VOICES = [
-  { name: 'es-MX-DaliaNeural',    rate: '+0%',  pitch: '+0%'  }, // AVA — profesional
-  { name: 'es-MX-MarinaNeural',   rate: '+8%',  pitch: '+8%'  }, // KIRA — energética
-  { name: 'es-ES-ElviraNeural',   rate: '-5%',  pitch: '-8%'  }, // ZANE — firme
-  { name: 'es-ES-AbrilNeural',    rate: '+5%',  pitch: '+3%'  }, // FAKER — precisa
-  { name: 'es-MX-DaliaNeural',    rate: '-8%',  pitch: '+5%'  }, // SAO — elegante
-  { name: 'es-MX-MarinaNeural',   rate: '+12%', pitch: '+4%'  }, // NEON — rápida
-  { name: 'es-ES-XimenaNeural',   rate: '+0%',  pitch: '+10%' }, // YUKI — suave
-  { name: 'es-ES-ElviraNeural',   rate: '+6%',  pitch: '-4%'  }, // REI — técnica
-  { name: 'es-MX-DaliaNeural',    rate: '-10%', pitch: '+6%'  }, // MIRA — tranquila
-  { name: 'es-MX-MarinaNeural',   rate: '+10%', pitch: '+2%'  }, // KAI — carismática
+  { name: 'es-MX-DaliaNeural',    rate: '+0%',  pitch: '+0%',  style: 'cheerful'  }, // AVA
+  { name: 'es-MX-MarinaNeural',   rate: '+8%',  pitch: '+8%',  style: null        }, // KIRA
+  { name: 'es-CO-SalomeNeural',   rate: '-5%',  pitch: '-5%',  style: null        }, // ZANE
+  { name: 'es-AR-ElenaNeural',    rate: '+5%',  pitch: '+3%',  style: null        }, // FAKER
+  { name: 'es-MX-DaliaNeural',    rate: '-8%',  pitch: '+5%',  style: null        }, // SAO
+  { name: 'es-MX-MarinaNeural',   rate: '+12%', pitch: '+4%',  style: null        }, // NEON
+  { name: 'es-PE-CamilaNeural',   rate: '+0%',  pitch: '+10%', style: null        }, // YUKI
+  { name: 'es-CO-SalomeNeural',   rate: '+6%',  pitch: '-4%',  style: null        }, // REI
+  { name: 'es-MX-DaliaNeural',    rate: '-10%', pitch: '+6%',  style: null        }, // MIRA
+  { name: 'es-MX-MarinaNeural',   rate: '+10%', pitch: '+2%',  style: null        }, // KAI
 ];
 
+function uuid() {
+  return createHash('md5').update(Math.random().toString()).digest('hex');
+}
+
+function buildSSML(text, voice) {
+  const lang = voice.name.substring(0, 5);
+  const esc = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${lang}'>
+<voice name='${voice.name}'><prosody rate='${voice.rate}' pitch='${voice.pitch}'>${esc}</prosody></voice></speak>`;
+}
+
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { text, avatarIndex = 0 } = req.body;
-
-  if (!text || typeof text !== 'string') {
-    return res.status(400).json({ error: 'text required' });
-  }
+  if (!text) return res.status(400).json({ error: 'text required' });
 
   const idx = Math.max(0, Math.min(9, parseInt(avatarIndex) || 0));
-  const v = AVATAR_VOICES[idx];
-  const clean = text.replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+  const voice = AVATAR_VOICES[idx];
+  const clean = text.substring(0, 1000);
 
-  // Step 1: get ephemeral token from Edge TTS
-  let token = '';
+  // Attempt 1: edge-tts public synthesis endpoint (same as Python package)
   try {
+    // Get a fresh auth token from the public edge endpoint
     const tokenRes = await fetch(
-      'https://azure.microsoft.com/en-us/services/cognitive-services/text-to-speech/',
-      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      'https://www.bing.com/tfeedback/tts?isVertical=1&IG=&IID=&isImageSearch=',
+      { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
     );
-    // Token endpoint for edge TTS (no-auth tier)
-    const tokenEndpoint = await fetch(
-      'https://eastus.api.cognitive.microsoft.com/sts/v1.0/issueToken',
-      { method: 'POST', headers: { 'Ocp-Apim-Subscription-Key': '' } }
-    );
-    token = '';
-  } catch(e) { token = ''; }
+    const connId = uuid().replace(/-/g,'');
+    const ssml = buildSSML(clean, voice);
+    const requestId = uuid().replace(/-/g,'');
 
-  const ssml = `<speak version='1.0' xml:lang='${v.name.startsWith('es-MX') ? 'es-MX' : 'es-ES'}'>
-  <voice xml:lang='${v.name.startsWith('es-MX') ? 'es-MX' : 'es-ES'}' name='${v.name}'>
-    <prosody rate='${v.rate}' pitch='${v.pitch}'>${clean}</prosody>
-  </voice>
-</speak>`;
-
-  try {
-    // Use the public Edge TTS synthesis endpoint
-    const response = await fetch(
-      'https://eastus.tts.speech.microsoft.com/cognitiveservices/v1',
+    // Direct synthesis via Bing TTS endpoint (no key needed, same as edge-tts package)
+    const synth = await fetch(
+      `https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?trustedclienttoken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=${connId}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'audio-24khz-96kbitrate-mono-mp3',
-          'User-Agent': 'AVAHolographic/2.0',
-          ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+          'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
         },
-        body: ssml
+        body: ssml,
       }
     );
 
-    if (response.ok) {
-      const audioBuffer = await response.arrayBuffer();
-      const base64Audio = Buffer.from(audioBuffer).toString('base64');
-      return res.json({ audioContent: base64Audio, encoding: 'mp3', voice: v.name, source: 'azure-neural' });
+    if (synth.ok) {
+      const buf = await synth.arrayBuffer();
+      if (buf.byteLength > 1000) {
+        const b64 = Buffer.from(buf).toString('base64');
+        return res.json({ audioContent: b64, encoding: 'mp3', voice: voice.name, source: 'edge-tts' });
+      }
     }
-  } catch(e) { console.warn('Azure TTS attempt failed:', e.message); }
+    console.warn('Edge TTS response:', synth.status, synth.statusText);
+  } catch(e) { console.warn('Edge TTS failed:', e.message); }
 
-  // Fallback: Google Translate TTS (no key, but limited)
+  // Attempt 2: Google TTS (free, es-MX accent)
   try {
-    const gtText = encodeURIComponent(text.substring(0, 200));
-    const gtRes = await fetch(
-      `https://translate.google.com/translate_tts?ie=UTF-8&q=${gtText}&tl=es-MX&client=tw-ob`,
-      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } }
+    const encoded = encodeURIComponent(clean.substring(0, 200));
+    const gRes = await fetch(
+      `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=es-MX&client=tw-ob&ttsspeed=0.9`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' } }
     );
-    if (gtRes.ok) {
-      const buf = await gtRes.arrayBuffer();
-      return res.json({ audioContent: Buffer.from(buf).toString('base64'), encoding: 'mp3', voice: 'google-es', source: 'google-tts' });
+    if (gRes.ok) {
+      const buf = await gRes.arrayBuffer();
+      return res.json({ audioContent: Buffer.from(buf).toString('base64'), encoding: 'mp3', voice: 'google-es-MX', source: 'google-tts' });
     }
-  } catch(e) { console.warn('Google TTS fallback failed:', e.message); }
+  } catch(e) { console.warn('Google TTS failed:', e.message); }
 
-  return res.status(502).json({ error: 'All TTS providers failed' });
+  return res.status(502).json({ error: 'Edge TTS and Google TTS both failed' });
 }

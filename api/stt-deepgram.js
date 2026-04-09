@@ -28,7 +28,7 @@ export default async function handler(req, res) {
 
   try {
     const r = await fetch(
-      'https://api.deepgram.com/v1/listen?model=nova-2&language=es&smart_format=true&punctuate=true',
+      'https://api.deepgram.com/v1/listen?model=nova-2&language=es-419&smart_format=true&punctuate=true&diarize=false',
       {
         method: 'POST',
         headers: {
