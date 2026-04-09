@@ -250,6 +250,9 @@
         my = -(e.clientY / innerHeight) * 2 + 1;
     });
 
+    // LookAt target for VRM eye/head tracking
+    let lookAtTarget = null;
+
     // TTS audio analysis
     let ttsCtx = null, ttsAnalyser = null, ttsFreq = null, _curAudio = null;
 
@@ -331,6 +334,11 @@
         grid.material.transparent = true;
         scene.add(grid);
 
+        // LookAt target for VRM eye tracking
+        lookAtTarget = new THREE.Object3D();
+        lookAtTarget.position.set(0, 1.2, 3);
+        scene.add(lookAtTarget);
+
         // Subtle fog
         scene.fog = new THREE.FogExp2(0x000510, 0.06);
 
@@ -349,41 +357,45 @@
         const proxy = vrm.blendShapeProxy;
         if (!proxy) return;
 
-        // Collect blend shape names (handle different internal structures)
+        // In three-vrm 0.6.11, _blendShapeGroups is a Map<string, VRMBlendShapeGroup>
         let names = [];
-        if (proxy._blendShapeGroups && Array.isArray(proxy._blendShapeGroups)) {
-            names = proxy._blendShapeGroups.map(g => g.name).filter(Boolean);
-        } else if (proxy._expressionMap) {
-            names = Object.keys(proxy._expressionMap);
-        } else {
-            // Try common VRM 0.6.x preset names
-            const presets = ['a','i','u','e','o','aa','ih','ou','ee','oh','blink','blink_l','blink_r','joy','angry','sorrow','fun','neutral'];
-            presets.forEach(n => {
-                try { proxy.setValue(n, 0); names.push(n); } catch(e) {}
-            });
+        const groups = proxy._blendShapeGroups;
+        if (groups instanceof Map) {
+            names = Array.from(groups.keys());
+        } else if (groups && typeof groups[Symbol.iterator] === 'function') {
+            for (const g of groups) names.push(typeof g === 'string' ? g : (g.name || ''));
+        } else if (Array.isArray(groups)) {
+            names = groups.map(g => g.name || '').filter(Boolean);
+        } else if (groups && typeof groups === 'object') {
+            names = Object.keys(groups);
+        }
+
+        // If nothing found, use VRM 0.x standard presets
+        if (names.length === 0) {
+            names = ['a','i','u','e','o','blink','blink_l','blink_r','joy','angry','sorrow','fun','neutral'];
         }
         vrmBlend.all = names;
 
-        // Find mouth blend shape
-        const mouthKeys = ['aa','a','ih','ou','ee','oh','e','i','o','u'];
+        // Find mouth — standard VRM presets: a, i, u, e, o
+        const mouthKeys = ['a','i','u','e','o'];
         for (const key of mouthKeys) {
-            const found = names.find(n => {
-                const l = n.toLowerCase();
-                return l === key || l === 'vrc.v_' + key;
-            });
+            const found = names.find(n => n.toLowerCase() === key);
             if (found) { vrmBlend.mouth = found; break; }
         }
         if (!vrmBlend.mouth) {
-            vrmBlend.mouth = names.find(n => /mouth|opened|mth|jaw|lip|aa/i.test(n)) || null;
+            vrmBlend.mouth = names.find(n => /mouth|opened|mth|jaw|lip/i.test(n)) || 'a';
         }
 
         // Find blink
-        vrmBlend.blink = names.find(n => /blink/i.test(n)) || null;
+        vrmBlend.blink = names.find(n => n.toLowerCase() === 'blink') ||
+                         names.find(n => /blink/i.test(n)) || 'blink';
+
+        console.log('BlendShapes available:', names, '| Mouth:', vrmBlend.mouth, '| Blink:', vrmBlend.blink);
     }
 
     function setBlend(proxy, name, val) {
         if (!proxy || !name) return;
-        try { proxy.setValue(name, val); } catch(e) {}
+        try { proxy.setValue(name, Math.max(0, Math.min(1, val))); } catch(e) {}
     }
 
     // ================================================================
@@ -440,6 +452,11 @@
                 currentVRM = vrm;
                 loadedModel = model;
                 try { cacheBlendShapes(vrm); } catch(e) { console.warn('BlendShape cache skipped:', e.message); }
+
+                // Set up VRM lookAt to follow mouse target
+                if (vrm.lookAt && lookAtTarget) {
+                    vrm.lookAt.target = lookAtTarget;
+                }
 
                 model.traverse(o => {
                     if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
@@ -644,6 +661,15 @@
 
         const B = (name) => humanoid.getBoneNode ? humanoid.getBoneNode(name) : null;
         const lerp = THREE.MathUtils.lerp;
+
+        // Update lookAt target from mouse position (smooth)
+        if (lookAtTarget) {
+            const tgtX = mx * 2.5;
+            const tgtY = my * 1.5 + 1.2;
+            lookAtTarget.position.x = lerp(lookAtTarget.position.x, tgtX, 0.08);
+            lookAtTarget.position.y = lerp(lookAtTarget.position.y, tgtY, 0.08);
+            lookAtTarget.position.z = 3;
+        }
 
         // Float the whole group gently
         avatarGroup.position.y = Math.sin(t * 0.9) * 0.04;
