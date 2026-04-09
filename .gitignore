@@ -15,6 +15,7 @@ build/
 .out/
 
 # IDE
+.cursor/
 .vscode/
 .idea/
 *.swp

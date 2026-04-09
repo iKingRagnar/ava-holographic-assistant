@@ -20,7 +20,7 @@ Un asistente virtual holográfico inspirado en **Razer Project AVA**, diseñado 
 | Componente | Tecnología |
 |------------|------------|
 | Frontend | HTML5 + CSS3 + Vanilla JS |
-| 3D Engine | Three.js r128 (CDN) |
+| 3D Engine | Three.js r134 + `@pixiv/three-vrm` 0.6 (VRM en `public/`) |
 | Speech Recognition | Web Speech API nativa |
 | Speech Synthesis | Web Speech Synthesis API |
 | Backend AI | Fetch POST a endpoint configurable |
