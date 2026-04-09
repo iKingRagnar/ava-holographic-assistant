@@ -2,13 +2,15 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000510">
     <title>AVA - Holographic AI Assistant</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-        html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI','Roboto',sans-serif;touch-action:none;background:#000}
-
+        html,body{width:100%;min-height:100%;min-height:100dvh;overflow:hidden;font-family:'Segoe UI','Roboto',sans-serif;touch-action:manipulation;background:#000}
         /* === Atmosphere background === */
         .atmosphere{position:fixed;inset:0;z-index:0;
             background:radial-gradient(ellipse 120% 100% at 50% 110%, #0a0e2a 0%, #050818 40%, #000 70%);
@@ -23,7 +25,7 @@
         }
 
         /* === Three.js canvas === */
-        #avatar-canvas{position:fixed;inset:0;z-index:10}
+        #avatar-canvas{position:fixed;inset:0;z-index:10;touch-action:none;-webkit-transform:translateZ(0);transform:translateZ(0)}
 
         /* === Particles overlay === */
         #particles{position:fixed;inset:0;pointer-events:none;z-index:50}
@@ -34,20 +36,20 @@
         }
 
         /* === Branding === */
-        .branding{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:60;
-            font-size:30px;font-weight:200;letter-spacing:14px;color:#00ff9d;
+        .branding{position:fixed;top:max(18px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:60;
+            font-size:clamp(18px, 5.5vw, 30px);font-weight:200;letter-spacing:clamp(6px, 2vw, 14px);color:#00ff9d;
             text-shadow:0 0 20px rgba(0,255,157,.7),0 0 40px rgba(0,255,157,.3);
             pointer-events:none;user-select:none;
         }
 
         /* === Avatar selector === */
-        .avatar-selector{position:fixed;top:62px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:60}
+        .avatar-selector{position:fixed;top:max(58px, calc(env(safe-area-inset-top) + 42px));left:50%;transform:translateX(-50%);display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:96vw;z-index:60;padding:0 4px}
         .avatar-dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.25);cursor:pointer;transition:.3s}
         .avatar-dot:hover{transform:scale(1.4)}
         .avatar-dot.active{box-shadow:0 0 14px currentColor;border-color:#fff;transform:scale(1.25)}
 
         /* === Capability panel === */
-        .capability{position:fixed;top:95px;left:50%;transform:translateX(-50%);text-align:center;z-index:55;max-width:85%}
+        .capability{position:fixed;top:max(118px, calc(env(safe-area-inset-top) + 100px));left:50%;transform:translateX(-50%);text-align:center;z-index:55;max-width:92%;padding:0 8px}
         .cap-title{font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;opacity:.8}
         .cap-skills{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
         .skill-tag{background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.25);padding:2px 8px;border-radius:12px;font-size:9px}
@@ -68,19 +70,23 @@
         @keyframes pulse-talk{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.07)}}
 
         /* === Status & response === */
-        .status-area{position:fixed;bottom:270px;left:50%;transform:translateX(-50%);
-            z-index:60;text-align:center;width:90%;max-width:500px;pointer-events:none}
+        .status-area{position:fixed;bottom:max(270px, calc(env(safe-area-inset-bottom) + 248px));left:50%;transform:translateX(-50%);
+            z-index:60;text-align:center;width:92%;max-width:500px;pointer-events:none}
+        @media (max-width: 520px) {
+            .status-area{bottom:max(240px, calc(env(safe-area-inset-bottom) + 218px))}
+            .response{max-height:72px;font-size:13px}
+        }
         .status-text{font-size:11px;color:rgba(0,255,157,.65);text-transform:uppercase;letter-spacing:3px;margin-bottom:4px}
-        .transcript{font-size:13px;color:#fff;min-height:18px;text-shadow:0 0 8px rgba(255,255,255,.2)}
-        .response{font-size:14px;color:#00ff9d;margin-top:4px;text-shadow:0 0 12px rgba(0,255,157,.4);line-height:1.35;max-height:56px;overflow:hidden}
+        .transcript{font-size:clamp(12px, 3.4vw, 13px);color:#fff;min-height:18px;text-shadow:0 0 8px rgba(255,255,255,.2)}
+        .response{font-size:clamp(12px, 3.6vw, 14px);color:#00ff9d;margin-top:4px;text-shadow:0 0 12px rgba(0,255,157,.4);line-height:1.35;max-height:56px;overflow:hidden}
 
         /* === Chat input === */
-        .chat-box{position:fixed;bottom:108px;left:50%;transform:translateX(-50%);
-            z-index:65;width:88vw;max-width:440px;display:flex;gap:8px}
+        .chat-box{position:fixed;bottom:max(108px, calc(env(safe-area-inset-bottom) + 86px));left:50%;transform:translateX(-50%);
+            z-index:65;width:min(92vw, 440px);display:flex;gap:8px}
         .chat-box.hidden{display:none}
-        .chat-input{flex:1;padding:11px 18px;background:rgba(0,0,0,.85);
+        .chat-input{flex:1;padding:12px 16px;background:rgba(0,0,0,.85);
             border:2px solid rgba(0,255,157,.5);border-radius:26px;
-            color:#00ff9d;font-size:14px;outline:none}
+            color:#00ff9d;font-size:16px;outline:none}
         .chat-input::placeholder{color:rgba(0,255,157,.4)}
         .chat-input:focus{border-color:#00ff9d;box-shadow:0 0 18px rgba(0,255,157,.25)}
         .chat-send{width:44px;height:44px;min-width:44px;border-radius:50%;border:2px solid rgba(0,255,157,.6);
@@ -91,7 +97,7 @@
         /* === MIC BUTTON — always visible, big, centered === */
         .mic-btn{
             position:fixed !important;
-            bottom:22px !important;
+            bottom:max(22px, env(safe-area-inset-bottom)) !important;
             left:50% !important;
             transform:translateX(-50%) !important;
             width:70px;height:70px;border-radius:50%;
@@ -116,19 +122,20 @@
         @keyframes mic-glow-talk{0%,100%{box-shadow:0 0 25px rgba(0,255,157,.5)}50%{box-shadow:0 0 55px rgba(0,255,157,1)}}
         .mic-label{
             position:fixed !important;
-            bottom:96px !important;
+            bottom:max(96px, calc(env(safe-area-inset-bottom) + 74px)) !important;
             left:50% !important;
             transform:translateX(-50%) !important;
             z-index:9999 !important;
             color:rgba(0,255,157,.85);
             font-size:10px;letter-spacing:2px;
-            text-transform:uppercase;pointer-events:none;white-space:nowrap;
+            text-transform:uppercase;pointer-events:none;white-space:normal;max-width:min(96vw, 420px);text-align:center;line-height:1.25;
             text-shadow:0 0 10px rgba(0,255,157,.5);
             animation:fade-pulse 3s ease-in-out infinite}
         @keyframes fade-pulse{0%,100%{opacity:.5}50%{opacity:1}}
 
         /* === Config overlay === */
-        .config-overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+        .config-overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;
+            padding:max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left))}
         .config-overlay.hidden{display:none}
         .config-title{font-size:26px;color:#00ff9d;letter-spacing:10px;margin-bottom:25px;text-shadow:0 0 20px rgba(0,255,157,.7)}
         .config-form{width:100%;max-width:380px}
@@ -150,7 +157,7 @@
         @keyframes spin{to{transform:rotate(360deg)}}
 
         /* === Hints === */
-        .hint{position:fixed;bottom:8px;font-size:9px;color:rgba(0,255,157,.25);z-index:50}
+        .hint{position:fixed;bottom:max(8px, env(safe-area-inset-bottom));font-size:9px;color:rgba(0,255,157,.25);z-index:50;max-width:46vw;overflow:hidden;text-overflow:ellipsis}
         .hint-l{left:10px}
         .hint-r{right:10px}
     </style>
@@ -191,13 +198,13 @@
     </div>
 
     <div class="chat-box" id="chat-box">
-        <input type="text" class="chat-input" id="chat-input" placeholder="Escribe tu mensaje...">
+        <input type="text" class="chat-input" id="chat-input" placeholder="Escribe tu mensaje..." enterkeyhint="send" inputmode="text" autocomplete="off">
         <button class="chat-send" id="chat-send">&#9654;</button>
     </div>
 
     <video id="vision-cam" playsinline muted autoplay style="position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;z-index:0" aria-hidden="true"></video>
 
-    <div class="mic-label" id="mic-label">&#127908; Di «AVA» y habla sin parar; «para» o texto cierra el modo. Space / mic</div>
+    <div class="mic-label" id="mic-label">&#127908; Toca el mic o escribe abajo · «AVA» para voz continua · «para» cierra</div>
     <div class="mic-btn" id="mic-btn">
         <svg viewBox="0 0 24 24" id="mic-icon"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
         <svg viewBox="0 0 24 24" id="stop-icon" style="display:none"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
@@ -312,12 +319,37 @@
     let _vrmGen = 0;
     const clock = new THREE.Clock();
 
-    // Mouse tracking
+    /** Tamaño útil en móvil (barra de URL, notch) — evita canvas “pelón” o mal encajado */
+    function getViewportSize() {
+        const vv = window.visualViewport;
+        if (vv && vv.width > 48 && vv.height > 48) {
+            return { w: Math.round(vv.width), h: Math.round(vv.height) };
+        }
+        return { w: innerWidth, h: innerHeight };
+    }
+    function applyRendererSize() {
+        const { w, h } = getViewportSize();
+        const hh = Math.max(1, h);
+        if (camera) {
+            camera.aspect = w / hh;
+            camera.updateProjectionMatrix();
+        }
+        if (renderer) renderer.setSize(w, hh);
+        const pc = document.getElementById('particles');
+        if (pc) { pc.width = w; pc.height = hh; }
+    }
+
+    // Mirada: ratón + dedo (sin touch, mx/my quedaban en 0 → avatar “muerto” en celular)
     let mx = 0, my = 0;
-    document.addEventListener('mousemove', e => {
-        mx = (e.clientX / innerWidth) * 2 - 1;
-        my = -(e.clientY / innerHeight) * 2 + 1;
-    });
+    function setPointerFromClient(clientX, clientY) {
+        const { w, h } = getViewportSize();
+        const hh = Math.max(1, h), ww = Math.max(1, w);
+        mx = (clientX / ww) * 2 - 1;
+        my = -(clientY / hh) * 2 + 1;
+    }
+    document.addEventListener('mousemove', e => setPointerFromClient(e.clientX, e.clientY));
+    document.addEventListener('touchstart', e => { const x = e.touches[0]; if (x) setPointerFromClient(x.clientX, x.clientY); }, { passive: true });
+    document.addEventListener('touchmove', e => { const x = e.touches[0]; if (x) setPointerFromClient(x.clientX, x.clientY); }, { passive: true });
 
     // LookAt target for VRM eye/head tracking
     let lookAtTarget = null;
@@ -417,13 +449,14 @@
         const canvas = document.getElementById('avatar-canvas');
         scene = new THREE.Scene();
 
-        camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 100);
+        const vs = getViewportSize();
+        camera = new THREE.PerspectiveCamera(42, vs.w / Math.max(1, vs.h), 0.1, 100);
         camera.position.set(0, 0.65, 3.8);
         camera.lookAt(0, 0.3, 0);
 
-        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-        renderer.setSize(innerWidth, innerHeight);
-        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
+        renderer.setSize(vs.w, vs.h);
+        renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2.25));
         renderer.outputEncoding = THREE.sRGBEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.1;
@@ -459,11 +492,12 @@
         // Subtle fog
         scene.fog = new THREE.FogExp2(0x000510, 0.06);
 
-        window.addEventListener('resize', () => {
-            camera.aspect = innerWidth / innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(innerWidth, innerHeight);
-        });
+        window.addEventListener('resize', applyRendererSize);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', applyRendererSize);
+            window.visualViewport.addEventListener('scroll', applyRendererSize);
+        }
+        applyRendererSize();
     }
 
     // ================================================================
@@ -799,7 +833,7 @@
         const phys = {
             IDLE:      { hipOsc: 1.06, tw: 1.1,  breath: 1.05, headDamp: 9.2,  neckMul: { y: 0.62, x: 0.55 }, lagF: 5.7, lagH: 4.9, legWA: 1.02, legWS: 1,    legW: 1 },
             LISTENING: { hipOsc: 0.76, tw: 0.65, breath: 0.78, headDamp: 7.8,  neckMul: { y: 0.56, x: 0.5 },  lagF: 6.6, lagH: 5.8, legWA: 0.88, legWS: 0.95, legW: 0.88 },
-            TALKING:   { hipOsc: 1.2,  tw: 1.28, breath: 1.18, headDamp: 11.5, neckMul: { y: 0.66, x: 0.6 },  lagF: 9.4, lagH: 8.1, legWA: 1.1,  legWS: 1.06, legW: 1.06 },
+            TALKING:   { hipOsc: 1.2,  tw: 1.28, breath: 1.18, headDamp: 13.2, neckMul: { y: 0.66, x: 0.6 },  lagF: 8.2, lagH: 7.1, legWA: 1.1,  legWS: 1.06, legW: 1.06 },
             THINKING:  { hipOsc: 0.88, tw: 0.82, breath: 0.9,  headDamp: 7.2,  neckMul: { y: 0.64, x: 0.57 }, lagF: 5.9, lagH: 5.2, legWA: 0.93, legWS: 0.92, legW: 0.92 },
         };
         const ph = phys[state] || phys.IDLE;
@@ -1020,20 +1054,20 @@
             if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.12, sp); }
             if (lh) { lh.rotation.z = lerp(lh.rotation.z, 0.05, sp); }
         } else if (state === 'TALKING') {
-            // Gesticulación más orgánica: varias frecuencias + emoción + “énfasis” alternado
-            const emoAmp = (_emotion === 'happy' || _emotion === 'excited') ? 1.38
-                : (_emotion === 'calm') ? 0.82
-                : (_emotion === 'focused' || _emotion === 'curious') ? 1.12 : 1.05;
-            const beat = Math.sin(t * 4.2);
-            const gL = (Math.sin(t * 2.65) * 0.24 + Math.sin(t * 1.45) * 0.1 + organic(t, 2.3) * 0.14 + beat * 0.06) * emoAmp;
-            const gR = (Math.sin(t * 2.65 + 1.15) * 0.24 + Math.cos(t * 1.55) * 0.1 + organic(t, 3.05) * 0.14 - beat * 0.05) * emoAmp;
-            const talkSp = 0.125;
-            if (la) { la.rotation.z = lerp(la.rotation.z,  1.0 + gL + breathShoulder, talkSp); la.rotation.x = lerp(la.rotation.x, Math.sin(t*2.95)*0.18 + organic(t,1.2)*0.06, talkSp); }
-            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.0 + gR + breathShoulder, talkSp); ra.rotation.x = lerp(ra.rotation.x, Math.sin(t*2.95+0.55)*0.18 + organic(t,1.9)*0.06, talkSp); }
-            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  Math.sin(t*3.15)*0.24 + Math.sin(t*5.1)*0.05, 0.095); lf.rotation.x = lerp(lf.rotation.x, Math.sin(t*2.65)*0.12, 0.095); }
-            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -Math.sin(t*3.15+0.45)*0.24 - Math.sin(t*5.1)*0.05, 0.095); rf.rotation.x = lerp(rf.rotation.x, Math.sin(t*2.65+0.3)*0.12, 0.095); }
-            if (lh) { lh.rotation.z = lerp(lh.rotation.z, Math.sin(t*3.9)*0.16 + organic(t,4)*0.04, talkSp); lh.rotation.x = lerp(lh.rotation.x, Math.sin(t*4.6)*0.11, talkSp); }
-            if (rh) { rh.rotation.z = lerp(rh.rotation.z, Math.sin(t*3.9+1.1)*0.16 + organic(t,4.7)*0.04, talkSp); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*4.6+0.4)*0.11, talkSp); }
+            // Gesticulación más humana: menos “zumbido” sinusoidal, más pausas orgánicas
+            const emoAmp = (_emotion === 'happy' || _emotion === 'excited') ? 1.22
+                : (_emotion === 'calm') ? 0.78
+                : (_emotion === 'focused' || _emotion === 'curious') ? 1.05 : 1;
+            const beat = Math.sin(t * 1.85);
+            const gL = (Math.sin(t * 1.45) * 0.17 + Math.sin(t * 0.82) * 0.07 + organic(t, 2.3) * 0.11 + beat * 0.035) * emoAmp;
+            const gR = (Math.sin(t * 1.45 + 1.1) * 0.17 + Math.cos(t * 0.88) * 0.07 + organic(t, 3.05) * 0.11 - beat * 0.03) * emoAmp;
+            const talkSp = 0.086;
+            if (la) { la.rotation.z = lerp(la.rotation.z,  1.0 + gL + breathShoulder, talkSp); la.rotation.x = lerp(la.rotation.x, Math.sin(t*1.65)*0.12 + organic(t,1.2)*0.05, talkSp); }
+            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.0 + gR + breathShoulder, talkSp); ra.rotation.x = lerp(ra.rotation.x, Math.sin(t*1.65+0.55)*0.12 + organic(t,1.9)*0.05, talkSp); }
+            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  Math.sin(t*1.75)*0.14 + Math.sin(t*2.35)*0.035, 0.078); lf.rotation.x = lerp(lf.rotation.x, Math.sin(t*1.55)*0.08, 0.078); }
+            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -Math.sin(t*1.75+0.4)*0.14 - Math.sin(t*2.35)*0.035, 0.078); rf.rotation.x = lerp(rf.rotation.x, Math.sin(t*1.55+0.25)*0.08, 0.078); }
+            if (lh) { lh.rotation.z = lerp(lh.rotation.z, Math.sin(t*2.25)*0.1 + organic(t,4)*0.03, talkSp); lh.rotation.x = lerp(lh.rotation.x, Math.sin(t*2.1)*0.07, talkSp); }
+            if (rh) { rh.rotation.z = lerp(rh.rotation.z, Math.sin(t*2.25+1.0)*0.1 + organic(t,4.7)*0.03, talkSp); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*2.1+0.35)*0.07, talkSp); }
         }
 
         // --- Antebrazos y manos: inercia (hablar = más rápido; idle/pensar = más “peso”) ---
@@ -1276,7 +1310,8 @@
     function initParticles2D() {
         const cv = document.getElementById('particles');
         const ctx = cv.getContext('2d');
-        cv.width = innerWidth; cv.height = innerHeight;
+        const vs = getViewportSize();
+        cv.width = vs.w; cv.height = vs.h;
         const ps = Array.from({length: 45}, () => ({
             x: Math.random() * cv.width, y: Math.random() * cv.height,
             sz: Math.random() * 1.8 + 0.4, sy: Math.random() * 0.8 + 0.3,
@@ -1292,7 +1327,6 @@
             });
             requestAnimationFrame(draw);
         })();
-        window.addEventListener('resize', () => { cv.width = innerWidth; cv.height = innerHeight; });
     }
 
     // ================================================================
@@ -1341,11 +1375,19 @@
                 const vis = captureVisionForChat();
                 if (vis) payload.vision = vis;
             }
-            const res = await fetch(cfg.apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            const ac = new AbortController();
+            const to = setTimeout(() => ac.abort(), 90000);
+            let res;
+            try {
+                res = await fetch(cfg.apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: ac.signal
+                });
+            } finally {
+                clearTimeout(to);
+            }
 
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
@@ -1370,8 +1412,11 @@
             speak(reply);
         } catch (err) {
             console.error('Chat error:', err);
-            const fallback = 'Lo siento, no pude conectar con el servidor. Verifica tu ANTHROPIC_API_KEY.';
-            updateStatus('ERROR DE CONEXIÓN');
+            const isAbort = err && err.name === 'AbortError';
+            const fallback = isAbort
+                ? 'La respuesta tardó demasiado (red lenta). Intenta de nuevo o usa un mensaje más corto.'
+                : 'Lo siento, no pude conectar con el servidor. Comprueba la red o la API.';
+            updateStatus(isAbort ? 'TIMEOUT' : 'ERROR DE CONEXIÓN');
             speak(fallback);
         }
     }
@@ -1593,7 +1638,14 @@
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
             ? 'audio/webm;codecs=opus' : 'audio/webm';
         let recorder = new MediaRecorder(stream, { mimeType });
-        let actx = new AudioContext();
+        const ACtx = window.AudioContext || window.webkitAudioContext;
+        if (!ACtx) {
+            setState('IDLE');
+            updateStatus('AudioContext no disponible — escribe tu mensaje');
+            stream.getTracks().forEach(t => t.stop());
+            return;
+        }
+        let actx = new ACtx();
         let silenceIntervalId = null;
 
         const endSilenceMonitor = () => {
@@ -2042,7 +2094,7 @@
     function hideConfig() { document.getElementById('config-overlay').classList.add('hidden'); }
 
     function saveConfig() {
-        const user = document.getElementById('cfg-user').value.trim();
+        const user = document.getElementById('cfg-user').value.trim() || 'Invitado';
         const api = document.getElementById('cfg-api').value.trim() || '/api/chat';
         const vrm = document.getElementById('cfg-vrm').value.trim();
         cfg.wakeWord = document.getElementById('cfg-wake').checked;
@@ -2123,16 +2175,25 @@
         }
 
         // Event listeners
-        document.getElementById('mic-btn').addEventListener('click', toggleMic);
-        document.getElementById('mic-btn').addEventListener('touchstart', e => { e.preventDefault(); toggleMic(); });
+        let _micPtr = 0;
+        const micEl = document.getElementById('mic-btn');
+        micEl.addEventListener('pointerdown', e => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            e.preventDefault();
+            const n = Date.now();
+            if (n - _micPtr < 420) return;
+            _micPtr = n;
+            toggleMic();
+        }, { passive: false });
 
         document.getElementById('cfg-go').addEventListener('click', saveConfig);
 
         document.querySelectorAll('.avatar-dot').forEach((dot, i) => {
-            dot.addEventListener('click', () => {
+            dot.addEventListener('pointerdown', e => {
+                e.preventDefault();
                 currentIdx = i;
                 loadVRMAvatar(i);
-            });
+            }, { passive: false });
         });
 
         // Chat input
