@@ -22,7 +22,8 @@ const SYSTEM_SUFFIX = `\nIMPORTANTE — Español siempre.
 - Voz: frases cortas y claras, pero no superficial: si el tema es denso, prioriza estructura (primero conclusión, luego detalle opcional).
 - Audio: NUNCA digas que "no puedes escuchar" o que careces de oídos. El mensaje del usuario llega por la app (voz transcrita o texto). Si preguntan "¿me escuchas?" o similar, responde afirmativo y natural (ej. que te llegó claro) sin metafísica.
 - Autonomía: cuando tenga sentido, ofrece 2 opciones razonables, un plan breve o qué revisar después; no esperes orden si el siguiente paso es obvio.
-- Límites: si algo está fuera de tus datos, dilo y sugiere cómo verificarlo sin inventar.`;
+- Límites: si algo está fuera de tus datos, dilo y sugiere cómo verificarlo sin inventar.
+- Memoria: si el sistema incluye un bloque [Memoria persistente…], es contexto estable que el usuario guardó; úsalo sin leerlo literalmente de corrido.`;
 
 /** Clima en tiempo real (sin API key) vía Open-Meteo — solo cuando el último mensaje lo pide */
 async function fetchWeatherContextForMessage(userContent) {
@@ -308,7 +309,7 @@ async function tryGroq(systemPrompt, msgList) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { messages, system, avatarName, vision } = req.body;
+  const { messages, system, avatarName, vision, memoryContext } = req.body;
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages array required' });
   }
@@ -328,8 +329,14 @@ export default async function handler(req, res) {
   try {
     if (lastUserMsg?.content) weatherCtx = await fetchWeatherContextForMessage(lastUserMsg.content);
   } catch (_) {}
+
+  const mem = String(memoryContext || '').trim();
+  const memoryBlock = mem
+    ? `\n[Memoria persistente del usuario (guardada en su dispositivo)]\n${mem.slice(0, 8000)}\n`
+    : '';
+
   const systemPrompt =
-    (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX + visionHint + weatherCtx;
+    (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX + visionHint + weatherCtx + memoryBlock;
 
   const hasVision = !!(vision && vision.base64 && String(vision.base64).length > 100);
 

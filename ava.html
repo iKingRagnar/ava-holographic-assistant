@@ -220,6 +220,8 @@
             <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:16px;cursor:pointer">
                 <input type="checkbox" id="cfg-vision" checked> Cámara + visión (Gemini/OpenAI) para ver el entorno
             </label>
+            <label class="cfg-label">Memoria persistente (opcional)</label>
+            <textarea class="cfg-input ta" id="cfg-memory" rows="4" placeholder="Hechos, preferencias o contexto que AVA debe recordar entre sesiones (se guarda en este navegador). Ej: trabajo en BI, usa Power BI, idioma técnico."></textarea>
             <button class="cfg-btn" id="cfg-go">ACTIVAR AVA</button>
             <div class="cfg-hint">Ctrl+R resetea config | T: texto | Space: voz | 1-0: avatar</div>
         </div>
@@ -276,7 +278,9 @@
         userName: localStorage.getItem('ava_user') || '',
         vrmBase: localStorage.getItem('ava_vrm_base') || '',
         wakeWord: localStorage.getItem('ava_wake') !== '0',
-        useVision: localStorage.getItem('ava_vision') !== '0'
+        useVision: localStorage.getItem('ava_vision') !== '0',
+        /** Notas largo plazo (localStorage); se envían al modelo en cada chat. */
+        memory: localStorage.getItem('ava_memory') || ''
     };
 
     let state = 'IDLE';
@@ -1319,7 +1323,8 @@
         try {
             const payload = {
                 messages: msgHistory,
-                avatarName: NAMES[currentIdx]
+                avatarName: NAMES[currentIdx],
+                memoryContext: (cfg.memory || '').trim()
             };
             if (cfg.useVision) {
                 const vis = captureVisionForChat();
@@ -1378,8 +1383,8 @@
             } else {
                 updateStatus('USA EL TEXTO PARA CHATEAR ↓');
                 micBtn.title = 'Sin Web Speech ni grabación de audio en este dispositivo';
+                console.warn('SpeechRecognition not available');
             }
-            console.warn('SpeechRecognition not available');
         }
     }
 
@@ -1549,6 +1554,9 @@
         let stream;
         try {
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Mic = gesto de usuario: desbloquea TTS (antes speak() silenciaba audio en Firefox sin clic)
+            _userInteracted = true;
+            ensureTtsContextRunning().catch(() => {});
         } catch(e) {
             console.warn('Mic access denied, falling back to Web Speech:', e.message);
             if (_SRClass) {
@@ -2014,6 +2022,7 @@
         const vrm = document.getElementById('cfg-vrm').value.trim();
         cfg.wakeWord = document.getElementById('cfg-wake').checked;
         cfg.useVision = document.getElementById('cfg-vision').checked;
+        cfg.memory = (document.getElementById('cfg-memory') && document.getElementById('cfg-memory').value) || '';
 
         cfg.userName = user;
         cfg.apiUrl = api;
@@ -2024,6 +2033,7 @@
         localStorage.setItem('ava_vrm_base', vrm);
         localStorage.setItem('ava_wake', cfg.wakeWord ? '1' : '0');
         localStorage.setItem('ava_vision', cfg.useVision ? '1' : '0');
+        localStorage.setItem('ava_memory', cfg.memory);
 
         hideConfig();
         loadVRMAvatar(currentIdx);
@@ -2041,7 +2051,10 @@
         localStorage.removeItem('ava_vrm_base');
         localStorage.removeItem('ava_wake');
         localStorage.removeItem('ava_vision');
-        cfg = { apiUrl: '/api/chat', userName: '', vrmBase: '', wakeWord: true, useVision: true };
+        localStorage.removeItem('ava_memory');
+        cfg = { apiUrl: '/api/chat', userName: '', vrmBase: '', wakeWord: true, useVision: true, memory: '' };
+        const memEl = document.getElementById('cfg-memory');
+        if (memEl) memEl.value = '';
         showConfig();
     }
 
@@ -2068,6 +2081,8 @@
         document.getElementById('cfg-vrm').value = cfg.vrmBase;
         document.getElementById('cfg-wake').checked = cfg.wakeWord;
         document.getElementById('cfg-vision').checked = cfg.useVision;
+        const memIn = document.getElementById('cfg-memory');
+        if (memIn) memIn.value = cfg.memory || '';
 
         if (!cfg.userName && cfg.apiUrl === '/api/chat') {
             showConfig();
@@ -2100,12 +2115,12 @@
         const chatIn = document.getElementById('chat-input');
         document.getElementById('chat-send').addEventListener('click', () => {
             const t = chatIn.value.trim();
-            if (t) { document.getElementById('transcript').textContent = t; voiceConversationActive = false; processMessage(t); chatIn.value = ''; }
+            if (t) { _userInteracted = true; document.getElementById('transcript').textContent = t; voiceConversationActive = false; processMessage(t); chatIn.value = ''; }
         });
         chatIn.addEventListener('keypress', e => {
             if (e.key === 'Enter') {
                 const t = chatIn.value.trim();
-                if (t) { document.getElementById('transcript').textContent = t; voiceConversationActive = false; processMessage(t); chatIn.value = ''; }
+                if (t) { _userInteracted = true; document.getElementById('transcript').textContent = t; voiceConversationActive = false; processMessage(t); chatIn.value = ''; }
             }
         });
 
