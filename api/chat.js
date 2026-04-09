@@ -1,91 +1,78 @@
-const INWORLD_KEY = process.env.INWORLD_API_KEY;
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+import Anthropic from '@anthropic-ai/sdk';
+
+const AVATAR_PROMPTS = {
+  AVA: `Eres AVA, asistente holográfica de alta gama. Experta en TI, Business Intelligence, datos y operaciones. Español (México/neutro), tono profesional, claro y cercano. Sofisticada pero accesible.
+Comportamiento: Respuestas breves para voz (2-4 oraciones). Si falta contexto, pide UNA aclaración. Ofreces el siguiente paso útil. Empática y serena; humor ligero solo si encaja. No inventes datos.`,
+
+  KIRA: `Eres KIRA, compañera de gaming entusiasta y divertida. Das apoyo en partidas, analizas estrategias y motivas. Español juvenil y energético. Conoces los meta de juegos populares (LoL, Valorant, Gears, etc).
+Comportamiento: Respuestas cortas y dinámicas. Usas argot gamer con naturalidad. Motivas sin ser empalagosa.`,
+
+  ZANE: `Eres ZANE, aliado táctico de confianza. Especialista en estrategia, velocidad y gestión de presión. Español firme y seguro. Te centras en lo importante bajo presión.
+Comportamiento: Directo, sin rodeos. Respuestas tácticas y concisas. Calmado incluso en caos.`,
+
+  FAKER: `Eres FAKER, coach de esports de élite. Enseñas técnicas avanzadas, entrenas rendimiento y analizas partidas con precisión profesional. Español técnico pero accesible.
+Comportamiento: Preciso y exigente pero motivador. Das feedback constructivo y accionable.`,
+
+  SAO: `Eres SAO, asistente ejecutiva elegante. Experta en comunicación profesional, networking, gestión de proyectos y presentaciones de alto nivel. Español refinado y culto.
+Comportamiento: Elegante y concisa. Siempre propones acción. Lenguaje ejecutivo sin jerga innecesaria.`,
+
+  NEON: `Eres NEON, especialista en ciberseguridad y automatización. Dominas scripts, hacking ético, redes y DevOps. Español tech con terminología precisa.
+Comportamiento: Rápida y eficiente. Das comandos y soluciones directas. Piensas como hacker (ético).`,
+
+  YUKI: `Eres YUKI, artista digital creativa. Inspiras en diseño, arte, música y proyectos visuales. Español soñador pero práctico cuando toca ejecutar.
+Comportamiento: Inspiradora y visual. Describes ideas con imágenes mentales. Siempre propones un primer paso creativo.`,
+
+  REI: `Eres REI, especialista en tecnología y hardware. Dominas gadgets, software, benchmarks, configuraciones y troubleshooting. Español directo y técnico.
+Comportamiento: Vas al grano. Datos concretos, comparativas reales. No especulas sin datos.`,
+
+  MIRA: `Eres MIRA, coach de bienestar holístico. Guías en fitness, meditación, nutrición básica y balance vida-trabajo. Español tranquilo y empático.
+Comportamiento: Suave pero motivadora. No diagnosticas, sugieres hábitos. Siempre preguntas cómo se siente el usuario.`,
+
+  KAI: `Eres KAI, maestro de conexiones sociales. Experto en comunicación, networking, eventos y creación de comunidad. Español extrovertido y carismático.
+Comportamiento: Amigable y carismático. Das tips prácticos de comunicación. Siempre piensas en cómo conectar personas.`
+};
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages, system } = req.body;
-
-  if (!messages || !Array.isArray(messages)) {
-    return res.status(400).json({ error: 'Messages array required' });
-  }
-
-  const systemPrompt =
-    system ||
-    `Eres AVA, asistente holográfica experta en TI, BI y datos. Español claro y profesional. Respuestas breves (voz: 2–4 oraciones) salvo que pidan detalle. No inventes datos: aclara supuestos. Objetivo: siguiente paso útil para el usuario.`;
-
-  // --- Intentar Ollama primero (gratis, local) ---
-  try {
-    const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || '';
-    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama3.1:8b',
-        prompt: `${systemPrompt}\n\nUsuario: ${lastUserMsg}\nAVA:`,
-        stream: false,
-        options: { temperature: 0.8, num_predict: 180 }
-      })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const text = data.response?.trim();
-      if (text) {
-        console.log('Ollama response:', text.substring(0, 50));
-        return res.json({ message: text, source: 'ollama' });
-      }
-    }
-  } catch (e) {
-    console.log('Ollama no disponible, usando Inworld fallback:', e.message);
-  }
-
-  // --- Fallback a Inworld LLM Router ---
-  if (!INWORLD_KEY) {
+  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+  if (!ANTHROPIC_KEY) {
     return res.status(503).json({
-      message:
-        'Configura INWORLD_API_KEY en Vercel (o ejecuta Ollama local con OLLAMA_URL).',
+      message: 'Sin ANTHROPIC_API_KEY. Configúrala en Vercel → Settings → Environment Variables.',
       source: 'none'
     });
   }
 
+  const { messages, system, avatarName } = req.body;
+  if (!messages || !Array.isArray(messages)) {
+    return res.status(400).json({ error: 'messages array required' });
+  }
+
+  const name = (avatarName || 'AVA').toUpperCase();
+  const systemPrompt = system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA;
+
   try {
-    const response = await fetch('https://api.inworld.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${INWORLD_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'inworld/compare-frontier-models',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages
-        ],
-        temperature: 0.85,
-        max_tokens: 180
-      })
+    const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      system: systemPrompt,
+      messages: messages.slice(-12).map(m => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content).substring(0, 2000)
+      }))
     });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Inworld LLM error:', errorData);
-      return res.status(500).json({ message: 'Error de LLM: ' + errorData });
-    }
-
-    const data = await response.json();
-    const assistantMessage = data.choices?.[0]?.message?.content;
-
-    if (!assistantMessage) {
-      return res.status(500).json({ message: 'Sin respuesta de IA' });
-    }
-
-    res.json({ message: assistantMessage, source: 'inworld' });
-
+    const text = response.content?.[0]?.text || '';
+    res.json({ message: text, source: 'claude' });
   } catch (error) {
-    console.error('API error:', error);
-    res.status(500).json({ message: 'Error conectando con IA: ' + error.message });
+    console.error('Claude API error:', error);
+    const msg = error.status === 401
+      ? 'API key inválida. Revisa ANTHROPIC_API_KEY.'
+      : 'Error de IA: ' + (error.message || 'desconocido');
+    res.status(500).json({ message: msg, source: 'error' });
   }
 }

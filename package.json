@@ -8,7 +8,9 @@
     "dev:static": "npx --yes serve . -l 3333",
     "deploy": "vercel --prod"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  },
   "devDependencies": {
     "vercel": "latest"
   }
