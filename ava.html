@@ -594,15 +594,8 @@
     <!-- Three.js r134 (tiene soporte nativo alphaToMask en ShaderMaterial) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
-    <!-- three-vrm en public/; Vercel: rewrite /three-vrm-0.6.11.js → /public/… (igual que .vrm) -->
-    <script>
-    (function () {
-        var h = location.hostname;
-        var local = h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '';
-        var src = local ? '/public/three-vrm-0.6.11.js' : '/three-vrm-0.6.11.js';
-        document.write('<script src="' + src + '"><\/script>');
-    })();
-    </script>
+    <!-- CDN: en Vercel el rewrite SPA devolvía HTML en rutas /vendor/*.js y /three-vrm*.js → sin THREE_VRM. Los .vrm en /public/ sí van bien vía rewrite. -->
+    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.11/lib/three-vrm.js"></script>
 
     <script>
         // ==========================================

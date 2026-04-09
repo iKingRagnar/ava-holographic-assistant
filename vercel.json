@@ -28,10 +28,6 @@
       "destination": "/public/:file.vrm"
     },
     {
-      "source": "/three-vrm-0.6.11.js",
-      "destination": "/public/three-vrm-0.6.11.js"
-    },
-    {
       "source": "/(.*)",
       "destination": "/ava.html"
     }
