@@ -1094,65 +1094,113 @@
     // ================================================================
     // SPEECH RECOGNITION
     // ================================================================
+    // STT constructor — stored but NOT used as persistent instance
+    // Chrome requires a FRESH instance on every listen attempt
+    let _SRClass = null;
+
     function initSTT() {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-            // No STT support — keep mic button visible but show text hint
+        _SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!_SRClass) {
             updateStatus('USA EL TEXTO PARA CHATEAR ↓');
             const micBtn = document.getElementById('mic-btn');
-            micBtn.title = 'Sin soporte de voz en este navegador — usa Chrome';
+            micBtn.title = 'Sin soporte de voz — usa Chrome o Edge';
             micBtn.onclick = () => { document.getElementById('chat-input').focus(); };
-            return;
+            console.warn('SpeechRecognition not available');
         }
-        recognition = new SR();
+    }
+
+    function startListening() {
+        if (!_SRClass) return;
+
+        // Always create a fresh instance — reusing causes channel-closed errors
+        recognition = new _SRClass();
         recognition.lang = 'es-MX';
-        recognition.continuous = false;
-        recognition.interimResults = true;
+        recognition.continuous = true;      // keep channel open
+        recognition.interimResults = true;  // show partial results
+        recognition.maxAlternatives = 1;
 
-        let noSpeech = false;
+        let finalTranscript = '';
+        let silenceTimer = null;
+        const SILENCE_MS = 1800; // stop after 1.8s of silence
 
-        recognition.onstart = () => { setState('LISTENING'); updateStatus('ESCUCHANDO...'); document.getElementById('transcript').textContent = ''; };
-        recognition.onresult = (e) => {
-            let t = '';
-            for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
-            document.getElementById('transcript').textContent = t;
+        recognition.onstart = () => {
+            setState('LISTENING');
+            updateStatus('ESCUCHANDO...');
+            document.getElementById('transcript').textContent = '';
+            finalTranscript = '';
         };
+
+        recognition.onresult = (e) => {
+            let interim = '';
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                const seg = e.results[i][0].transcript;
+                if (e.results[i].isFinal) finalTranscript += seg + ' ';
+                else interim += seg;
+            }
+            document.getElementById('transcript').textContent = (finalTranscript + interim).trim();
+
+            // Reset silence timer on each result
+            clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(() => {
+                try { recognition.stop(); } catch(e) {}
+            }, SILENCE_MS);
+        };
+
         recognition.onerror = (e) => {
-            if (e.error === 'no-speech') { noSpeech = true; return; }
+            clearTimeout(silenceTimer);
+            if (e.error === 'no-speech') {
+                // Just stop cleanly — onend will handle it
+                try { recognition.stop(); } catch(_) {}
+                return;
+            }
             if (e.error === 'aborted') return;
             console.error('STT error:', e.error);
             setState('IDLE'); updateStatus('LISTA');
         };
+
         recognition.onend = () => {
-            if (noSpeech) {
-                noSpeech = false;
-                if (state === 'LISTENING') { try { recognition.start(); } catch(e) { setState('IDLE'); updateStatus('LISTA'); } }
-                return;
+            clearTimeout(silenceTimer);
+            if (state !== 'LISTENING') return;
+            const text = finalTranscript.trim() ||
+                         document.getElementById('transcript').textContent.trim();
+            if (text) {
+                processMessage(text);
+            } else {
+                setState('IDLE'); updateStatus('LISTA');
             }
-            const t = document.getElementById('transcript').textContent.trim();
-            if (t && state === 'LISTENING') processMessage(t);
-            else if (state === 'LISTENING') { setState('IDLE'); updateStatus('LISTA'); }
         };
+
+        try {
+            recognition.start();
+        } catch(e) {
+            console.error('STT start failed:', e);
+            setState('IDLE'); updateStatus('LISTA');
+        }
     }
 
     async function toggleMic() {
-        // Unlock AudioContext on user gesture (required by browser autoplay policy)
+        // Unlock AudioContext on any user gesture
         if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (ttsCtx.state === 'suspended') await ttsCtx.resume();
         _userInteracted = true;
 
         if (state === 'TALKING') { stopSpeaking(); return; }
-        if (state === 'LISTENING') { try { recognition.stop(); } catch(e) {} setState('IDLE'); updateStatus('LISTA'); return; }
-        if (!recognition) {
-            // No STT — focus text input instead
+
+        if (state === 'LISTENING') {
+            // Stop current session
+            try { recognition && recognition.stop(); } catch(e) {}
+            setState('IDLE'); updateStatus('LISTA');
+            return;
+        }
+
+        if (!_SRClass) {
             document.getElementById('chat-input').focus();
             updateStatus('ESCRIBE TU MENSAJE ↓');
             return;
         }
-        try { recognition.abort(); } catch(e) {}
-        setTimeout(() => {
-            try { recognition.start(); } catch(e) { console.error('STT start:', e); setState('IDLE'); updateStatus('LISTA'); }
-        }, 120);
+
+        // Small delay to let any previous instance fully close
+        setTimeout(startListening, 80);
     }
 
     // ================================================================
