@@ -1097,8 +1097,11 @@
     function initSTT() {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) {
-            updateStatus('SIN SOPORTE DE VOZ — USA TEXTO (T)');
-            document.getElementById('mic-btn').style.display = 'none';
+            // No STT support — keep mic button visible but show text hint
+            updateStatus('USA EL TEXTO PARA CHATEAR ↓');
+            const micBtn = document.getElementById('mic-btn');
+            micBtn.title = 'Sin soporte de voz en este navegador — usa Chrome';
+            micBtn.onclick = () => { document.getElementById('chat-input').focus(); };
             return;
         }
         recognition = new SR();
@@ -1133,22 +1136,43 @@
     }
 
     async function toggleMic() {
+        // Unlock AudioContext on user gesture (required by browser autoplay policy)
+        if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ttsCtx.state === 'suspended') await ttsCtx.resume();
+        _userInteracted = true;
+
         if (state === 'TALKING') { stopSpeaking(); return; }
         if (state === 'LISTENING') { try { recognition.stop(); } catch(e) {} setState('IDLE'); updateStatus('LISTA'); return; }
-        if (!recognition) { updateStatus('SIN SOPORTE DE VOZ — USA TEXTO'); return; }
-        // Resume AudioContext if suspended (required by browser autoplay policy)
-        if (ttsCtx && ttsCtx.state === 'suspended') await ttsCtx.resume();
-        try {
-            recognition.abort();
-        } catch(e) {}
+        if (!recognition) {
+            // No STT — focus text input instead
+            document.getElementById('chat-input').focus();
+            updateStatus('ESCRIBE TU MENSAJE ↓');
+            return;
+        }
+        try { recognition.abort(); } catch(e) {}
         setTimeout(() => {
             try { recognition.start(); } catch(e) { console.error('STT start:', e); setState('IDLE'); updateStatus('LISTA'); }
-        }, 100);
+        }, 120);
     }
 
     // ================================================================
-    // TTS — Edge Neural → Google TTS → Browser fallback
+    // TTS — Edge Neural → Browser fallback
     // ================================================================
+    let _userInteracted = false;
+
+    // Unlock audio on any first user click/touch
+    function _unlockAudio() {
+        _userInteracted = true;
+        if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ttsCtx.state === 'suspended') ttsCtx.resume();
+        document.removeEventListener('click', _unlockAudio);
+        document.removeEventListener('touchstart', _unlockAudio);
+        document.removeEventListener('keydown', _unlockAudio);
+    }
+    document.addEventListener('click', _unlockAudio);
+    document.addEventListener('touchstart', _unlockAudio);
+    document.addEventListener('keydown', _unlockAudio);
+
     async function speak(text) {
         synth.cancel();
         if (_curAudio) { _curAudio.pause(); _curAudio = null; }
@@ -1158,6 +1182,14 @@
         setState('TALKING');
         updateStatus('HABLANDO...');
         document.getElementById('response').textContent = clean.substring(0, 150);
+
+        // If user hasn't interacted yet, show text and skip audio (autoplay policy)
+        if (!_userInteracted) {
+            document.getElementById('response').textContent = clean.substring(0, 150);
+            const done = () => { setState('IDLE'); updateStatus('LISTA'); document.getElementById('response').textContent = ''; };
+            setTimeout(done, Math.min(clean.length * 60, 8000));
+            return;
+        }
 
         // 1st: Edge Neural TTS (natural Microsoft voices)
         try {
@@ -1176,7 +1208,7 @@
             }
         } catch(e) { console.warn('Edge TTS fail:', e.message); }
 
-        // 2nd fallback: browser Web Speech (best available neural voice)
+        // Fallback: browser Web Speech
         speakBrowser(clean);
     }
 
@@ -1384,8 +1416,8 @@
         updateStatus('LISTA');
         console.log('AVA v2.0 initialized with Claude AI');
 
-        // Start autonomous speech after 5 seconds
-        setTimeout(startAutonomousSpeech, 5000);
+        // Show first autonomous phrase quickly (text-only until user interacts)
+        setTimeout(startAutonomousSpeech, 4000);
     }
 
     // ================================================================
@@ -1431,23 +1463,38 @@
     }
 
     function scheduleNextAutoSpeech() {
-        // Random interval 18-45 seconds
-        const delay = (18 + Math.random() * 27) * 1000;
-        _autoSpeechTimer = setTimeout(() => {
-            if (state === 'IDLE' && _autoEnabled) {
-                const phrase = getAutoPhrase();
-                speak(phrase);
-                // After this speech ends, schedule the next
-                const checkDone = setInterval(() => {
-                    if (state === 'IDLE') {
-                        clearInterval(checkDone);
-                        scheduleNextAutoSpeech();
-                    }
-                }, 500);
-            } else {
-                // Not idle, try again in 10s
-                _autoSpeechTimer = setTimeout(() => scheduleNextAutoSpeech(), 10000);
+        const delay = (12 + Math.random() * 20) * 1000;
+        _autoSpeechTimer = setTimeout(async () => {
+            if (!_autoEnabled) return;
+            if (state !== 'IDLE') {
+                _autoSpeechTimer = setTimeout(scheduleNextAutoSpeech, 8000);
+                return;
             }
+            const phrase = getAutoPhrase();
+            // Always show text on screen
+            document.getElementById('response').textContent = phrase.substring(0, 150);
+            setState('TALKING');
+            updateStatus('HABLANDO...');
+
+            if (_userInteracted) {
+                // User has clicked — audio is unlocked, use full speak()
+                speak(phrase);
+            } else {
+                // No interaction yet — show text only, animate mouth
+                const readTime = Math.min(phrase.length * 55, 7000);
+                setTimeout(() => {
+                    setState('IDLE');
+                    updateStatus('LISTA');
+                    document.getElementById('response').textContent = '';
+                    scheduleNextAutoSpeech();
+                }, readTime);
+                return;
+            }
+
+            // Wait for speech to finish then schedule next
+            const wait = setInterval(() => {
+                if (state === 'IDLE') { clearInterval(wait); scheduleNextAutoSpeech(); }
+            }, 400);
         }, delay);
     }
 
