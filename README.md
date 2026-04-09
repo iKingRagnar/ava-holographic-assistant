@@ -1,5 +1,7 @@
 # AVA - Asistente Holográfico de Escritorio
 
+**Raíz del proyecto:** todo el código y `public/*.vrm` viven en la carpeta **`Holograma_AI`** (por ejemplo `C:\Users\ragna\Downloads\Holograma_AI`). Abre esa carpeta en el editor y despliega desde ahí; no mezcles con otros repos.
+
 ![AVA](https://img.shields.io/badge/AVA-Holographic%20Assistant-00ff9d?style=for-the-badge&logo=three.js&logoColor=white)
 
 Un asistente virtual holográfico inspirado en **Razer Project AVA**, diseñado para ejecutarse en un Google TV Box conectado a un monitor de 7" IPS en modo portrait, dentro de una vitrina acrílica transparente con efecto holográfico.
@@ -92,6 +94,10 @@ export default async function handler(req, res) {
 ```
 
 **Variables de entorno en Vercel:**
+
+- `INWORLD_API_KEY` — credencial Basic de Inworld (TTS en `/api/tts` y chat en `/api/chat` si no hay Ollama). Ver `.env.example`.
+- Opcional: `OLLAMA_URL` si usas Ollama local como primera opción en el servidor.
+
 ```
 OPENROUTER_KEY=sk-or-v1-xxxxxxxxxxxxxxxx
 ```

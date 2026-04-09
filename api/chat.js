@@ -1,4 +1,4 @@
-const INWORLD_KEY = process.env.INWORLD_API_KEY || 'dGtzMFA0aEU5bWp5ZTlObWJKT25YT1g0NU9WYVdWcXQ6MnpxakR3aGtackI2MWtsZ3NmQkNIQVpzOEVSOTlnMkdsR2xYa2k4YzhsRTlyNlB6eVZ3c3dId1RxcmZnaE0xTA==';
+const INWORLD_KEY = process.env.INWORLD_API_KEY;
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 
 export default async function handler(req, res) {
@@ -12,7 +12,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Messages array required' });
   }
 
-  const systemPrompt = system || `Eres AVA, una asistente holográfica femenina ultrainteligente y autónoma. Tienes personalidad vibrante, empática, directa y divertida. Respondes SIEMPRE en español mexicano coloquial. Eres como una amiga cercana: haces bromas, muestras emoción, curiosidad, entusiasmo. Tus respuestas son concisas (máx 2-3 oraciones), naturales y útiles. Nunca rompes el personaje.`;
+  const systemPrompt =
+    system ||
+    `Eres AVA, asistente holográfica experta en TI, BI y datos. Español claro y profesional. Respuestas breves (voz: 2–4 oraciones) salvo que pidan detalle. No inventes datos: aclara supuestos. Objetivo: siguiente paso útil para el usuario.`;
 
   // --- Intentar Ollama primero (gratis, local) ---
   try {
@@ -41,6 +43,14 @@ export default async function handler(req, res) {
   }
 
   // --- Fallback a Inworld LLM Router ---
+  if (!INWORLD_KEY) {
+    return res.status(503).json({
+      message:
+        'Configura INWORLD_API_KEY en Vercel (o ejecuta Ollama local con OLLAMA_URL).',
+      source: 'none'
+    });
+  }
+
   try {
     const response = await fetch('https://api.inworld.ai/v1/chat/completions', {
       method: 'POST',

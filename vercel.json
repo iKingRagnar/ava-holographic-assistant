@@ -12,6 +12,10 @@
     {
       "src": "ava.html",
       "use": "@vercel/static"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "rewrites": [
@@ -22,6 +26,10 @@
     {
       "source": "/:file.vrm",
       "destination": "/public/:file.vrm"
+    },
+    {
+      "source": "/vendor/:path*",
+      "destination": "/public/vendor/:path*"
     },
     {
       "source": "/(.*)",

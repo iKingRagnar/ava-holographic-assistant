@@ -1,8 +1,13 @@
-const INWORLD_KEY = process.env.INWORLD_API_KEY || 'dGtzMFA0aEU5bWp5ZTlObWJKT25YT1g0NU9WYVdWcXQ6MnpxakR3aGtackI2MWtsZ3NmQkNIQVpzOEVSOTlnMkdsR2xYa2k4YzhsRTlyNlB6eVZ3c3dId1RxcmZnaE0xTA==';
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const INWORLD_KEY = process.env.INWORLD_API_KEY;
+  if (!INWORLD_KEY) {
+    return res.status(503).json({
+      error: 'INWORLD_API_KEY no configurada. Añádela en Vercel → Settings → Environment Variables.'
+    });
   }
 
   const { text, voiceId = 'Ashley' } = req.body;
