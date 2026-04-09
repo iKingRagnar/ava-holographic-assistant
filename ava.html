@@ -771,6 +771,27 @@
         const B = (name) => humanoid.getBoneNode ? humanoid.getBoneNode(name) : null;
         const lerp = THREE.MathUtils.lerp;
 
+        if (!avatarGroup.userData.phys) {
+            avatarGroup.userData.phys = {
+                handL: { x: 0, y: 0, z: 0 }, handR: { x: 0, y: 0, z: 0 },
+                foreL: { x: 0, y: 0, z: 0 }, foreR: { x: 0, y: 0, z: 0 },
+                neckY: 0, neckX: 0, spineTw: 0, headY: 0, headX: 0
+            };
+        }
+        const P = avatarGroup.userData.phys;
+        const organic = (tt, s) =>
+            Math.sin(tt * 0.73 + s) * 0.5 + Math.sin(tt * 1.19 + s * 1.7) * 0.28 + Math.sin(tt * 2.07 + s * 0.3) * 0.14;
+        const damp = (c, t, rate) => lerp(c, t, 1 - Math.exp(-rate * Math.min(delta, 0.05)));
+
+        // Afinación por estado: calma vs expresividad vs “peso” en extremidades
+        const phys = {
+            IDLE:      { hipOsc: 1.06, tw: 1.1,  breath: 1.05, headDamp: 9.2,  neckMul: { y: 0.62, x: 0.55 }, lagF: 5.7, lagH: 4.9, legWA: 1.02, legWS: 1,    legW: 1 },
+            LISTENING: { hipOsc: 0.76, tw: 0.65, breath: 0.78, headDamp: 7.8,  neckMul: { y: 0.56, x: 0.5 },  lagF: 6.6, lagH: 5.8, legWA: 0.88, legWS: 0.95, legW: 0.88 },
+            TALKING:   { hipOsc: 1.2,  tw: 1.28, breath: 1.18, headDamp: 11.5, neckMul: { y: 0.66, x: 0.6 },  lagF: 9.4, lagH: 8.1, legWA: 1.1,  legWS: 1.06, legW: 1.06 },
+            THINKING:  { hipOsc: 0.88, tw: 0.82, breath: 0.9,  headDamp: 7.2,  neckMul: { y: 0.64, x: 0.57 }, lagF: 5.9, lagH: 5.2, legWA: 0.93, legWS: 0.92, legW: 0.92 },
+        };
+        const ph = phys[state] || phys.IDLE;
+
         // Update lookAt target from mouse position (FAST response)
         if (lookAtTarget) {
             const tgtX = mx * 3;
@@ -810,66 +831,92 @@
             avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.4) * 0.15 + mx * 0.1, 0.05);
         }
 
-        // --- SPINE / CHEST: breathing + weight shift ---
-        const spine = B('spine'), chest = B('chest');
-        const breathRate = state === 'TALKING' ? 1.6 : 0.95;
-        if (spine) {
-            spine.rotation.x = Math.sin(t * breathRate) * 0.04;
-            spine.rotation.z = Math.sin(t * 0.5) * 0.025 + Math.sin(t * 0.18) * 0.015;
-            spine.rotation.y = Math.sin(t * 0.22) * 0.02;
-        }
-        if (chest) {
-            chest.rotation.x = Math.sin(t * breathRate + 0.5) * 0.035;
-            chest.rotation.z = Math.sin(t * 0.5 + 0.3) * 0.02;
-            chest.rotation.y = Math.sin(t * 0.3) * 0.015;
+        // --- HIPS primero: peso y balance (todo lo demás reacciona encima) ---
+        const spine = B('spine'), chest = B('chest'), upperChest = B('upperChest');
+        const hips = B('hips');
+        let hipLeanX = 0;
+        if (hips) {
+            const h = ph.hipOsc;
+            if (state === 'IDLE') {
+                hips.rotation.z = (Math.sin(t * 0.55) * 0.065 + Math.sin(t * 0.18) * 0.03 + organic(t, 0.2) * 0.035) * h;
+                hips.rotation.y = (Math.sin(t * 0.35) * 0.055 + organic(t, 1.4) * 0.025) * h;
+                hipLeanX = (Math.sin(t * 0.42) * 0.024 + organic(t, 0.9) * 0.014) * h;
+                hips.rotation.x = hipLeanX;
+            } else if (state === 'TALKING') {
+                hips.rotation.z = (Math.sin(t * 1.85) * 0.075 + Math.sin(t * 0.85) * 0.025) * h;
+                hips.rotation.y = Math.sin(t * 1.4) * 0.065 * h;
+                hipLeanX = Math.sin(t * 2.05) * 0.032 * h;
+                hips.rotation.x = hipLeanX;
+            } else if (state === 'LISTENING') {
+                hips.rotation.z = Math.sin(t * 0.72) * 0.04 * h;
+                hips.rotation.y = mx * 0.055 + Math.sin(t * 0.5) * 0.028 * h;
+                hipLeanX = -0.028 * h;
+                hips.rotation.x = hipLeanX;
+            } else {
+                hips.rotation.z = Math.sin(t * 0.9) * 0.055 * h;
+                hips.rotation.y = Math.sin(t * 0.7) * 0.04 * h;
+                hipLeanX = Math.sin(t * 0.95) * 0.022 * h;
+                hips.rotation.x = hipLeanX;
+            }
         }
 
-        // --- HEAD: responsive mouse follow + autonomous look ---
+        // --- SPINE / PECHO: respiración + contrarrotación respecto a cadera (cadena natural) ---
+        const breathRate = state === 'TALKING' ? 1.78 : 0.92;
+        const bMul = ph.breath;
+        const br = Math.sin(t * breathRate);
+        const br2 = Math.sin(t * breathRate + 0.55);
+        const tw = organic(t, 1.1) * 0.048 * ph.tw;
+        P.spineTw = damp(P.spineTw, tw, 5);
+
+        if (spine) {
+            spine.rotation.x = (br * 0.072 + Math.sin(t * 0.28) * 0.022) * bMul - hipLeanX * 0.35;
+            spine.rotation.y = P.spineTw + Math.sin(t * 0.21) * 0.032 * bMul;
+            spine.rotation.z = (br2 * 0.038 + Math.sin(t * 0.51) * 0.026 + organic(t, 0.6) * 0.018) * bMul;
+        }
+        if (chest) {
+            chest.rotation.x = br2 * 0.058 * bMul - hipLeanX * 0.45;
+            chest.rotation.y = (Math.sin(t * 0.29) * 0.042 + organic(t, 4) * 0.022) * bMul;
+            chest.rotation.z = (Math.sin(t * 0.36 + 0.8) * 0.032 + Math.sin(t * 0.61) * 0.015) * bMul;
+        }
+        if (upperChest) {
+            upperChest.rotation.x = Math.sin(t * breathRate + 0.22) * 0.045 * bMul;
+            upperChest.rotation.y = (Math.sin(t * 0.33) * 0.028 + organic(t, 2.2) * 0.015) * bMul;
+            upperChest.rotation.z = organic(t, 5) * 0.02 * bMul;
+        }
+
+        // --- CABEZA: objetivo suavizado; CUELLO con inercia (no bloque sólido) ---
         const head = B('head');
+        const neck = B('neck');
         if (head) {
             const mouseW = state === 'IDLE' ? 0.55 : 0.7;
             const autoW = 1 - mouseW;
-
-            // Autonomous looking patterns
-            const autoY = Math.sin(t * 0.18) * 0.2 + Math.sin(t * 0.4) * 0.12 + Math.cos(t * 0.09) * 0.08;
-            const autoX = Math.sin(t * 0.22) * 0.1 + Math.cos(t * 0.32) * 0.06;
-
-            let tgtY = mx * 0.5 * mouseW + autoY * autoW;
-            let tgtX = my * 0.3 * mouseW + autoX * autoW - 0.03;
-
-            if (state === 'THINKING') { tgtY += Math.sin(t * 0.8) * 0.18; tgtX += 0.1; }
-            if (state === 'TALKING')  { tgtY += Math.sin(t * 3) * 0.08; tgtX += Math.sin(t * 5) * 0.04; }
-
-            head.rotation.y = lerp(head.rotation.y || 0, tgtY, 0.15);
-            head.rotation.x = lerp(head.rotation.x || 0, tgtX, 0.15);
+            const autoY = Math.sin(t * 0.18) * 0.22 + Math.sin(t * 0.4) * 0.13 + Math.cos(t * 0.09) * 0.09;
+            const autoX = Math.sin(t * 0.22) * 0.11 + Math.cos(t * 0.32) * 0.07;
+            let tgtY = mx * 0.52 * mouseW + autoY * autoW;
+            let tgtX = my * 0.32 * mouseW + autoX * autoW - 0.03;
+            if (state === 'THINKING') { tgtY += Math.sin(t * 0.8) * 0.2; tgtX += 0.11; }
+            if (state === 'TALKING')  { tgtY += Math.sin(t * 3) * 0.09; tgtX += Math.sin(t * 5) * 0.045; }
+            P.headY = damp(P.headY, tgtY, ph.headDamp);
+            P.headX = damp(P.headX, tgtX, ph.headDamp);
+            head.rotation.y = P.headY;
+            head.rotation.x = P.headX;
+            head.rotation.z = organic(t, 0.45) * 0.035 + Math.sin(t * 0.67) * 0.02;
         }
-
-        // --- NECK: follows head gently ---
-        const neck = B('neck');
         if (neck) {
-            neck.rotation.y = lerp(neck.rotation.y || 0, mx * 0.12 + Math.sin(t * 0.4) * 0.06, 0.1);
-            neck.rotation.x = lerp(neck.rotation.x || 0, my * 0.06 + Math.sin(t * 0.55) * 0.03, 0.1);
+            const hy = head ? P.headY : 0;
+            const hx = head ? P.headX : 0;
+            P.neckY = damp(P.neckY, hy * ph.neckMul.y, 5.5);
+            P.neckX = damp(P.neckX, hx * ph.neckMul.x, 5.5);
+            neck.rotation.y = P.neckY + Math.sin(t * 0.44) * 0.04;
+            neck.rotation.x = P.neckX + Math.sin(t * 0.52) * 0.025;
+            neck.rotation.z = organic(t, 0.8) * 0.022;
         }
 
-        // --- HIPS: weight shifting + sway ---
-        const hips = B('hips');
-        if (hips) {
-            if (state === 'IDLE') {
-                hips.rotation.z = Math.sin(t * 0.55) * 0.05 + Math.sin(t * 0.18) * 0.02;
-                hips.rotation.y = Math.sin(t * 0.35) * 0.04;
-                hips.rotation.x = Math.sin(t * 0.4) * 0.015;
-            } else if (state === 'TALKING') {
-                hips.rotation.z = Math.sin(t * 1.8) * 0.06;
-                hips.rotation.y = Math.sin(t * 1.4) * 0.05;
-                hips.rotation.x = Math.sin(t * 2) * 0.02;
-            } else if (state === 'LISTENING') {
-                hips.rotation.z = Math.sin(t * 0.7) * 0.03;
-                hips.rotation.y = mx * 0.04 + Math.sin(t * 0.5) * 0.02;
-            } else {
-                hips.rotation.z = Math.sin(t * 0.9) * 0.04;
-                hips.rotation.y = Math.sin(t * 0.7) * 0.03;
-            }
-        }
+        // --- HOMBROS: acoplamiento suave con tórax (no hombro rígido) ---
+        const lSh = B('leftShoulder'), rSh = B('rightShoulder');
+        const shBre = Math.sin(t * breathRate) * 0.018;
+        if (lSh) { lSh.rotation.x = shBre + organic(t, 3) * 0.025; lSh.rotation.z = Math.sin(t * 0.48) * 0.03; }
+        if (rSh) { rSh.rotation.x = shBre + organic(t, 3.7) * 0.025; rSh.rotation.z = -Math.sin(t * 0.48) * 0.03; }
 
         // --- ARMS: natural poses per state (never T-pose) ---
         const la = B('leftUpperArm'), ra = B('rightUpperArm');
@@ -971,6 +1018,42 @@
             if (rh) { rh.rotation.z = lerp(rh.rotation.z, Math.sin(t*3.8+1)*0.14, 0.09); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*4.5+0.5)*0.1, 0.09); }
         }
 
+        // --- Antebrazos y manos: inercia (hablar = más rápido; idle/pensar = más “peso”) ---
+        const lagF = ph.lagF;
+        const lagH = ph.lagH;
+        if (lf) {
+            P.foreL.y = damp(P.foreL.y, lf.rotation.y, lagF);
+            P.foreL.x = damp(P.foreL.x, lf.rotation.x, lagF);
+            P.foreL.z = damp(P.foreL.z, lf.rotation.z || 0, lagF * 0.85);
+            lf.rotation.y = P.foreL.y;
+            lf.rotation.x = P.foreL.x;
+            if (lf.rotation.z !== undefined) lf.rotation.z = P.foreL.z;
+        }
+        if (rf) {
+            P.foreR.y = damp(P.foreR.y, rf.rotation.y, lagF);
+            P.foreR.x = damp(P.foreR.x, rf.rotation.x, lagF);
+            P.foreR.z = damp(P.foreR.z, rf.rotation.z || 0, lagF * 0.85);
+            rf.rotation.y = P.foreR.y;
+            rf.rotation.x = P.foreR.x;
+            if (rf.rotation.z !== undefined) rf.rotation.z = P.foreR.z;
+        }
+        if (lh) {
+            P.handL.x = damp(P.handL.x, lh.rotation.x, lagH);
+            P.handL.y = damp(P.handL.y, lh.rotation.y, lagH);
+            P.handL.z = damp(P.handL.z, lh.rotation.z, lagH);
+            lh.rotation.x = P.handL.x;
+            lh.rotation.y = P.handL.y;
+            lh.rotation.z = P.handL.z;
+        }
+        if (rh) {
+            P.handR.x = damp(P.handR.x, rh.rotation.x, lagH);
+            P.handR.y = damp(P.handR.y, rh.rotation.y, lagH);
+            P.handR.z = damp(P.handR.z, rh.rotation.z, lagH);
+            rh.rotation.x = P.handR.x;
+            rh.rotation.y = P.handR.y;
+            rh.rotation.z = P.handR.z;
+        }
+
         // --- BLEND SHAPES: lip-sync + blink + emotions ---
         const proxy = vrm.blendShapeProxy;
         if (proxy) {
@@ -1022,19 +1105,40 @@
             }
         }
 
-        // --- LEGS: walk cycle (always active, slower when IDLE) ---
+        // --- PIERNAS: marcha con fase desfasada + roll de cadera + rodillas con retraso (no palos sincronizados) ---
         const lleg = B('leftUpperLeg'), rleg = B('rightUpperLeg');
         const llleg = B('leftLowerLeg'), rlleg = B('rightLowerLeg');
         const lfoot = B('leftFoot'), rfoot = B('rightFoot');
-        const walkSpeed = state === 'TALKING' ? 2.2 : state === 'LISTENING' ? 1.2 : 1.6;
-        const walkAmp  = state === 'TALKING' ? 0.22 : state === 'LISTENING' ? 0.12 : 0.18;
-        const walkLerp = 0.12;
-        if (lleg) lleg.rotation.x = lerp(lleg.rotation.x||0, Math.sin(t * walkSpeed) * walkAmp, walkLerp);
-        if (rleg) rleg.rotation.x = lerp(rleg.rotation.x||0, -Math.sin(t * walkSpeed) * walkAmp, walkLerp);
-        if (llleg) llleg.rotation.x = lerp(llleg.rotation.x||0, Math.max(0, Math.sin(t * walkSpeed + 0.8)) * walkAmp * 0.9, walkLerp);
-        if (rlleg) rlleg.rotation.x = lerp(rlleg.rotation.x||0, Math.max(0, -Math.sin(t * walkSpeed + 0.8)) * walkAmp * 0.9, walkLerp);
-        if (lfoot) lfoot.rotation.x = lerp(lfoot.rotation.x||0, Math.sin(t * walkSpeed) * 0.1, walkLerp);
-        if (rfoot) rfoot.rotation.x = lerp(rfoot.rotation.x||0, -Math.sin(t * walkSpeed) * 0.1, walkLerp);
+        const ws = (state === 'TALKING' ? 2.35 : state === 'LISTENING' ? 1.15 : 1.72) * ph.legWS;
+        const wa = (state === 'TALKING' ? 0.24 : state === 'LISTENING' ? 0.11 : 0.2) * ph.legWA;
+        const phL = t * ws;
+        const phR = phL + Math.PI * 0.98;
+        const sL = Math.sin(phL);
+        const sR = Math.sin(phR);
+        const hipRoll = organic(t, 0.35) * 0.04;
+        const wLeg = 0.14 * ph.legW;
+        if (lleg) {
+            lleg.rotation.x = lerp(lleg.rotation.x || 0, sL * wa + organic(t, 1.2) * 0.03, wLeg);
+            lleg.rotation.z = lerp(lleg.rotation.z || 0, -sR * wa * 0.35 + hipRoll, wLeg);
+            lleg.rotation.y = lerp(lleg.rotation.y || 0, sL * wa * 0.12, wLeg * 0.85);
+        }
+        if (rleg) {
+            rleg.rotation.x = lerp(rleg.rotation.x || 0, sR * wa + organic(t, 2.1) * 0.03, wLeg);
+            rleg.rotation.z = lerp(rleg.rotation.z || 0, -sL * wa * 0.35 - hipRoll, wLeg);
+            rleg.rotation.y = lerp(rleg.rotation.y || 0, sR * wa * 0.12, wLeg * 0.85);
+        }
+        const kneeL = Math.max(0, Math.sin(phL + 0.95)) * wa * 0.95;
+        const kneeR = Math.max(0, Math.sin(phR + 0.95)) * wa * 0.95;
+        if (llleg) llleg.rotation.x = lerp(llleg.rotation.x || 0, kneeL + Math.sin(phL * 2) * 0.02, wLeg);
+        if (rlleg) rlleg.rotation.x = lerp(rlleg.rotation.x || 0, kneeR + Math.sin(phR * 2) * 0.02, wLeg);
+        if (lfoot) {
+            lfoot.rotation.x = lerp(lfoot.rotation.x || 0, Math.sin(phL + 0.2) * 0.12 + organic(t, 6) * 0.02, wLeg);
+            lfoot.rotation.z = lerp(lfoot.rotation.z || 0, sL * 0.06, wLeg * 0.9);
+        }
+        if (rfoot) {
+            rfoot.rotation.x = lerp(rfoot.rotation.x || 0, Math.sin(phR + 0.2) * 0.12 + organic(t, 6.8) * 0.02, wLeg);
+            rfoot.rotation.z = lerp(rfoot.rotation.z || 0, sR * 0.06, wLeg * 0.9);
+        }
 
         vrm.update(delta);
     }
