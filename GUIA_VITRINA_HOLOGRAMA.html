@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guía — Vitrina holográfica AVA (foamboard + monitor + TV Box)</title>
+  <style>
+    :root {
+      --ink: #0a0f14;
+      --muted: #4a5568;
+      --accent: #00c896;
+      --accent2: #00a8ff;
+      --card: #f7fafc;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      line-height: 1.55;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+      background: #fff;
+    }
+    .cover {
+      text-align: center;
+      padding: 2.5rem 1rem 2rem;
+      border: 2px solid var(--ink);
+      border-radius: 12px;
+      background: linear-gradient(165deg, #f0fff9 0%, #fff 45%, #f0f9ff 100%);
+      margin-bottom: 2.5rem;
+    }
+    .cover h1 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin: 0 0 0.5rem;
+      line-height: 1.25;
+    }
+    .cover .sub {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--ink);
+      color: #fff;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      margin-bottom: 1rem;
+    }
+    h2 {
+      font-size: 1.2rem;
+      margin: 2.25rem 0 0.75rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 3px solid var(--accent);
+      display: inline-block;
+    }
+    h3 {
+      font-size: 1rem;
+      margin: 1.5rem 0 0.5rem;
+      color: #1a202c;
+    }
+    p { margin: 0.65rem 0; }
+    ul, ol { margin: 0.5rem 0 0.75rem; padding-left: 1.35rem; }
+    li { margin: 0.35rem 0; }
+    .step {
+      display: grid;
+      grid-template-columns: 2.5rem 1fr;
+      gap: 0.75rem 1rem;
+      align-items: start;
+      margin: 1.5rem 0;
+      padding: 1rem 1.1rem;
+      background: var(--card);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      page-break-inside: avoid;
+    }
+    .step-num {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #00e6b0);
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-body h3 { margin-top: 0; }
+    .figure {
+      margin: 1.25rem 0;
+      padding: 1rem;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+    .figure svg { max-width: 100%; height: auto; }
+    .caption {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 0.6rem;
+      font-style: italic;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      margin: 0.75rem 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.65rem;
+      text-align: left;
+    }
+    th { background: #edf2f7; }
+    .note {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.92rem;
+    }
+    .tip {
+      background: #fff;
+      border: 1px dashed var(--accent2);
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+      font-size: 0.92rem;
+    }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .toc {
+      background: #f8fafc;
+      padding: 1rem 1.25rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+    .toc ol { margin: 0.6rem 0 0; padding-left: 1.35rem; }
+    @media print {
+      body { padding: 0; max-width: 100%; }
+      .cover { break-inside: avoid; }
+      h2 { page-break-after: avoid; }
+      .step { break-inside: avoid; }
+      a { color: #000; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="cover">
+    <span class="badge">PROYECTO AVA · DIY</span>
+    <h1>Vitrina holográfica con foamboard negro</h1>
+    <p class="sub">Paso a paso: acrílico + monitor + forro interior + Google TV Box<br>
+    Documento para imprimir o guardar como PDF</p>
+  </header>
+
+  <section class="toc">
+    <strong>Contenido</strong>
+    <ol>
+      <li>Qué vas a lograr (idea general)</li>
+      <li>Materiales y herramientas</li>
+      <li>Cortes del foamboard (12×12×24 cm)</li>
+      <li>Dos formas de montar el monitor</li>
+      <li>Montaje paso a paso</li>
+      <li>Software en el TV Box (resumen)</li>
+      <li>Consejos finales</li>
+    </ol>
+  </section>
+
+  <h2>1 · Qué vas a lograr</h2>
+  <p>El “efecto holográfico” aquí es una <strong>ilusion óptica</strong>: pantalla con fondo negro y personaje brillante, dentro de una caja oscura y con acrílico al frente. El <strong>foamboard negro</strong> no es la pantalla: sirve para que el interior <strong>no refleje luz</strong> y solo destaque lo que emite el monitor.</p>
+
+  <div class="figure">
+    <svg viewBox="0 0 420 240" xmlns="http://www.w3.org/2000/svg" aria-label="Vista frontal esquemática">
+      <rect width="420" height="240" fill="#f8fafc"/>
+      <rect x="80" y="30" width="260" height="180" fill="none" stroke="#2d3748" stroke-width="2" rx="4"/>
+      <text x="210" y="22" text-anchor="middle" font-size="11" fill="#718096">Frente (acrílico transparente)</text>
+      <rect x="100" y="50" width="220" height="140" fill="#1a202c" rx="2"/>
+      <rect x="120" y="70" width="80" height="100" fill="#00ff9d" opacity="0.35"/>
+      <text x="160" y="125" text-anchor="middle" font-size="10" fill="#00ff9d" font-weight="bold">AVA</text>
+      <text x="210" y="228" text-anchor="middle" font-size="10" fill="#4a5568">Tiras LED en la base (opcional)</text>
+      <line x1="210" y1="190" x2="210" y2="210" stroke="#cbd5e0" stroke-width="1"/>
+    </svg>
+    <p class="caption">Figura 1 · Vista frontal: acrílico → espacio oscuro forrado → brillo del monitor (esquema).</p>
+  </div>
+
+  <h2>2 · Materiales y herramientas</h2>
+  <table>
+    <thead>
+      <tr><th>Ítem</th><th>Notas</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Vitrina acrílica ~12×12×24 cm</td><td>Frente transparente; mide bien interior útil.</td></tr>
+      <tr><td>Foamboard negro (ej. 80×120 cm)</td><td><strong>Interior mate</strong>: cortas piezas para fondo, lados y techo.</td></tr>
+      <tr><td>Monitor 7" 1024×600</td><td>En <strong>vertical (portrait)</strong>; cable corto si puedes.</td></tr>
+      <tr><td>Google TV Box + Chrome</td><td>Abres la URL de tu app AVA; micrófono en ajustes del sistema.</td></tr>
+      <tr><td>Bocina BT con mic</td><td>Emparejada al TV Box; el sistema elige entrada de audio.</td></tr>
+      <tr><td>Pegamento / cinta de doble cara</td><td>Para fijar foamboard <strong>sin</strong> rayar acrílico si usas cinta en bordes internos.</td></tr>
+      <tr><td>Regla, cutter, superficie de corte</td><td>Cortes rectos = vitrina que cierra bien.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Importante:</strong> antes de comprar foamboard, confirma el <strong>interior real</strong> de la vitrina (a veces el marco reduce milímetros). Si queda justo, recorta 1–2 mm menos por lado.
+  </div>
+
+  <h2>3 · Cortes del foamboard (vitrina 12×12×24 cm)</h2>
+  <p>Interior aproximado: fondo <strong>12×24 cm</strong>, laterales <strong>12×24 cm</strong> (×2), techo <strong>12×12 cm</strong>. Ajusta si tu caja mide distinto.</p>
+
+  <div class="figure">
+    <svg viewBox="0 0 480 280" xmlns="http://www.w3.org/2000/svg">
+      <rect width="480" height="280" fill="#f8fafc"/>
+      <rect x="40" y="40" width="400" height="200" fill="#e2e8f0" stroke="#64748b" stroke-width="2" rx="4"/>
+      <text x="240" y="28" text-anchor="middle" font-size="12" fill="#334155">Hoja de foamboard (ej. 80×120 cm) — solo usas una franja</text>
+      <!-- back piece -->
+      <rect x="60" y="80" width="72" height="144" fill="#1a202c" stroke="#00ff9d" stroke-width="1.5"/>
+      <text x="96" y="158" text-anchor="middle" font-size="9" fill="#fff">Fondo</text>
+      <text x="96" y="172" text-anchor="middle" font-size="8" fill="#94a3b8">12×24</text>
+      <!-- sides -->
+      <rect x="150" y="80" width="72" height="144" fill="#1a202c" stroke="#00ff9d" stroke-width="1.5" opacity="0.9"/>
+      <text x="186" y="158" text-anchor="middle" font-size="9" fill="#fff">Lateral</text>
+      <rect x="240" y="80" width="72" height="144" fill="#1a202c" stroke="#00ff9d" stroke-width="1.5" opacity="0.9"/>
+      <text x="276" y="158" text-anchor="middle" font-size="9" fill="#fff">Lateral</text>
+      <!-- top -->
+      <rect x="330" y="100" width="72" height="72" fill="#1a202c" stroke="#00ff9d" stroke-width="1.5"/>
+      <text x="366" y="142" text-anchor="middle" font-size="9" fill="#fff">Techo</text>
+      <text x="366" y="156" text-anchor="middle" font-size="8" fill="#94a3b8">12×12</text>
+      <text x="240" y="255" text-anchor="middle" font-size="10" fill="#64748b">Sobran ~80% de la hoja grande para otros proyectos</text>
+    </svg>
+    <p class="caption">Figura 2 · Piezas de foamboard negro (etiquetas y medidas orientativas).</p>
+  </div>
+
+  <h2>4 · Dos formas típicas de poner el monitor</h2>
+  <p>Elige según tu vitrina y espacio. El software (AVA) es el mismo.</p>
+
+  <h3>A) Monitor detrás del personaje (frontal)</h3>
+  <p>El panel mira <strong>hacia el acrílico</strong>. El foamboard va en los laterales y techo para “tubo oscuro” hacia el frente.</p>
+
+  <div class="figure">
+    <svg viewBox="0 0 440 200" xmlns="http://www.w3.org/2000/svg">
+      <rect width="440" height="200" fill="#f8fafc"/>
+      <polygon points="40,160 40,40 120,20 120,180" fill="#cbd5e1" stroke="#64748b"/>
+      <text x="75" y="105" font-size="9" fill="#475569" transform="rotate(-78 75 105)">acrílico</text>
+      <rect x="130" y="50" width="100" height="100" fill="#0f172a" stroke="#334155"/>
+      <text x="180" y="108" text-anchor="middle" font-size="10" fill="#00ff9d">LCD</text>
+      <rect x="250" y="60" width="140" height="80" fill="#1a202c"/>
+      <text x="320" y="105" text-anchor="middle" font-size="9" fill="#94a3b8">Foam negro</text>
+      <text x="220" y="188" text-anchor="middle" font-size="10" fill="#64748b">Vista superior / esquema</text>
+    </svg>
+    <p class="caption">Figura 3 · Esquema A: luz del monitor hacia el frente.</p>
+  </div>
+
+  <h3>B) Monitor abajo, mirando hacia arriba (45°)</h3>
+  <p>Algunos montajes usan <strong>acrílico inclinado</strong> para reflejar la imagen. Es más fino de alinear; si eres primerizo, prefiere el esquema A.</p>
+
+  <div class="tip">
+    Si no quieres complicarte con ángulos: <strong>esquema A + interior negro</strong> ya se ve muy bien con AVA en fondo #000000.
+  </div>
+
+  <h2>5 · Montaje paso a paso</h2>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h3>Limpia la vitrina</h3>
+      <p>Acrílico por dentro y fuera con paño suave. Evita rayones: el brillo del monitor los delata.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h3>Mide el interior</h3>
+      <p>Anota alto, ancho y fondo. Ajusta las medidas del foamboard (resta grosor si hace falta).</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h3>Corta el foamboard</h3>
+      <p>Usa regla y varios pases con cutter. Una pieza de <strong>fondo</strong>, dos laterales, un <strong>techo</strong>.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h3>Pega el fondo</h3>
+      <p>Pega el rectángulo negro contra la pared trasera de la vitrina (la opuesta al acrílico frontal).</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <h3>Laterales y techo</h3>
+      <p>Forma un “túnel” oscuro. Las uniones pueden llevar cinta fina en el <strong>exterior</strong> de la caja o solo presión si el ajuste es perfecto.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">6</div>
+    <div class="step-body">
+      <h3>Coloca el monitor</h3>
+      <p>Fija el monitor según el esquema A (o B). Deja salir el cable hacia atrás o abajo. Configura en Android TV la <strong>orientación vertical</strong> si el sistema lo permite.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">7</div>
+    <div class="step-body">
+      <h3>TV Box y alimentación</h3>
+      <p>Que el cable HDMI no empuje el acrílico. Si hace falta, un pequeño hueco en la parte trasera o base (con cuidado de no partir el acrílico).</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">8</div>
+    <div class="step-body">
+      <h3>LED RGB en la base</h3>
+      <p>Opcional: luz verde/azul muy suave para reforzar el look; no apuntes LED directo al panel (mejor rebote en la base).</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">9</div>
+    <div class="step-body">
+      <h3>Prueba a oscuras</h3>
+      <p>Apaga luces del cuarto. Ajusta brillo del monitor para que el negro sea realmente negro (AVAs fondo #000).</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">10</div>
+    <div class="step-body">
+      <h3>Abre la app AVA en Chrome</h3>
+      <p>Usa tu URL publicada. Configura micrófono en el sistema del TV Box y en la primera apertura de Chrome si lo pide.</p>
+    </div>
+  </div>
+
+  <h2>6 · Software en el TV Box (resumen)</h2>
+  <ol>
+    <li>Instala o abre <strong>Chrome</strong>.</li>
+    <li>Entra a la <strong>URL HTTPS</strong> de tu proyecto (no abras el HTML desde USB si puedes evitarlo).</li>
+    <li><strong>Ajustes → Apps → Chrome → Permisos → Micrófono → Permitir</strong> (idealmente siempre).</li>
+    <li>En la config de AVA: activa <strong>solo reconocimiento del navegador</strong> si quieres evitar grabación para servidor.</li>
+    <li>Empareja la bocina con micrófono por Bluetooth.</li>
+  </ol>
+
+  <h2>7 · Consejos finales</h2>
+  <ul>
+    <li><strong>Polvo en el acrílico</strong> se ve como “niebla en el holograma”; limpia con poca frecuencia y con cuidado.</li>
+    <li><strong>Reflejos del cuarto</strong>: mueve la vitrina o baja luz ambiental; el foamboard negro ayuda pero no borra reflejos del propio cristal.</li>
+    <li><strong>Calor</strong>: el monitor y el TV Box generan calor; si la vitrina es cerrada, valora ventilación mínima (no tape todo el respaldo).</li>
+  </ul>
+
+  <footer>
+    Guía generada para el proyecto AVA · Corta y pega en tu taller o guarda como PDF desde el navegador (Imprimir → Guardar como PDF).
+  </footer>
+
+</body>
+</html>
