@@ -1,21 +1,18 @@
-// Deepgram TTS — Aura-2 neural voices, very low latency
-// Reuses the same DEEPGRAM_API_KEY used for STT
-// Spanish Aura-2 voices: aura-2-andromeda-es, aura-2-luna-es, aura-2-stella-es
+// Deepgram TTS — Aura-2, solo voces femeninas (hablan el idioma del texto)
+// Reuses DEEPGRAM_API_KEY
 
-// Voz ÚNICA por avatar — Deepgram Aura v1, mixed gender
-// Female: asteria, luna, stella, athena, hera | Male: orion, arcas, perseus, angus, orpheus, helios, zeus
-// Note: Aura speaks any language, model just sets voice character
+// Modelos aura-2-* femeninos; -es para acento latino donde exista
 const AVATAR_VOICES = [
-  'aura-asteria-en',  // AVA   — cálida profesional (F)
-  'aura-luna-en',     // KIRA  — brillante enérgica (F)
-  'aura-orion-en',    // ZANE  — firme, profundo (M)
-  'aura-perseus-en',  // FAKER — preciso coach (M)
-  'aura-hera-en',     // SAO   — elegante ejecutiva (F)
-  'aura-helios-en',   // NEON  — claro rápido (M)
-  'aura-stella-en',   // YUKI  — suave creativa (F)
-  'aura-arcas-en',    // REI   — directo técnico (M)
-  'aura-athena-en',   // MIRA  — calma empática (F)
-  'aura-orpheus-en',  // KAI   — carismático social (M)
+  'aura-2-asteria-en',
+  'aura-2-luna-en',
+  'aura-2-thalia-en',
+  'aura-2-athena-en',
+  'aura-2-hera-en',
+  'aura-2-andromeda-en',
+  'aura-2-iris-en',
+  'aura-2-juno-en',
+  'aura-2-celeste-es',
+  'aura-2-estrella-es',
 ];
 
 export default async function handler(req, res) {
@@ -28,11 +25,11 @@ export default async function handler(req, res) {
   if (!text) return res.status(400).json({ error: 'text required' });
 
   const idx = Math.max(0, Math.min(9, parseInt(avatarIndex) || 0));
-  const model = AVATAR_VOICES[idx];
+  let model = AVATAR_VOICES[idx];
   const clean = text.substring(0, 2000);
 
-  try {
-    const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}&encoding=mp3`;
+  async function trySpeak(m) {
+    const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(m)}&encoding=mp3`;
     const r = await fetch(url, {
       method: 'POST',
       headers: {
@@ -41,6 +38,20 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({ text: clean }),
     });
+    return r;
+  }
+
+  try {
+    let r = await trySpeak(model);
+    // Fallback Aura-1 si aura-2 no está en la cuenta
+    if (!r.ok && model.startsWith('aura-2-')) {
+      const legacy = [
+        'aura-asteria-en', 'aura-luna-en', 'aura-stella-en', 'aura-hera-en', 'aura-athena-en',
+        'aura-luna-en', 'aura-stella-en', 'aura-asteria-en', 'aura-hera-en', 'aura-athena-en',
+      ][idx];
+      model = legacy;
+      r = await trySpeak(model);
+    }
 
     if (!r.ok) {
       const err = await r.text();

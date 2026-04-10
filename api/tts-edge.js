@@ -2,18 +2,18 @@
 // Uses the same WebSocket protocol as the edge-tts Python package
 import { createHash } from 'crypto';
 
-// Voz ÚNICA por avatar — gender + regional accent + personalidad
+// 10 avatares femeninos — solo voces Neural F (es-* … Neural femeninas)
 const AVATAR_VOICES = [
-  { name: 'es-MX-DaliaNeural',    rate: '+0%',  pitch: '+0%',  style: 'cheerful'  }, // AVA   — cálida mexicana (F)
-  { name: 'es-CO-SalomeNeural',   rate: '+10%', pitch: '+6%',  style: null        }, // KIRA  — enérgica colombiana (F)
-  { name: 'es-MX-JorgeNeural',    rate: '-3%',  pitch: '-4%',  style: null        }, // ZANE  — firme mexicano (M)
-  { name: 'es-AR-TomasNeural',    rate: '+5%',  pitch: '+0%',  style: null        }, // FAKER — preciso argentino (M)
-  { name: 'es-PE-CamilaNeural',   rate: '-6%',  pitch: '+3%',  style: null        }, // SAO   — elegante peruana (F)
-  { name: 'es-CL-LorenzoNeural',  rate: '+12%', pitch: '+0%',  style: null        }, // NEON  — rápido chileno (M)
-  { name: 'es-MX-MarinaNeural',   rate: '+0%',  pitch: '+8%',  style: null        }, // YUKI  — suave creativa (F)
-  { name: 'es-ES-AlvaroNeural',   rate: '+6%',  pitch: '-2%',  style: null        }, // REI   — directo español (M)
-  { name: 'es-AR-ElenaNeural',    rate: '-8%',  pitch: '+4%',  style: null        }, // MIRA  — calma argentina (F)
-  { name: 'es-CO-GonzaloNeural',  rate: '+8%',  pitch: '+2%',  style: null        }, // KAI   — carismático colombiano (M)
+  { name: 'es-MX-DaliaNeural',    rate: '+0%',  pitch: '+0%',  style: 'cheerful'  }, // AVA   — cálida MX
+  { name: 'es-CO-SalomeNeural',   rate: '+8%',  pitch: '+4%',  style: null        }, // KIRA  — enérgica CO
+  { name: 'es-MX-BeatrizNeural',  rate: '-2%',  pitch: '+2%',  style: null        }, // ZANE  — firme, tono bajo femenino
+  { name: 'es-AR-ElenaNeural',    rate: '+4%',  pitch: '+3%',  style: null        }, // FAKER — precisa AR
+  { name: 'es-PE-CamilaNeural',   rate: '-5%',  pitch: '+4%',  style: null        }, // SAO   — elegante PE
+  { name: 'es-CL-CatalinaNeural', rate: '+10%', pitch: '+1%',  style: null        }, // NEON  — rápida CL
+  { name: 'es-MX-MarinaNeural',   rate: '+2%',  pitch: '+6%',  style: null        }, // YUKI  — suave MX
+  { name: 'es-ES-ElviraNeural',   rate: '+4%',  pitch: '-2%',  style: null        }, // REI   — directa ES
+  { name: 'es-ES-AbrilNeural',    rate: '-6%',  pitch: '+5%',  style: null        }, // MIRA  — calmada ES
+  { name: 'es-UY-ValentinaNeural', rate: '+6%', pitch: '+3%',  style: null        }, // KAI   — carismática UY
 ];
 
 function uuid() {
@@ -39,16 +39,8 @@ export default async function handler(req, res) {
 
   // Attempt 1: edge-tts public synthesis endpoint (same as Python package)
   try {
-    // Get a fresh auth token from the public edge endpoint
-    const tokenRes = await fetch(
-      'https://www.bing.com/tfeedback/tts?isVertical=1&IG=&IID=&isImageSearch=',
-      { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
-    );
     const connId = uuid().replace(/-/g,'');
     const ssml = buildSSML(clean, voice);
-    const requestId = uuid().replace(/-/g,'');
-
-    // Direct synthesis via Bing TTS endpoint (no key needed, same as edge-tts package)
     const synth = await fetch(
       `https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?trustedclienttoken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=${connId}`,
       {

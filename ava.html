@@ -205,7 +205,7 @@
 
     <video id="vision-cam" playsinline muted autoplay style="position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;z-index:0" aria-hidden="true"></video>
 
-    <div class="mic-label" id="mic-label">&#127908; Toca el mic o escribe abajo · «AVA» para voz continua · «para» cierra</div>
+    <div class="mic-label" id="mic-label">&#127908; «AVA» / «hola AVA» = voz continua hands-free · «para» o «chao» cierra · o escribe abajo</div>
     <div class="mic-btn" id="mic-btn">
         <svg viewBox="0 0 24 24" id="mic-icon"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
         <svg viewBox="0 0 24 24" id="stop-icon" style="display:none"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
@@ -242,7 +242,7 @@
         </div>
     </div>
 
-    <div class="hint hint-l" id="version-hint">AVA v2.0 — Claude AI</div>
+    <div class="hint hint-l" id="version-hint">AVA v3.0 — VTuber / hands-free</div>
     <div class="hint hint-r">T:texto | Space:voz | 1-0:avatar | N:next</div>
 
     <!-- Three.js r134 + GLTFLoader -->
@@ -256,31 +256,31 @@
     const NAMES   = ['AVA','KIRA','ZANE','FAKER','SAO','NEON','YUKI','REI','MIRA','KAI'];
     const COLORS  = [0x00ff9d,0xff69b4,0xff3333,0x00aaff,0xaa66ff,0xffaa00,0x00ffff,0xff0066,0x6600ff,0x66ff00];
     // Voice profiles per avatar: [pitch, rate, lang preference]
+    // Perfil TTS navegador — 10 mujeres: tono/ritmo distintos (solo voces F)
     const VOICES = {
-        0: {pitch:1.05, rate:1.0,  pref:'female'}, // AVA
-        1: {pitch:1.35, rate:1.15, pref:'female'}, // KIRA
-        2: {pitch:0.88, rate:0.92, pref:'male'},    // ZANE — alineado con TTS masculino
-        3: {pitch:0.92, rate:1.02, pref:'male'},    // FAKER
-        4: {pitch:1.15, rate:0.95, pref:'female'},  // SAO
-        5: {pitch:1.08, rate:1.12, pref:'male'},    // NEON — cyber masculino
-        6: {pitch:1.4,  rate:1.0,  pref:'female'}, // YUKI
-        7: {pitch:0.9,  rate:1.06, pref:'male'},   // REI
-        8: {pitch:1.2,  rate:0.88, pref:'female'}, // MIRA
-        9: {pitch:1.02, rate:1.1,  pref:'male'},    // KAI
+        0: {pitch:1.06, rate:1.0,  pref:'female'}, // AVA
+        1: {pitch:1.32, rate:1.12, pref:'female'}, // KIRA
+        2: {pitch:0.94, rate:0.96, pref:'female'}, // ZANE
+        3: {pitch:1.02, rate:1.04, pref:'female'}, // FAKER
+        4: {pitch:1.14, rate:0.94, pref:'female'}, // SAO
+        5: {pitch:1.18, rate:1.1,  pref:'female'}, // NEON
+        6: {pitch:1.38, rate:1.02, pref:'female'}, // YUKI
+        7: {pitch:0.98, rate:1.05, pref:'female'}, // REI
+        8: {pitch:1.22, rate:0.9,  pref:'female'}, // MIRA
+        9: {pitch:1.08, rate:1.08, pref:'female'}, // KAI
     };
-    const VOICE_MALE_HINTS = ['Jorge', 'Tomás', 'Lorenzo', 'Alvaro', 'Gonzalo', 'Pablo', 'Diego', 'Roberto', 'Carlos', 'Miguel', 'Enrique', 'David', 'Javier', 'Manuel', 'Álvaro', 'Héctor', 'Mateo', 'Raul', 'Saul', 'Dante', 'Male'];
-    const VOICE_FEMALE_HINTS = ['Dalia', 'Marina', 'Salome', 'Camila', 'Elena', 'Female', 'Mia', 'Sofia', 'Laura', 'Helena'];
+    const VOICE_FEMALE_HINTS = ['Dalia', 'Marina', 'Salome', 'Camila', 'Elena', 'Female', 'Mia', 'Sofia', 'Laura', 'Helena', 'Beatriz', 'Catalina', 'Valentina', 'Abril', 'Elvira', 'Neural', 'Mujer', 'Femenino'];
     const CAPS = {
         0:{t:'ASISTENTE HOLOGRÁFICA',s:['BI & Datos','Gestión de agenda','Asistente personal','Apoyo emocional']},
         1:{t:'COMPAÑERA DE GAMING',s:['Coaching','Análisis de partidas','Estrategias','Motivación']},
-        2:{t:'ALIADO TÁCTICO',s:['Táctica','Análisis de oponentes','Presión','Comandos de voz']},
+        2:{t:'ESTRATEGA TÁCTICA',s:['Táctica','Análisis de oponentes','Presión','Comandos de voz']},
         3:{t:'COACH PRO ESPORTS',s:['Entrenamiento pro','Técnicas avanzadas','Rendimiento','Competitivo']},
         4:{t:'ASISTENTE EJECUTIVA',s:['Networking','Comunicación','Proyectos','Presentaciones']},
-        5:{t:'CYBER SPECIALIST',s:['Seguridad digital','Automatización','DevOps','Multiplataforma']},
+        5:{t:'ESPECIALISTA CYBER',s:['Seguridad digital','Automatización','DevOps','Multiplataforma']},
         6:{t:'ARTISTA DIGITAL',s:['Diseño visual','Ideas creativas','Arte digital','Edición']},
-        7:{t:'TECH SPECIALIST',s:['Hardware','Software','Optimización','Troubleshooting']},
+        7:{t:'ESPECIALISTA TECH',s:['Hardware','Software','Optimización','Troubleshooting']},
         8:{t:'COACH BIENESTAR',s:['Fitness','Meditación','Nutrición','Manejo de estrés']},
-        9:{t:'SOCIAL CONNECTOR',s:['Comunicación','Networking','Comunidades','Eventos']}
+        9:{t:'CONECTORA SOCIAL',s:['Comunicación','Networking','Comunidades','Eventos']}
     };
 
     const VRM_FILES = [
@@ -384,21 +384,25 @@
     // AUTONOMOUS MOVEMENT FSM (Wandering)
     // ================================================================
     const AMOVE = {
-        state: 'IDLE',   // IDLE | WALK | GREET | STOP | POINT | SHRUG | STRETCH | DANCE
+        state: 'IDLE',
         timer: 0.25 + Math.random() * 0.45,
         targetX: 0,
         targetRY: 0,
         greetArm: false,
+        hairArm: false,
+        lookYaw: 0,
         nextState(t) {
             const r = Math.random();
-            // Más gestos sociales y menos “quieto” pasivo
-            if      (r < 0.22) { this.state = 'WALK';    this.timer = 1.2 + Math.random() * 2.2;   this.targetX = (Math.random()-0.5)*1.5; this.targetRY = (Math.random()-0.5)*0.95; }
-            else if (r < 0.42) { this.state = 'GREET';   this.timer = 1.35 + Math.random() * 1.0;  this.greetArm = Math.random() > 0.5; }
-            else if (r < 0.58) { this.state = 'POINT';   this.timer = 1.15 + Math.random() * 1.0;  this.greetArm = Math.random() > 0.5; }
-            else if (r < 0.68) { this.state = 'SHRUG';   this.timer = 0.9 + Math.random() * 0.85; }
-            else if (r < 0.76) { this.state = 'STRETCH'; this.timer = 1.25 + Math.random() * 0.95; }
-            else if (r < 0.86) { this.state = 'DANCE';   this.timer = 1.85 + Math.random() * 2.4;   }
-            else               { this.state = 'STOP';    this.timer = 0.65 + Math.random() * 1.1; }
+            if      (r < 0.18) { this.state = 'WALK';    this.timer = 1.2 + Math.random() * 2.0;   this.targetX = (Math.random()-0.5)*1.35; this.targetRY = (Math.random()-0.5)*0.85; }
+            else if (r < 0.34) { this.state = 'GREET';   this.timer = 1.25 + Math.random() * 0.95;  this.greetArm = Math.random() > 0.5; }
+            else if (r < 0.48) { this.state = 'POINT';   this.timer = 1.05 + Math.random() * 0.95;  this.greetArm = Math.random() > 0.5; }
+            else if (r < 0.56) { this.state = 'SHRUG';   this.timer = 0.85 + Math.random() * 0.75; }
+            else if (r < 0.63) { this.state = 'STRETCH'; this.timer = 1.15 + Math.random() * 0.85; }
+            else if (r < 0.71) { this.state = 'DANCE';   this.timer = 1.65 + Math.random() * 2.0;   }
+            else if (r < 0.78) { this.state = 'FIDGET';  this.timer = 1.0 + Math.random() * 1.1;    this.targetX = (Math.random()-0.5)*0.12; }
+            else if (r < 0.86) { this.state = 'HAIR';     this.timer = 1.35 + Math.random() * 0.9;   this.hairArm = Math.random() > 0.45; }
+            else if (r < 0.93) { this.state = 'LOOK';     this.timer = 1.1 + Math.random() * 0.85;   this.lookYaw = (Math.random()-0.5)*0.55; }
+            else               { this.state = 'STOP';    this.timer = 0.6 + Math.random() * 1.0; }
         }
     };
 
@@ -622,6 +626,13 @@
                     vrm.lookAt.target = lookAtTarget;
                 }
 
+                // Spring bones — física cabello/ropa (three-vrm actualiza dentro de vrm.update)
+                try {
+                    if (vrm.springBoneManager && typeof vrm.springBoneManager.setInitState === 'function') {
+                        vrm.springBoneManager.setInitState();
+                    }
+                } catch (e) { console.warn('SpringBone init:', e.message); }
+
                 model.traverse(o => {
                     if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
                 });
@@ -792,6 +803,22 @@
         particles3d = [];
     }
 
+    // Micro-gestos en dedos (VRM con huesos de mano) — muy sutil para no pelear con el rig
+    function applyFingerMicroGestures(vrm, t, st) {
+        if (st !== 'TALKING' && st !== 'IDLE') return;
+        const amt = st === 'TALKING' ? 0.055 : 0.018;
+        const root = vrm.scene;
+        if (!root) return;
+        root.traverse(o => {
+            if (!o.isBone || !o.name) return;
+            const n = o.name;
+            if (!/(thumb|index|middle|ring|pinky|Thumb|Index|Finger)/i.test(n)) return;
+            const seed = n.length * 0.13 + (n.charCodeAt(0) || 0) * 0.001;
+            o.rotation.x += Math.sin(t * 1.65 + seed) * amt * 0.01;
+            o.rotation.z += Math.cos(t * 1.4 + seed * 0.5) * amt * 0.008;
+        });
+    }
+
     // ================================================================
     // AUTONOMOUS ANIMATION ENGINE
     // ================================================================
@@ -855,8 +882,8 @@
         if (lookAtTarget) {
             const pointerIdle = Math.abs(mx) < 0.07 && Math.abs(my) < 0.07;
             const mix = pointerIdle ? 0.88 : 0.38;
-            const sacX = Math.sin(t * 0.62) * 0.24 + Math.sin(t * 2.17 + 0.4) * 0.07 + organic(t, 0.2) * 0.06;
-            const sacY = Math.cos(t * 0.55) * 0.18 + Math.sin(t * 1.83) * 0.055 + organic(t, 1.1) * 0.045;
+            const sacX = Math.sin(t * 0.48) * 0.2 + Math.sin(t * 1.35 + 0.4) * 0.05 + organic(t, 0.2) * 0.05;
+            const sacY = Math.cos(t * 0.42) * 0.16 + Math.sin(t * 1.25) * 0.045 + organic(t, 1.1) * 0.04;
             const tgtX = mx * 3 * (1 - mix) + sacX * 3 * mix;
             const tgtY = (my * 2 + 1.2) * (1 - mix) + (sacY * 1.35 + 1.18) * mix;
             lookAtTarget.position.x = lerp(lookAtTarget.position.x, tgtX, 0.26);
@@ -877,10 +904,17 @@
                 avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, AMOVE.targetRY, 0.04);
             } else if (AMOVE.state === 'STOP' || AMOVE.state === 'GREET') {
                 avatarGroup.position.x = lerp(avatarGroup.position.x, 0, 0.02);
-                // Face camera when stopped
                 avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.18) * 0.12, 0.04);
+            } else if (AMOVE.state === 'FIDGET') {
+                avatarGroup.position.x = lerp(avatarGroup.position.x, AMOVE.targetX, 0.02);
+                const swayY = Math.sin(t * 0.31) * 0.17 + organic(t, 0.55) * 0.07;
+                avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, swayY, 0.042);
+            } else if (AMOVE.state === 'LOOK') {
+                avatarGroup.position.x = lerp(avatarGroup.position.x, 0, 0.022);
+                avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, AMOVE.lookYaw + Math.sin(t * 0.16) * 0.07, 0.032);
+            } else if (AMOVE.state === 'HAIR') {
+                avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.19) * 0.11, 0.034);
             } else {
-                // IDLE sway
                 const swayY = Math.sin(t * 0.25) * 0.18 + Math.sin(t * 0.42) * 0.08;
                 avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, swayY, 0.04);
             }
@@ -1043,6 +1077,27 @@
                 if (ra) { ra.rotation.z = lerp(ra.rotation.z, -0.9 - dBeat2, 0.12); ra.rotation.x = lerp(ra.rotation.x, dBeat * 0.5, 0.12); }
                 if (lf) { lf.rotation.y = lerp(lf.rotation.y,  dBeat * 0.3, 0.1); }
                 if (rf) { rf.rotation.y = lerp(rf.rotation.y, -dBeat2 * 0.3, 0.1); }
+            } else if (AMOVE.state === 'FIDGET') {
+                const w = Math.sin(t * 0.85) * 0.08;
+                if (la) { la.rotation.z = lerp(la.rotation.z,  1.22 + w, sp); la.rotation.x = lerp(la.rotation.x, 0.08, sp); }
+                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.18 - w, sp); ra.rotation.x = lerp(ra.rotation.x, 0.06, sp); }
+                if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.12 + organic(t, 2) * 0.04, sp); }
+                if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.1, sp); }
+            } else if (AMOVE.state === 'HAIR') {
+                const hr = Math.sin(t * 1.2) * 0.15;
+                if (AMOVE.hairArm) {
+                    if (la) { la.rotation.z = lerp(la.rotation.z, -0.45 + hr, 0.08); la.rotation.x = lerp(la.rotation.x, -0.55, 0.08); }
+                    if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.35, 0.08); lf.rotation.x = lerp(lf.rotation.x, -0.2, 0.08); }
+                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.22, sp); ra.rotation.x = lerp(ra.rotation.x, 0.05, sp); }
+                } else {
+                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, 0.45 - hr, 0.08); ra.rotation.x = lerp(ra.rotation.x, -0.55, 0.08); }
+                    if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.35, 0.08); rf.rotation.x = lerp(rf.rotation.x, -0.2, 0.08); }
+                    if (la) { la.rotation.z = lerp(la.rotation.z, 1.22, sp); la.rotation.x = lerp(la.rotation.x, 0.05, sp); }
+                }
+            } else if (AMOVE.state === 'LOOK') {
+                if (la) { la.rotation.z = lerp(la.rotation.z,  1.25, sp); la.rotation.x = lerp(la.rotation.x, 0.04, sp); }
+                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.25, sp); ra.rotation.x = lerp(ra.rotation.x, 0.04, sp); }
+                if (head) { head.rotation.y = lerp(head.rotation.y, AMOVE.lookYaw * 0.45 + Math.sin(t * 0.65) * 0.08, 0.06); }
             } else {
                 // Natural relaxed idle pose — arms at sides, gentle sway
                 const swayL = Math.sin(t*0.6+1.0)*0.06 + Math.sin(t*0.22)*0.03;
@@ -1219,6 +1274,8 @@
             rfoot.rotation.z = lerp(rfoot.rotation.z || 0, sR * 0.06, wLeg * 0.9);
         }
 
+        try { applyFingerMicroGestures(vrm, t, state); } catch (e) {}
+
         vrm.update(delta);
     }
 
@@ -1301,8 +1358,8 @@
         const la = get('leftUpperArm'),  ra = get('rightUpperArm');
         const lf = get('leftLowerArm'),  rf = get('rightLowerArm');
         const lh = get('leftHand'),      rh = get('rightHand');
-        if (la) { la.rotation.z =  1.35; la.rotation.x = 0.05; }
-        if (ra) { ra.rotation.z = -1.35; ra.rotation.x = 0.05; }
+        if (la) { la.rotation.z =  1.32; la.rotation.x = 0.06; }
+        if (ra) { ra.rotation.z = -1.32; ra.rotation.x = 0.06; }
         if (lf) { lf.rotation.y =  0.15; lf.rotation.x = 0.05; }
         if (rf) { rf.rotation.y = -0.15; rf.rotation.x = 0.05; }
         if (lh) { lh.rotation.z =  0.05; }
@@ -1354,7 +1411,7 @@
     async function processMessage(text) {
         const raw = String(text || '').trim();
         const norm = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (voiceConversationActive && /^(para|silencio|cierra|adios|adiós|chao|stop|listo|ya basta|hasta luego|nos vemos|me voy|dormir)(\s|$)/i.test(norm)) {
+        if (voiceConversationActive && /^(para|silencio|cierra|adios|adiós|chao|chau|stop|listo|ya basta|hasta luego|nos vemos|me voy|dormir)(\s|$)/i.test(norm)) {
             voiceConversationActive = false;
             stopActiveListen();
             updateStatus('LISTA — di «AVA» para conversación de voz');
@@ -1478,13 +1535,13 @@
     function hasWakePhrase(text) {
         const n = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         // "aba" = error común de reconocimiento; inicio de frase o tras pausa
-        return /\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|escuchame|oye\s*ava)\b/i.test(n)
+        return /\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|esc[uú]chame|escucha\s*ava|oye\s*ava)\b/i.test(n)
             || /(?:^|[\s,;])(ava|aba)(?:[\s,;]|$)/i.test(n);
     }
 
     function stripWakePhrases(text) {
         return text
-            .replace(/\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|esc[uú]chame|oye\s*ava)\b/gi, ' ')
+            .replace(/\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|esc[uú]chame|escucha\s*ava|oye\s*ava)\b/gi, ' ')
             .replace(/\s+/g, ' ')
             .trim();
     }
@@ -1569,6 +1626,31 @@
                 }
             }
         }, 340);
+    }
+
+    /** Si el mic ya está autorizado, activa TTS y reinicia wake/STT sin tocar el botón. */
+    async function bootstrapHandsFreeMic() {
+        const kick = () => {
+            _userInteracted = true;
+            ensureTtsContextRunning().catch(() => {});
+            scheduleWakeRestart();
+        };
+        try {
+            const p = await navigator.permissions.query({ name: 'microphone' });
+            if (p.state === 'granted') {
+                kick();
+            } else {
+                scheduleWakeRestart();
+                if (p.state !== 'granted' && allowDeepgramStt() && _SRClass === null) {
+                    updateStatus('LISTA — permite el mic una vez; luego «AVA» funciona solo');
+                }
+            }
+            const onPerm = () => { if (p.state === 'granted') kick(); };
+            if (typeof p.addEventListener === 'function') p.addEventListener('change', onPerm);
+            else p.onchange = onPerm;
+        } catch (_) {
+            scheduleWakeRestart();
+        }
     }
 
     async function ensureVisionCamera() {
@@ -1865,13 +1947,13 @@
             setState('IDLE'); updateStatus('LISTA');
         };
 
-        recognition.onend = () => {
+        recognition.onend = async () => {
             clearTimeout(silenceTimer);
             if (state !== 'LISTENING') return;
             const text = finalTranscript.trim() ||
                          document.getElementById('transcript').textContent.trim();
             if (text) {
-                processMessage(text);
+                await processMessage(text);
             } else {
                 setState('IDLE'); updateStatus('LISTA');
             }
@@ -2048,32 +2130,21 @@
         u.rate = vp.rate;
         const pickVoice = () => {
             const all = synth.getVoices();
-            const wantMale = vp.pref === 'male';
-            const matchGender = (v) => {
+            const maleName = (n) => /Jorge|Tom[aá]s|Lorenzo|Alvaro|Gonzalo|Pablo|Diego|Male|male|hombre|David|Guy|Mark|Fred|George|Brian|Daniel|James|Microsoft\s+David/i.test(n);
+            const femaleOk = (v) => {
                 const n = v.name || '';
-                const maleHit = VOICE_MALE_HINTS.some(h => n.includes(h));
-                const femHit = VOICE_FEMALE_HINTS.some(h => n.includes(h));
-                if (wantMale) return maleHit || (!femHit && /male|hombre|masculino/i.test(n));
-                return femHit || (!maleHit && /female|mujer|femenino/i.test(n));
+                if (maleName(n)) return false;
+                return VOICE_FEMALE_HINTS.some(h => n.includes(h)) || /female|mujer|femenino|Neural|Natural|Dalia|Marina|Salome|Camila|Elena/i.test(n);
             };
-            const neural = all.filter(v => v.lang.startsWith('es') && matchGender(v) &&
+            const neural = all.filter(v => v.lang && v.lang.startsWith('es') && femaleOk(v) &&
                 (v.name.includes('Neural') || v.name.includes('Natural') || v.name.includes('Online')));
             if (neural.length) return neural[currentIdx % neural.length];
-            const esG = all.filter(v => v.lang.startsWith('es') && matchGender(v));
+            const esG = all.filter(v => v.lang && v.lang.startsWith('es') && femaleOk(v));
             if (esG.length) return esG[currentIdx % esG.length];
-            if (wantMale) {
-                const anyMale = all.filter(v => {
-                    const n = v.name || '';
-                    return VOICE_MALE_HINTS.some(h => n.includes(h)) ||
-                        /male|hombre|masculino|David|Guy|Mark|Fred|George|Brian|Daniel|James|Aaron|Microsoft\s+David|Google\s+UK\s+English\s+Male/i.test(n);
-                });
-                if (anyMale.length) return anyMale[currentIdx % anyMale.length];
-            }
-            const neuralAny = all.filter(v => v.lang.startsWith('es') &&
-                (v.name.includes('Neural') || v.name.includes('Natural') ||
-                 v.name.includes('Dalia') || v.name.includes('Marina')));
+            const neuralAny = all.filter(v => v.lang && v.lang.startsWith('es') && !maleName(v.name || '') &&
+                (v.name.includes('Neural') || v.name.includes('Natural') || v.name.includes('Dalia') || v.name.includes('Marina')));
             if (neuralAny.length) return neuralAny[currentIdx % neuralAny.length];
-            const es = all.filter(v => v.lang.startsWith('es'));
+            const es = all.filter(v => v.lang && v.lang.startsWith('es') && !maleName(v.name || ''));
             if (es.length) return es[currentIdx % es.length];
             return null;
         };
@@ -2234,13 +2305,7 @@
         }
 
         if (cfg.userName && cfg.wakeWord) {
-            scheduleWakeRestart();
-            try {
-                const p = await navigator.permissions.query({ name: 'microphone' });
-                if (p.state !== 'granted' && allowDeepgramStt() && _SRClass === null) {
-                    updateStatus('LISTA — permite micrófono cuando Chrome pregunte para decir «AVA»');
-                }
-            } catch (_) {}
+            await bootstrapHandsFreeMic();
         }
 
         // Event listeners
@@ -2300,7 +2365,7 @@
         synth.onvoiceschanged = () => synth.getVoices();
 
         updateStatus('LISTA');
-        console.log('AVA v2.0 initialized with Claude AI');
+        console.log('AVA v3.0 initialized (hands-free + VTuber animation)');
 
         // Show first autonomous phrase quickly (text-only until user interacts)
         setTimeout(startAutonomousSpeech, 4000);
