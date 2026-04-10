@@ -148,6 +148,7 @@
             color:#000;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:3px;cursor:pointer;margin-top:6px;transition:.2s}
         .cfg-btn:active{transform:scale(.97);box-shadow:0 0 25px rgba(0,255,157,.4)}
         .cfg-hint{color:rgba(255,255,255,.4);font-size:11px;margin-top:16px;text-align:center}
+        .cfg-note{color:rgba(0,255,157,.55);font-size:10px;line-height:1.45;margin:10px 0 14px;text-align:left;max-width:100%}
 
         /* === Loading === */
         .loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:150;display:none}
@@ -221,12 +222,19 @@
             <input type="text" class="cfg-input" id="cfg-api" placeholder="/api/chat">
             <label class="cfg-label">URL base de avatares VRM (opcional)</label>
             <input type="text" class="cfg-input" id="cfg-vrm" placeholder="https://tu-cdn.com/vrm/ (deja vacío para usar /public/)">
-            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:12px;cursor:pointer">
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:10px;cursor:pointer">
                 <input type="checkbox" id="cfg-wake" checked> Activación por voz (AVA, despierta, empieza…)
             </label>
-            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:16px;cursor:pointer">
-                <input type="checkbox" id="cfg-vision" checked> Cámara + visión (Gemini/OpenAI) para ver el entorno
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:10px;cursor:pointer">
+                <input type="checkbox" id="cfg-browser-stt" checked> Preferir Web Speech (sin enviar audio al servidor). Si el navegador no lo tiene, se usa STT por servidor para «AVA» y el mic.
             </label>
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:10px;cursor:pointer">
+                <input type="checkbox" id="cfg-browser-tts"> TTS solo del navegador (speechSynthesis) — sin llamadas a servidor de voz
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:12px;cursor:pointer">
+                <input type="checkbox" id="cfg-vision"> Cámara + visión (pide permiso de cámara; vitrina: dejar desactivado)
+            </label>
+            <p class="cfg-note">Los navegadores no permiten micrófono sin al menos un permiso del sistema. En Android TV: Ajustes → Apps → Chrome → Permisos → Micrófono → Permitir siempre, y abre la URL en pantalla completa.</p>
             <label class="cfg-label">Memoria persistente (opcional)</label>
             <textarea class="cfg-input ta" id="cfg-memory" rows="4" placeholder="Hechos, preferencias o contexto que AVA debe recordar entre sesiones (se guarda en este navegador). Ej: trabajo en BI, usa Power BI, idioma técnico."></textarea>
             <button class="cfg-btn" id="cfg-go">ACTIVAR AVA</button>
@@ -287,7 +295,12 @@
         userName: localStorage.getItem('ava_user') || '',
         vrmBase: localStorage.getItem('ava_vrm_base') || '',
         wakeWord: localStorage.getItem('ava_wake') !== '0',
-        useVision: localStorage.getItem('ava_vision') !== '0',
+        /** Cámara solo si el usuario activó explícitamente (vitrina/TV: sin cámara = sin permiso de video). */
+        useVision: localStorage.getItem('ava_vision') === '1',
+        /** Sin MediaRecorder ni Deepgram: solo Web Speech API (mejor en Chrome / Android TV). */
+        browserOnlyStt: localStorage.getItem('ava_browser_stt') !== '0',
+        /** Sin fetch a APIs de voz en servidor; solo speechSynthesis del sistema. */
+        browserOnlyTts: localStorage.getItem('ava_browser_tts') === '1',
         /** Notas largo plazo (localStorage); se envían al modelo en cada chat. */
         memory: localStorage.getItem('ava_memory') || ''
     };
@@ -838,12 +851,16 @@
         };
         const ph = phys[state] || phys.IDLE;
 
-        // Update lookAt target from mouse position (FAST response)
+        // LookAt: ratón/touch + mirada autónoma con micro-saccadas (TV / sin puntero → mx≈0)
         if (lookAtTarget) {
-            const tgtX = mx * 3;
-            const tgtY = my * 2 + 1.2;
-            lookAtTarget.position.x = lerp(lookAtTarget.position.x, tgtX, 0.3);
-            lookAtTarget.position.y = lerp(lookAtTarget.position.y, tgtY, 0.3);
+            const pointerIdle = Math.abs(mx) < 0.07 && Math.abs(my) < 0.07;
+            const mix = pointerIdle ? 0.88 : 0.38;
+            const sacX = Math.sin(t * 0.62) * 0.24 + Math.sin(t * 2.17 + 0.4) * 0.07 + organic(t, 0.2) * 0.06;
+            const sacY = Math.cos(t * 0.55) * 0.18 + Math.sin(t * 1.83) * 0.055 + organic(t, 1.1) * 0.045;
+            const tgtX = mx * 3 * (1 - mix) + sacX * 3 * mix;
+            const tgtY = (my * 2 + 1.2) * (1 - mix) + (sacY * 1.35 + 1.18) * mix;
+            lookAtTarget.position.x = lerp(lookAtTarget.position.x, tgtX, 0.26);
+            lookAtTarget.position.y = lerp(lookAtTarget.position.y, tgtY, 0.26);
             lookAtTarget.position.z = 3;
         }
 
@@ -1155,13 +1172,15 @@
                 if (BR) setBlend(proxy, BR, 0);
             } else {
                 setBlend(proxy, vrmBlend.mouth, 0);
-                const blinkPeriod = 2.35 + Math.sin(t * 0.13) * 0.45 + organic(t, 0.4) * 0.25;
+                const jitter = (avatarGroup.userData._blinkJitter ??= Math.random() * 1.7);
+                const blinkPeriod = 2.5 + Math.sin(t * 0.11 + jitter) * 0.55 + organic(t, 0.4) * 0.35 + Math.sin(t * 0.037) * 0.2;
                 const u = (t % blinkPeriod) / blinkPeriod;
                 const blinkPulse = Math.exp(-Math.pow((u - 0.982) / 0.018, 2));
                 const bAmt = Math.min(1, blinkPulse * 0.95);
                 setBlend(proxy, vrmBlend.blink, bAmt);
-                if (BL) setBlend(proxy, BL, bAmt * (0.92 + Math.sin(t * 11) * 0.06));
-                if (BR) setBlend(proxy, BR, bAmt * (0.92 - Math.sin(t * 11) * 0.06));
+                const asym = 0.9 + Math.sin(t * 11.3 + jitter) * 0.09;
+                if (BL) setBlend(proxy, BL, bAmt * asym);
+                if (BR) setBlend(proxy, BR, bAmt * (1.84 - asym));
             }
         }
 
@@ -1335,7 +1354,7 @@
     async function processMessage(text) {
         const raw = String(text || '').trim();
         const norm = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (voiceConversationActive && /^(para|silencio|cierra|adios|chao|stop|listo|ya basta)(\s|$)/i.test(norm)) {
+        if (voiceConversationActive && /^(para|silencio|cierra|adios|adiós|chao|stop|listo|ya basta|hasta luego|nos vemos|me voy|dormir)(\s|$)/i.test(norm)) {
             voiceConversationActive = false;
             stopActiveListen();
             updateStatus('LISTA — di «AVA» para conversación de voz');
@@ -1409,7 +1428,7 @@
                 AMOVE.state = 'POINT'; AMOVE.timer = 1.5; AMOVE.greetArm = Math.random() > 0.5;
             }
 
-            speak(reply);
+            await speak(reply);
         } catch (err) {
             console.error('Chat error:', err);
             const isAbort = err && err.name === 'AbortError';
@@ -1417,7 +1436,7 @@
                 ? 'La respuesta tardó demasiado (red lenta). Intenta de nuevo o usa un mensaje más corto.'
                 : 'Lo siento, no pude conectar con el servidor. Comprueba la red o la API.';
             updateStatus(isAbort ? 'TIMEOUT' : 'ERROR DE CONEXIÓN');
-            speak(fallback);
+            await speak(fallback);
         }
     }
 
@@ -1428,14 +1447,19 @@
     // Chrome requires a FRESH instance on every listen attempt
     let _SRClass = null;
 
+    /** STT por servidor (Deepgram) cuando el usuario lo permite O cuando no hay Web Speech (Firefox, algunos TV, etc.). */
+    function allowDeepgramStt() {
+        return !cfg.browserOnlyStt || !_SRClass;
+    }
+
     function initSTT() {
         _SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!_SRClass) {
             const micBtn = document.getElementById('mic-btn');
             const canServerStt = window.MediaRecorder && navigator.mediaDevices;
             if (canServerStt) {
-                updateStatus('LISTA — di «AVA» (STT por servidor) o pulsa el mic');
-                micBtn.title = 'Sin Web Speech en este navegador (p. ej. Firefox): la voz va por STT en servidor. Chrome/Edge pueden usar «AVA» local.';
+                updateStatus('LISTA — di «AVA» (mic + STT servidor) o pulsa el mic');
+                micBtn.title = 'Sin Web Speech API: «AVA» y el mic usan STT por servidor (Deepgram). Acepta permiso de micrófono cuando lo pida el navegador.';
             } else {
                 updateStatus('USA EL TEXTO PARA CHATEAR ↓');
                 micBtn.title = 'Sin Web Speech ni grabación de audio en este dispositivo';
@@ -1494,12 +1518,15 @@
                 document.getElementById('transcript').textContent = rest;
                 primeVision();
                 processMessage(rest);
-            } else if (window.MediaRecorder && navigator.mediaDevices) {
+            } else if (allowDeepgramStt() && window.MediaRecorder && navigator.mediaDevices) {
                 primeVision();
                 startListeningDeepgram(afterWakeFast);
-            } else {
+            } else if (_SRClass) {
                 primeVision();
                 startListening({ fastSilence: true });
+            } else {
+                primeVision();
+                updateStatus('Sin Web Speech ni STT servidor — escribe abajo o revisa /api/stt-deepgram');
             }
         };
         wakeRec.onerror = (e) => {
@@ -1524,7 +1551,7 @@
             const overlay = document.getElementById('config-overlay');
             if (overlay && !overlay.classList.contains('hidden')) return;
             if (voiceConversationActive) {
-                if (window.MediaRecorder && navigator.mediaDevices) {
+                if (allowDeepgramStt() && window.MediaRecorder && navigator.mediaDevices) {
                     startListeningDeepgram({ silenceStopMs: 2650, minBeforeEnd: 580, rmsSpeech: 0.014 });
                 } else if (_SRClass) {
                     startListening({});
@@ -1532,7 +1559,7 @@
             } else if (cfg.wakeWord) {
                 if (_SRClass) {
                     startWakeWord();
-                } else if (window.MediaRecorder && navigator.mediaDevices && window._deepgramAvailable !== false) {
+                } else if (allowDeepgramStt() && window.MediaRecorder && navigator.mediaDevices && window._deepgramAvailable !== false) {
                     startListeningDeepgram({
                         wakeMode: true,
                         silenceStopMs: 3200,
@@ -1547,7 +1574,10 @@
     async function ensureVisionCamera() {
         if (!cfg.useVision) return false;
         visionVideo = document.getElementById('vision-cam');
-        if (visionReady && visionVideo && visionVideo.srcObject) return true;
+        if (visionVideo && visionVideo.srcObject) {
+            const vt = visionVideo.srcObject.getVideoTracks();
+            if (vt.length && vt[0].readyState === 'live') return true;
+        }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -1602,6 +1632,10 @@
     // Falls back to Web Speech if DEEPGRAM_API_KEY not set or mic unavailable
     async function startListeningDeepgram(opts) {
         opts = opts || {};
+        if (cfg.browserOnlyStt && _SRClass) {
+            startListening(opts);
+            return;
+        }
         const SILENCE_STOP_MS = opts.silenceStopMs != null ? opts.silenceStopMs : 3200;
         const MIN_MS_BEFORE_END = opts.minBeforeEnd != null ? opts.minBeforeEnd : 700;
         const RMS_SPEECH = opts.rmsSpeech != null ? opts.rmsSpeech : 0.015;
@@ -1707,7 +1741,7 @@
                             if (rest.length > 2) {
                                 primeVision();
                                 processMessage(rest);
-                            } else if (window.MediaRecorder && navigator.mediaDevices) {
+                            } else if (allowDeepgramStt() && window.MediaRecorder && navigator.mediaDevices) {
                                 primeVision();
                                 startListeningDeepgram(afterWakeFast);
                             } else if (_SRClass) {
@@ -1866,20 +1900,21 @@
             return;
         }
 
-        // Try Deepgram first (server-side, best accuracy)
-        // If mic/MediaRecorder not available, fall through to Web Speech
-        if (window.MediaRecorder && navigator.mediaDevices) {
+        if (cfg.browserOnlyStt && _SRClass) {
+            setTimeout(startListening, 80);
+            return;
+        }
+
+        if (allowDeepgramStt() && window.MediaRecorder && navigator.mediaDevices) {
             startListeningDeepgram();
             return;
         }
 
-        // Fallback: Web Speech API
         if (_SRClass) {
             setTimeout(startListening, 80);
             return;
         }
 
-        // No STT at all — use text
         document.getElementById('chat-input').focus();
         updateStatus('ESCRIBE TU MENSAJE ↓');
     }
@@ -1914,23 +1949,27 @@
         updateStatus('HABLANDO...');
         document.getElementById('response').textContent = clean.substring(0, 150);
 
-        // If user hasn't interacted yet, show text and skip audio (autoplay policy)
         if (!_userInteracted) {
             document.getElementById('response').textContent = clean.substring(0, 150);
-            const done = () => { setState('IDLE'); updateStatus('LISTA'); document.getElementById('response').textContent = ''; };
-            setTimeout(done, Math.min(clean.length * 60, 8000));
+            await new Promise(r => setTimeout(r, Math.min(clean.length * 60, 8000)));
+            setState('IDLE');
+            updateStatus('LISTA');
+            document.getElementById('response').textContent = '';
             return;
         }
 
-        // Desbloquear contexto antes del fetch a APIs TTS (Chrome exige contexto ya activado)
         await ensureTtsContextRunning();
 
-        // TTS chain — Latin Spanish voices first
+        if (cfg.browserOnlyTts) {
+            await speakBrowser(clean);
+            return;
+        }
+
         const ttsProviders = [
-            { url: '/api/tts-elevenlabs', label: 'ElevenLabs'      }, // es (if key works)
-            { url: '/api/tts-openai',     label: 'OpenAI TTS'      }, // es-MX Paloma
-            { url: '/api/tts-edge',       label: 'Edge Dalia/MX'   }, // es-MX-DaliaNeural FREE
-            { url: '/api/tts-deepgram',   label: 'Deepgram Aura'   }, // en voice fallback
+            { url: '/api/tts-elevenlabs', label: 'ElevenLabs'      },
+            { url: '/api/tts-openai',     label: 'OpenAI TTS'      },
+            { url: '/api/tts-edge',       label: 'Edge Dalia/MX'   },
+            { url: '/api/tts-deepgram',   label: 'Deepgram Aura'   },
         ];
         for (const p of ttsProviders) {
             try {
@@ -1949,8 +1988,7 @@
                 }
             } catch(e) { console.warn(p.label, 'fail:', e.message); }
         }
-        // Last resort: browser Web Speech
-        speakBrowser(clean);
+        await speakBrowser(clean);
     }
 
     function playBase64Audio(b64) {
@@ -1962,7 +2000,8 @@
             _curAudio = audio;
             const finish = () => {
                 ttsAnalyser = null; ttsFreq = null;
-                setState('IDLE'); updateStatus('LISTA');
+                setState('IDLE');
+                updateStatus(voiceConversationActive ? 'LISTA — modo voz' : 'LISTA');
                 document.getElementById('response').textContent = '';
                 done();
             };
@@ -2001,6 +2040,7 @@
     }
 
     function speakBrowser(text) {
+        return new Promise((resolve) => {
         const u = new SpeechSynthesisUtterance(text);
         const vp = VOICES[currentIdx] || VOICES[0];
         u.lang = 'es-MX';
@@ -2039,10 +2079,17 @@
         };
         const v = pickVoice();
         if (v) { u.voice = v; console.log('Browser TTS voice:', v.name); }
-        const done = () => { ttsAnalyser = null; ttsFreq = null; setState('IDLE'); updateStatus('LISTA'); document.getElementById('response').textContent = ''; };
+        const done = () => {
+            ttsAnalyser = null; ttsFreq = null;
+            setState('IDLE');
+            updateStatus(voiceConversationActive ? 'LISTA — modo voz' : 'LISTA');
+            document.getElementById('response').textContent = '';
+            resolve();
+        };
         u.onend = done;
         u.onerror = done;
         synth.speak(u);
+        });
     }
 
     function stopSpeaking() {
@@ -2099,6 +2146,8 @@
         const vrm = document.getElementById('cfg-vrm').value.trim();
         cfg.wakeWord = document.getElementById('cfg-wake').checked;
         cfg.useVision = document.getElementById('cfg-vision').checked;
+        cfg.browserOnlyStt = document.getElementById('cfg-browser-stt').checked;
+        cfg.browserOnlyTts = document.getElementById('cfg-browser-tts').checked;
         cfg.memory = (document.getElementById('cfg-memory') && document.getElementById('cfg-memory').value) || '';
 
         cfg.userName = user;
@@ -2110,6 +2159,8 @@
         localStorage.setItem('ava_vrm_base', vrm);
         localStorage.setItem('ava_wake', cfg.wakeWord ? '1' : '0');
         localStorage.setItem('ava_vision', cfg.useVision ? '1' : '0');
+        localStorage.setItem('ava_browser_stt', cfg.browserOnlyStt ? '1' : '0');
+        localStorage.setItem('ava_browser_tts', cfg.browserOnlyTts ? '1' : '0');
         localStorage.setItem('ava_memory', cfg.memory);
 
         hideConfig();
@@ -2128,10 +2179,21 @@
         localStorage.removeItem('ava_vrm_base');
         localStorage.removeItem('ava_wake');
         localStorage.removeItem('ava_vision');
+        localStorage.removeItem('ava_browser_stt');
+        localStorage.removeItem('ava_browser_tts');
         localStorage.removeItem('ava_memory');
-        cfg = { apiUrl: '/api/chat', userName: '', vrmBase: '', wakeWord: true, useVision: true, memory: '' };
+        cfg = { apiUrl: '/api/chat', userName: '', vrmBase: '', wakeWord: true, useVision: false, browserOnlyStt: true, browserOnlyTts: false, memory: '' };
         const memEl = document.getElementById('cfg-memory');
         if (memEl) memEl.value = '';
+        document.getElementById('cfg-user').value = '';
+        document.getElementById('cfg-api').value = cfg.apiUrl;
+        document.getElementById('cfg-vrm').value = '';
+        document.getElementById('cfg-wake').checked = true;
+        const elSttR = document.getElementById('cfg-browser-stt');
+        if (elSttR) elSttR.checked = true;
+        const elTtsR = document.getElementById('cfg-browser-tts');
+        if (elTtsR) elTtsR.checked = false;
+        document.getElementById('cfg-vision').checked = false;
         showConfig();
     }
 
@@ -2157,6 +2219,10 @@
         document.getElementById('cfg-api').value = cfg.apiUrl;
         document.getElementById('cfg-vrm').value = cfg.vrmBase;
         document.getElementById('cfg-wake').checked = cfg.wakeWord;
+        const elStt = document.getElementById('cfg-browser-stt');
+        if (elStt) elStt.checked = cfg.browserOnlyStt;
+        const elTts = document.getElementById('cfg-browser-tts');
+        if (elTts) elTts.checked = cfg.browserOnlyTts;
         document.getElementById('cfg-vision').checked = cfg.useVision;
         const memIn = document.getElementById('cfg-memory');
         if (memIn) memIn.value = cfg.memory || '';
@@ -2168,9 +2234,12 @@
         }
 
         if (cfg.userName && cfg.wakeWord) {
+            scheduleWakeRestart();
             try {
                 const p = await navigator.permissions.query({ name: 'microphone' });
-                if (p.state === 'granted') scheduleWakeRestart();
+                if (p.state !== 'granted' && allowDeepgramStt() && _SRClass === null) {
+                    updateStatus('LISTA — permite micrófono cuando Chrome pregunte para decir «AVA»');
+                }
             } catch (_) {}
         }
 

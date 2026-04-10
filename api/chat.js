@@ -35,6 +35,43 @@ function abortMs(ms) {
   return c.signal;
 }
 
+/** Hora y fecha local para contexto (timezone por env o México por defecto). Una línea corta. */
+function getAmbientTimeBlock() {
+  try {
+    const tz = process.env.AVA_TIMEZONE || 'America/Mexico_City';
+    const now = new Date();
+    const line = new Intl.DateTimeFormat('es-MX', {
+      timeZone: tz,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(now);
+    return `\n[Contexto horario (${tz}): ${line}. Úsalo si encaja con la pregunta; no lo recites de corrido.]\n`;
+  } catch {
+    return '';
+  }
+}
+
+const MOTIVATION_LINES = [
+  'Un paso a la vez también es avanzar.',
+  'Hoy es buen día para ordenar una prioridad.',
+  'La claridad viene después de nombrar el problema.',
+  'Pequeña mejora sostenida > gran ráfaga abandonada.',
+  'Cuida el foco: una cosa menos en la cabeza ya es victoria.',
+];
+
+function getRandomMotivationBlock(userContent) {
+  if (process.env.AVA_SKIP_MOTIVATION === '1') return '';
+  const raw = String(userContent || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const asks = /\b(animo|animar|motiv|inspir|frase buena|consejo|estoy mal|down|triste|agotad|estres)\b/.test(raw);
+  if (!asks && Math.random() > 0.14) return '';
+  const line = MOTIVATION_LINES[Math.floor(Math.random() * MOTIVATION_LINES.length)];
+  return `\n[Micro-motivación opcional (solo si encaja; no digas que te lo pasaron): ${line}]\n`;
+}
+
 /** Clima en tiempo real (sin API key) vía Open-Meteo — solo cuando el último mensaje lo pide */
 async function fetchWeatherContextForMessage(userContent) {
   const raw = String(userContent || '');
@@ -441,8 +478,16 @@ export default async function handler(req, res) {
     : '';
 
   const enrichment = [weatherCtx, quoteCtx, factCtx, jokeCtx, historyCtx, newsCtx].filter(Boolean).join('');
+  const ambientTime = getAmbientTimeBlock();
+  const motivation = getRandomMotivationBlock(lastUserMsg?.content);
   const systemPrompt =
-    (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) + SYSTEM_SUFFIX + visionHint + enrichment + memoryBlock;
+    (system || AVATAR_PROMPTS[name] || AVATAR_PROMPTS.AVA) +
+    SYSTEM_SUFFIX +
+    visionHint +
+    ambientTime +
+    motivation +
+    enrichment +
+    memoryBlock;
 
   const hasVision = !!(vision && vision.base64 && String(vision.base64).length > 100);
 
