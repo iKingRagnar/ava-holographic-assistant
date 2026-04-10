@@ -270,6 +270,8 @@
         9: {pitch:1.08, rate:1.08, pref:'female'}, // KAI
     };
     const VOICE_FEMALE_HINTS = ['Dalia', 'Marina', 'Salome', 'Camila', 'Elena', 'Female', 'Mia', 'Sofia', 'Laura', 'Helena', 'Beatriz', 'Catalina', 'Valentina', 'Abril', 'Elvira', 'Neural', 'Mujer', 'Femenino'];
+    /** Preferencia por índice de avatar (coincide con nombres Edge/neural en muchos SO) — voz distinta por personaje */
+    const BROWSER_VOICE_NAME_HINT = ['Dalia', 'Salome', 'Beatriz', 'Elena', 'Camila', 'Catalina', 'Marina', 'Elvira', 'Abril', 'Valentina'];
     const CAPS = {
         0:{t:'ASISTENTE HOLOGRÁFICA',s:['BI & Datos','Gestión de agenda','Asistente personal','Apoyo emocional']},
         1:{t:'COMPAÑERA DE GAMING',s:['Coaching','Análisis de partidas','Estrategias','Motivación']},
@@ -1534,14 +1536,17 @@
 
     function hasWakePhrase(text) {
         const n = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        // "aba" = error común de reconocimiento; inicio de frase o tras pausa
-        return /\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|esc[uú]chame|escucha\s*ava|oye\s*ava)\b/i.test(n)
-            || /(?:^|[\s,;])(ava|aba)(?:[\s,;]|$)/i.test(n);
+        if (/\b(ava|aba|hey\s*ava|hola\s*ava|buen(as|os)\s*ava|buenas\s*ava|ok\s*ava|okey\s*ava|despierta|empieza|esc[uú]chame|escucha\s*ava|oye\s*ava)\b/i.test(n)) return true;
+        if (/\b(buen(os|as)\s+(d[ií]a|tarde|noche)\s*,?\s*ava)\b/i.test(n)) return true;
+        if (/(?:^|[\s,;])(ava|aba)(?:[\s,;]|$)/i.test(n)) return true;
+        if (/^\s*(ava|aba)\s*[,.]?\s*$/i.test(n.trim())) return true;
+        return false;
     }
 
     function stripWakePhrases(text) {
         return text
-            .replace(/\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|esc[uú]chame|escucha\s*ava|oye\s*ava)\b/gi, ' ')
+            .replace(/\b(ava|aba|hey\s*ava|hola\s*ava|buen(as|os)\s*ava|buenas\s*ava|ok\s*ava|okey\s*ava|despierta|empieza|esc[uú]chame|escucha\s*ava|oye\s*ava)\b/gi, ' ')
+            .replace(/\b(buen(os|as)\s+(d[ií]a|tarde|noche)\s*,?\s*ava)\b/gi, ' ')
             .replace(/\s+/g, ' ')
             .trim();
     }
@@ -1589,6 +1594,12 @@
         wakeRec.onerror = (e) => {
             if (e.error === 'aborted') return;
             console.warn('Wake STT:', e.error);
+            if (e.error === 'not-allowed') {
+                updateStatus('Micrófono bloqueado — permite acceso en ajustes del navegador o TV');
+            } else if (voiceConversationActive === false && cfg.wakeWord && state === 'IDLE') {
+                clearTimeout(wakeRestartTimer);
+                wakeRestartTimer = setTimeout(() => startWakeWord(), 600);
+            }
         };
         wakeRec.onend = () => {
             wakeRec = null;
@@ -1628,24 +1639,37 @@
         }, 340);
     }
 
+    /** Desbloquea pipeline de audio en WebView/TV: un getUserMedia corto con permiso ya concedido. */
+    async function primeMicrophoneStreamIfGranted() {
+        try {
+            const p = await navigator.permissions.query({ name: 'microphone' });
+            if (p.state !== 'granted') return;
+            const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+            s.getTracks().forEach(t => t.stop());
+        } catch (e) {
+            console.warn('primeMic:', e.message);
+        }
+    }
+
     /** Si el mic ya está autorizado, activa TTS y reinicia wake/STT sin tocar el botón. */
     async function bootstrapHandsFreeMic() {
-        const kick = () => {
+        const kick = async () => {
             _userInteracted = true;
-            ensureTtsContextRunning().catch(() => {});
+            await ensureTtsContextRunning();
+            await primeMicrophoneStreamIfGranted();
             scheduleWakeRestart();
         };
         try {
             const p = await navigator.permissions.query({ name: 'microphone' });
             if (p.state === 'granted') {
-                kick();
+                await kick();
             } else {
                 scheduleWakeRestart();
                 if (p.state !== 'granted' && allowDeepgramStt() && _SRClass === null) {
                     updateStatus('LISTA — permite el mic una vez; luego «AVA» funciona solo');
                 }
             }
-            const onPerm = () => { if (p.state === 'granted') kick(); };
+            const onPerm = async () => { if (p.state === 'granted') await kick(); };
             if (typeof p.addEventListener === 'function') p.addEventListener('change', onPerm);
             else p.onchange = onPerm;
         } catch (_) {
@@ -2130,12 +2154,15 @@
         u.rate = vp.rate;
         const pickVoice = () => {
             const all = synth.getVoices();
-            const maleName = (n) => /Jorge|Tom[aá]s|Lorenzo|Alvaro|Gonzalo|Pablo|Diego|Male|male|hombre|David|Guy|Mark|Fred|George|Brian|Daniel|James|Microsoft\s+David/i.test(n);
+            const maleName = (n) => /Jorge|Tom[aá]s|Lorenzo|Alvaro|Gonzalo|Pablo|Diego|Male|male|hombre|masculino|David|Guy|Mark|Fred|George|Brian|Daniel|James|Aaron|Microsoft\s+David|Google\s+UK\s+English\s+Male/i.test(n);
             const femaleOk = (v) => {
                 const n = v.name || '';
                 if (maleName(n)) return false;
                 return VOICE_FEMALE_HINTS.some(h => n.includes(h)) || /female|mujer|femenino|Neural|Natural|Dalia|Marina|Salome|Camila|Elena/i.test(n);
             };
+            const hint = BROWSER_VOICE_NAME_HINT[Math.min(currentIdx, BROWSER_VOICE_NAME_HINT.length - 1)];
+            const byHint = all.filter(v => v.lang && v.lang.startsWith('es') && femaleOk(v) && (v.name || '').includes(hint));
+            if (byHint.length) return byHint[0];
             const neural = all.filter(v => v.lang && v.lang.startsWith('es') && femaleOk(v) &&
                 (v.name.includes('Neural') || v.name.includes('Natural') || v.name.includes('Online')));
             if (neural.length) return neural[currentIdx % neural.length];

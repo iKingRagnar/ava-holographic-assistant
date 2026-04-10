@@ -1,19 +1,17 @@
-// OpenAI TTS — tts-1, solo voces femeninas / neutras suaves (sin onyx, echo, sage, ash masculinos)
+// OpenAI TTS — tts-1, solo voces femeninas (nova, shimmer, coral, fable). Sin alloy/onyx/echo/sage/ash/ballad.
 // Requires OPENAI_API_KEY in Vercel environment variables
-//
-// OpenAI: nova, shimmer, coral, fable suelen sonar femeninas; alloy es neutra — todas en español por el texto.
 
 const AVATAR_VOICES = [
-  { voice: 'nova',    speed: 1.0  }, // AVA   — cálida
-  { voice: 'shimmer', speed: 1.08 }, // KIRA  — brillante
-  { voice: 'coral',   speed: 0.94 }, // ZANE  — grave femenina
-  { voice: 'fable',   speed: 1.02 }, // FAKER — clara
-  { voice: 'nova',    speed: 0.92 }, // SAO   — pausada
-  { voice: 'shimmer', speed: 1.12 }, // NEON  — rápida
-  { voice: 'coral',   speed: 1.06 }, // YUKI  — suave
-  { voice: 'fable',   speed: 0.98 }, // REI   — directa
-  { voice: 'alloy',   speed: 0.9  }, // MIRA  — serena
-  { voice: 'nova',    speed: 1.05 }, // KAI   — cálida social
+  { voice: 'nova',    speed: 1.0  }, // AVA
+  { voice: 'shimmer', speed: 1.1  }, // KIRA
+  { voice: 'coral',   speed: 0.93 }, // ZANE
+  { voice: 'fable',   speed: 1.03 }, // FAKER
+  { voice: 'nova',    speed: 0.91 }, // SAO
+  { voice: 'shimmer', speed: 1.14 }, // NEON
+  { voice: 'fable',   speed: 1.07 }, // YUKI
+  { voice: 'coral',   speed: 1.04 }, // REI
+  { voice: 'shimmer', speed: 0.87 }, // MIRA
+  { voice: 'coral',   speed: 1.09 }, // KAI
 ];
 
 export default async function handler(req, res) {
