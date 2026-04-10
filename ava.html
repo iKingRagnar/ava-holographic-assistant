@@ -2,16 +2,13 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#000510">
     <title>AVA - Holographic AI Assistant</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-        html,body{width:100%;min-height:100%;min-height:100dvh;overflow:hidden;font-family:'Segoe UI','Roboto',sans-serif;touch-action:manipulation;background:#000}
-        
+        html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI','Roboto',sans-serif;touch-action:none;background:#000}
+
         /* === Atmosphere background === */
         .atmosphere{position:fixed;inset:0;z-index:0;
             background:radial-gradient(ellipse 120% 100% at 50% 110%, #0a0e2a 0%, #050818 40%, #000 70%);
@@ -23,12 +20,10 @@
         /* === Scanlines === */
         .scanlines{position:fixed;inset:0;pointer-events:none;z-index:100;
             background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,157,.015) 2px,rgba(0,255,157,.015) 4px);
-            animation:scan 4s linear infinite;
         }
-        @keyframes scan{0%{background-position:0 0}100%{background-position:0 100%}}
 
         /* === Three.js canvas === */
-        #avatar-canvas{position:fixed;inset:0;z-index:10;touch-action:none;-webkit-transform:translateZ(0);transform:translateZ(0)}
+        #avatar-canvas{position:fixed;inset:0;z-index:10}
 
         /* === Particles overlay === */
         #particles{position:fixed;inset:0;pointer-events:none;z-index:50}
@@ -39,25 +34,25 @@
         }
 
         /* === Branding === */
-        .branding{position:fixed;top:max(18px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:60;
-            font-size:clamp(18px, 5.5vw, 30px);font-weight:200;letter-spacing:clamp(6px, 2vw, 14px);color:#00ff9d;
+        .branding{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:60;
+            font-size:30px;font-weight:200;letter-spacing:14px;color:#00ff9d;
             text-shadow:0 0 20px rgba(0,255,157,.7),0 0 40px rgba(0,255,157,.3);
             pointer-events:none;user-select:none;
         }
 
         /* === Avatar selector === */
-        .avatar-selector{position:fixed;top:max(58px, calc(env(safe-area-inset-top) + 42px));left:50%;transform:translateX(-50%);display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:96vw;z-index:60;padding:0 4px}
+        .avatar-selector{position:fixed;top:62px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:60}
         .avatar-dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.25);cursor:pointer;transition:.3s}
         .avatar-dot:hover{transform:scale(1.4)}
         .avatar-dot.active{box-shadow:0 0 14px currentColor;border-color:#fff;transform:scale(1.25)}
 
         /* === Capability panel === */
-        .capability{position:fixed;top:max(118px, calc(env(safe-area-inset-top) + 100px));left:50%;transform:translateX(-50%);text-align:center;z-index:55;max-width:92%;padding:0 8px}
+        .capability{position:fixed;top:95px;left:50%;transform:translateX(-50%);text-align:center;z-index:55;max-width:85%}
         .cap-title{font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;opacity:.8}
         .cap-skills{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
         .skill-tag{background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.25);padding:2px 8px;border-radius:12px;font-size:9px}
 
-        /* === Base ring (3D decoration behind avatar) === */
+        /* === Base ring (3D decoration behind avatar, behind everything) === */
         .base-ring{position:fixed;bottom:4px;left:50%;transform:translateX(-50%);
             width:200px;height:52px;border:2px solid #00ff9d;border-radius:50%;z-index:15;transition:.3s;
             box-shadow:0 0 20px rgba(0,255,157,.4),inset 0 0 15px rgba(0,255,157,.15);pointer-events:none}
@@ -73,23 +68,19 @@
         @keyframes pulse-talk{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.07)}}
 
         /* === Status & response === */
-        .status-area{position:fixed;bottom:max(270px, calc(env(safe-area-inset-bottom) + 248px));left:50%;transform:translateX(-50%);
-            z-index:60;text-align:center;width:92%;max-width:500px;pointer-events:none}
-        @media (max-width: 520px) {
-            .status-area{bottom:max(240px, calc(env(safe-area-inset-bottom) + 218px))}
-            .response{max-height:72px;font-size:13px}
-        }
+        .status-area{position:fixed;bottom:270px;left:50%;transform:translateX(-50%);
+            z-index:60;text-align:center;width:90%;max-width:500px;pointer-events:none}
         .status-text{font-size:11px;color:rgba(0,255,157,.65);text-transform:uppercase;letter-spacing:3px;margin-bottom:4px}
-        .transcript{font-size:clamp(12px, 3.4vw, 13px);color:#fff;min-height:18px;text-shadow:0 0 8px rgba(255,255,255,.2)}
-        .response{font-size:clamp(12px, 3.6vw, 14px);color:#00ff9d;margin-top:4px;text-shadow:0 0 12px rgba(0,255,157,.4);line-height:1.35;max-height:56px;overflow:hidden}
+        .transcript{font-size:13px;color:#fff;min-height:18px;text-shadow:0 0 8px rgba(255,255,255,.2)}
+        .response{font-size:14px;color:#00ff9d;margin-top:4px;text-shadow:0 0 12px rgba(0,255,157,.4);line-height:1.35;max-height:56px;overflow:hidden}
 
         /* === Chat input === */
-        .chat-box{position:fixed;bottom:max(108px, calc(env(safe-area-inset-bottom) + 86px));left:50%;transform:translateX(-50%);
-            z-index:65;width:min(92vw, 440px);display:flex;gap:8px}
+        .chat-box{position:fixed;bottom:108px;left:50%;transform:translateX(-50%);
+            z-index:65;width:88vw;max-width:440px;display:flex;gap:8px}
         .chat-box.hidden{display:none}
-        .chat-input{flex:1;padding:12px 16px;background:rgba(0,0,0,.85);
+        .chat-input{flex:1;padding:11px 18px;background:rgba(0,0,0,.85);
             border:2px solid rgba(0,255,157,.5);border-radius:26px;
-            color:#00ff9d;font-size:16px;outline:none}
+            color:#00ff9d;font-size:14px;outline:none}
         .chat-input::placeholder{color:rgba(0,255,157,.4)}
         .chat-input:focus{border-color:#00ff9d;box-shadow:0 0 18px rgba(0,255,157,.25)}
         .chat-send{width:44px;height:44px;min-width:44px;border-radius:50%;border:2px solid rgba(0,255,157,.6);
@@ -100,7 +91,7 @@
         /* === MIC BUTTON — always visible, big, centered === */
         .mic-btn{
             position:fixed !important;
-            bottom:max(22px, env(safe-area-inset-bottom)) !important;
+            bottom:22px !important;
             left:50% !important;
             transform:translateX(-50%) !important;
             width:70px;height:70px;border-radius:50%;
@@ -123,23 +114,21 @@
         .mic-btn.talking{border-color:#00ff9d;animation:mic-glow-talk .4s ease-in-out infinite}
         @keyframes mic-glow{0%,100%{box-shadow:0 0 25px rgba(0,170,255,.6),0 0 70px rgba(0,170,255,.25)}50%{box-shadow:0 0 50px rgba(0,170,255,1),0 0 110px rgba(0,170,255,.5)}}
         @keyframes mic-glow-talk{0%,100%{box-shadow:0 0 25px rgba(0,255,157,.5)}50%{box-shadow:0 0 55px rgba(0,255,157,1)}}
-
         .mic-label{
             position:fixed !important;
-            bottom:max(96px, calc(env(safe-area-inset-bottom) + 74px)) !important;
+            bottom:96px !important;
             left:50% !important;
             transform:translateX(-50%) !important;
             z-index:9999 !important;
             color:rgba(0,255,157,.85);
             font-size:10px;letter-spacing:2px;
-            text-transform:uppercase;pointer-events:none;white-space:normal;max-width:min(96vw, 420px);text-align:center;line-height:1.25;
+            text-transform:uppercase;pointer-events:none;white-space:nowrap;
             text-shadow:0 0 10px rgba(0,255,157,.5);
             animation:fade-pulse 3s ease-in-out infinite}
         @keyframes fade-pulse{0%,100%{opacity:.5}50%{opacity:1}}
 
         /* === Config overlay === */
-        .config-overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;
-            padding:max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left))}
+        .config-overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
         .config-overlay.hidden{display:none}
         .config-title{font-size:26px;color:#00ff9d;letter-spacing:10px;margin-bottom:25px;text-shadow:0 0 20px rgba(0,255,157,.7)}
         .config-form{width:100%;max-width:380px}
@@ -152,7 +141,6 @@
             color:#000;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:3px;cursor:pointer;margin-top:6px;transition:.2s}
         .cfg-btn:active{transform:scale(.97);box-shadow:0 0 25px rgba(0,255,157,.4)}
         .cfg-hint{color:rgba(255,255,255,.4);font-size:11px;margin-top:16px;text-align:center}
-        .cfg-note{color:rgba(0,255,157,.55);font-size:10px;line-height:1.45;margin:10px 0 14px;text-align:left;max-width:100%}
 
         /* === Loading === */
         .loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:150;display:none}
@@ -162,7 +150,7 @@
         @keyframes spin{to{transform:rotate(360deg)}}
 
         /* === Hints === */
-        .hint{position:fixed;bottom:max(8px, env(safe-area-inset-bottom));font-size:9px;color:rgba(0,255,157,.25);z-index:50;max-width:46vw;overflow:hidden;text-overflow:ellipsis}
+        .hint{position:fixed;bottom:8px;font-size:9px;color:rgba(0,255,157,.25);z-index:50}
         .hint-l{left:10px}
         .hint-r{right:10px}
     </style>
@@ -173,7 +161,9 @@
     <canvas id="avatar-canvas"></canvas>
     <canvas id="particles"></canvas>
     <div class="holo-glow"></div>
+
     <div class="branding" id="branding">A V A</div>
+
     <div class="avatar-selector" id="avatar-selector">
         <div class="avatar-dot active" data-i="0" style="background:#00ff9d" title="AVA"></div>
         <div class="avatar-dot" data-i="1" style="background:#ff69b4" title="KIRA"></div>
@@ -186,27 +176,35 @@
         <div class="avatar-dot" data-i="8" style="background:#6600ff" title="MIRA"></div>
         <div class="avatar-dot" data-i="9" style="background:#66ff00" title="KAI"></div>
     </div>
+
     <div class="capability" id="cap-panel">
         <div class="cap-title" id="cap-title" style="color:#00ff9d">ASISTENTE HOLOGRÁFICA</div>
         <div class="cap-skills" id="cap-skills"></div>
     </div>
+
     <div class="base-ring idle" id="base-ring"></div>
+
     <div class="status-area">
         <div class="status-text" id="status-text">INICIANDO...</div>
         <div class="transcript" id="transcript"></div>
         <div class="response" id="response"></div>
     </div>
+
     <div class="chat-box" id="chat-box">
-        <input type="text" class="chat-input" id="chat-input" placeholder="Escribe tu mensaje..." enterkeyhint="send" inputmode="text" autocomplete="off">
-        <button class="chat-send" id="chat-send">▶</button>
+        <input type="text" class="chat-input" id="chat-input" placeholder="Escribe tu mensaje...">
+        <button class="chat-send" id="chat-send">&#9654;</button>
     </div>
+
     <video id="vision-cam" playsinline muted autoplay style="position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;z-index:0" aria-hidden="true"></video>
-    <div class="mic-label" id="mic-label">🎤 «AVA» / «hola AVA» = voz continua hands-free · di «para» o «chao» para cerrar</div>
+
+    <div class="mic-label" id="mic-label">&#127908; Di «AVA» y habla sin parar; «para» o texto cierra el modo. Space / mic</div>
     <div class="mic-btn" id="mic-btn">
         <svg viewBox="0 0 24 24" id="mic-icon"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
         <svg viewBox="0 0 24 24" id="stop-icon" style="display:none"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
     </div>
+
     <div class="loading" id="loading"><div class="spinner"></div><div class="load-text" id="load-text">CARGANDO</div></div>
+
     <div class="config-overlay" id="config-overlay">
         <div class="config-title">A V A</div>
         <div class="config-form">
@@ -215,197 +213,2023 @@
             <label class="cfg-label">URL del Endpoint (dejar vacío para usar /api/chat)</label>
             <input type="text" class="cfg-input" id="cfg-api" placeholder="/api/chat">
             <label class="cfg-label">URL base de avatares VRM (opcional)</label>
-            <input type="text" class="cfg-input" id="cfg-vrm" placeholder="https://tu-cdn.com/vrm/">
-            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:10px;cursor:pointer">
-                <input type="checkbox" id="cfg-wake" checked> Activación por voz (AVA, hola ava, aba, ok ava…)
-            </label>
-            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:10px;cursor:pointer">
-                <input type="checkbox" id="cfg-browser-stt" checked> Preferir Web Speech (sin servidor)
-            </label>
-            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:10px;cursor:pointer">
-                <input type="checkbox" id="cfg-browser-tts"> TTS solo del navegador
-            </label>
+            <input type="text" class="cfg-input" id="cfg-vrm" placeholder="https://tu-cdn.com/vrm/ (deja vacío para usar /public/)">
             <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:12px;cursor:pointer">
-                <input type="checkbox" id="cfg-vision"> Cámara + visión
+                <input type="checkbox" id="cfg-wake" checked> Activación por voz (AVA, despierta, empieza…)
             </label>
-            <p class="cfg-note">En Android TV / Google TV Box: permite micrófono siempre. Di «AVA» y nunca más toques nada.</p>
-            <label class="cfg-label">Memoria persistente</label>
-            <textarea class="cfg-input ta" id="cfg-memory" rows="4" placeholder="Contexto que AVA debe recordar..."></textarea>
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:16px;cursor:pointer">
+                <input type="checkbox" id="cfg-vision" checked> Cámara + visión (Gemini/OpenAI) para ver el entorno
+            </label>
+            <label class="cfg-label">Memoria persistente (opcional)</label>
+            <textarea class="cfg-input ta" id="cfg-memory" rows="4" placeholder="Hechos, preferencias o contexto que AVA debe recordar entre sesiones (se guarda en este navegador). Ej: trabajo en BI, usa Power BI, idioma técnico."></textarea>
             <button class="cfg-btn" id="cfg-go">ACTIVAR AVA</button>
-            <div class="cfg-hint">Ctrl+R resetea | T: texto | Space: voz | 1-0: avatar</div>
+            <div class="cfg-hint">Ctrl+R resetea config | T: texto | Space: voz | 1-0: avatar</div>
         </div>
     </div>
-    <div class="hint hint-l" id="version-hint">AVA v3.1 EXTREMA — 100% hands-free + VTuber natural</div>
+
+    <div class="hint hint-l" id="version-hint">AVA v2.0 — Claude AI</div>
     <div class="hint hint-r">T:texto | Space:voz | 1-0:avatar | N:next</div>
 
-    <!-- Three.js r134 + GLTFLoader + three-vrm -->
+    <!-- Three.js r134 + GLTFLoader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.11/lib/three-vrm.min.js"></script>
 
     <script>
-        // ================================================================
-        // CONFIG & STATE (todo mejorado)
-        // ================================================================
-        const NAMES = ['AVA','KIRA','ZANE','FAKER','SAO','NEON','YUKI','REI','MIRA','KAI'];
-        const COLORS = [0x00ff9d,0xff69b4,0xff3333,0x00aaff,0xaa66ff,0xffaa00,0x00ffff,0xff0066,0x6600ff,0x66ff00];
-        
-        // VOCES 100% FEMENINAS (forzado en todos los TTS)
-        const VOICES = {
-            0: {pitch:1.08, rate:1.02, pref:'Dalia'}, // AVA
-            1: {pitch:1.25, rate:1.05, pref:'Salome'},
-            2: {pitch:0.95, rate:0.98, pref:'Beatriz'},
-            3: {pitch:1.10, rate:1.00, pref:'Elena'},
-            4: {pitch:1.15, rate:0.95, pref:'Camila'},
-            5: {pitch:1.20, rate:1.08, pref:'Catalina'},
-            6: {pitch:1.35, rate:1.03, pref:'Marina'},
-            7: {pitch:0.99, rate:1.06, pref:'Elvira'},
-            8: {pitch:1.18, rate:0.92, pref:'Abril'},
-            9: {pitch:1.05, rate:1.10, pref:'Valentina'}
+    // ================================================================
+    // CONFIG & STATE
+    // ================================================================
+    const NAMES   = ['AVA','KIRA','ZANE','FAKER','SAO','NEON','YUKI','REI','MIRA','KAI'];
+    const COLORS  = [0x00ff9d,0xff69b4,0xff3333,0x00aaff,0xaa66ff,0xffaa00,0x00ffff,0xff0066,0x6600ff,0x66ff00];
+    // Voice profiles per avatar: [pitch, rate, lang preference]
+    const VOICES = {
+        0: {pitch:1.05, rate:1.0,  pref:'female'},   // AVA - profesional, serena
+        1: {pitch:1.35, rate:1.15, pref:'female'},   // KIRA - enérgica, joven
+        2: {pitch:0.85, rate:0.92, pref:'female'},   // ZANE - firme, grave
+        3: {pitch:0.95, rate:1.05, pref:'female'},   // FAKER - coach, precisa
+        4: {pitch:1.15, rate:0.95, pref:'female'},   // SAO - elegante, pausada
+        5: {pitch:1.25, rate:1.1,  pref:'female'},   // NEON - rápida, tech
+        6: {pitch:1.4,  rate:1.0,  pref:'female'},   // YUKI - suave, creativa
+        7: {pitch:0.9,  rate:1.08, pref:'female'},   // REI - directa, técnica
+        8: {pitch:1.2,  rate:0.88, pref:'female'},   // MIRA - tranquila, empática
+        9: {pitch:1.1,  rate:1.12, pref:'female'},   // KAI - carismática, social
+    };
+    const CAPS = {
+        0:{t:'ASISTENTE HOLOGRÁFICA',s:['BI & Datos','Gestión de agenda','Asistente personal','Apoyo emocional']},
+        1:{t:'COMPAÑERA DE GAMING',s:['Coaching','Análisis de partidas','Estrategias','Motivación']},
+        2:{t:'ALIADO TÁCTICO',s:['Táctica','Análisis de oponentes','Presión','Comandos de voz']},
+        3:{t:'COACH PRO ESPORTS',s:['Entrenamiento pro','Técnicas avanzadas','Rendimiento','Competitivo']},
+        4:{t:'ASISTENTE EJECUTIVA',s:['Networking','Comunicación','Proyectos','Presentaciones']},
+        5:{t:'CYBER SPECIALIST',s:['Seguridad digital','Automatización','DevOps','Multiplataforma']},
+        6:{t:'ARTISTA DIGITAL',s:['Diseño visual','Ideas creativas','Arte digital','Edición']},
+        7:{t:'TECH SPECIALIST',s:['Hardware','Software','Optimización','Troubleshooting']},
+        8:{t:'COACH BIENESTAR',s:['Fitness','Meditación','Nutrición','Manejo de estrés']},
+        9:{t:'SOCIAL CONNECTOR',s:['Comunicación','Networking','Comunidades','Eventos']}
+    };
+
+    const VRM_FILES = [
+        '5664079130297924007.vrm','3477026897357566765.vrm','1620000625477528222.vrm',
+        '6395041283196423502.vrm','7413598465746914517.vrm','6842341930685658330.vrm',
+        '4141371705774241586.vrm','247388737517495633.vrm','7062840423830520603.vrm',
+        '6851268443831277502.vrm'
+    ];
+
+    let cfg = {
+        apiUrl: localStorage.getItem('ava_api') || '/api/chat',
+        userName: localStorage.getItem('ava_user') || '',
+        vrmBase: localStorage.getItem('ava_vrm_base') || '',
+        wakeWord: localStorage.getItem('ava_wake') !== '0',
+        useVision: localStorage.getItem('ava_vision') !== '0',
+        /** Notas largo plazo (localStorage); se envían al modelo en cada chat. */
+        memory: localStorage.getItem('ava_memory') || ''
+    };
+
+    let state = 'IDLE';
+    let currentIdx = 0;
+    let msgHistory = [];
+    let recognition = null;
+    let wakeRec = null;
+    let wakeRestartTimer = null;
+    const synth = window.speechSynthesis;
+
+    let visionVideo = null;
+    let visionReady = false;
+    /** Tras decir «AVA», el micrófono se reabre solo tras cada respuesta (conversación continua). */
+    let voiceConversationActive = false;
+    let _activeListenCleanup = null;
+    /** Se pone a false si /api/stt-deepgram falla (p. ej. sin DEEPGRAM_API_KEY en Vercel). */
+    window._deepgramAvailable = true;
+
+    // ================================================================
+    // THREE.JS
+    // ================================================================
+    let scene, camera, renderer, avatarGroup, avatar;
+    let particles3d = [];
+    let time = 0;
+    let currentVRM = null, loadedModel = null;
+    let vrmBlend = {mouth:null, blink:null, all:[]};
+    let _vrmGen = 0;
+    const clock = new THREE.Clock();
+
+    // Mouse tracking
+    let mx = 0, my = 0;
+    document.addEventListener('mousemove', e => {
+        mx = (e.clientX / innerWidth) * 2 - 1;
+        my = -(e.clientY / innerHeight) * 2 + 1;
+    });
+
+    // LookAt target for VRM eye/head tracking
+    let lookAtTarget = null;
+
+    // TTS audio analysis — un solo AudioContext reutilizado (Chrome suspende contextos nuevos sin gesto)
+    let ttsCtx = null, ttsAnalyser = null, ttsFreq = null, _curAudio = null;
+
+    async function ensureTtsContextRunning() {
+        if (!ttsCtx || ttsCtx.state === 'closed') {
+            ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (ttsCtx.state === 'suspended') {
+            await ttsCtx.resume().catch(() => {});
+        }
+        return ttsCtx.state === 'running';
+    }
+
+    // ================================================================
+    // AUTONOMOUS MOVEMENT FSM (Wandering)
+    // ================================================================
+    const AMOVE = {
+        state: 'IDLE',   // IDLE | WALK | GREET | STOP | POINT | SHRUG | STRETCH | DANCE
+        timer: 0.25 + Math.random() * 0.45,
+        targetX: 0,
+        targetRY: 0,
+        greetArm: false,
+        nextState(t) {
+            const r = Math.random();
+            // Más gestos sociales y menos “quieto” pasivo
+            if      (r < 0.22) { this.state = 'WALK';    this.timer = 1.2 + Math.random() * 2.2;   this.targetX = (Math.random()-0.5)*1.5; this.targetRY = (Math.random()-0.5)*0.95; }
+            else if (r < 0.42) { this.state = 'GREET';   this.timer = 1.35 + Math.random() * 1.0;  this.greetArm = Math.random() > 0.5; }
+            else if (r < 0.58) { this.state = 'POINT';   this.timer = 1.15 + Math.random() * 1.0;  this.greetArm = Math.random() > 0.5; }
+            else if (r < 0.68) { this.state = 'SHRUG';   this.timer = 0.9 + Math.random() * 0.85; }
+            else if (r < 0.76) { this.state = 'STRETCH'; this.timer = 1.25 + Math.random() * 0.95; }
+            else if (r < 0.86) { this.state = 'DANCE';   this.timer = 1.85 + Math.random() * 2.4;   }
+            else               { this.state = 'STOP';    this.timer = 0.65 + Math.random() * 1.1; }
+        }
+    };
+
+    // ================================================================
+    // EMOTION SYSTEM — detects mood from AI reply text
+    // ================================================================
+    let _emotion = 'neutral'; // neutral | happy | excited | calm | focused | curious
+    let _emotionTimer = 0;
+
+    function detectEmotion(text) {
+        const t = text.toLowerCase();
+        if (/genial|excelente|perfecto|éxito|logr|fantas|maravill|emocion|alegr|¡+|jaja|haha|claro que sí|por supuesto/.test(t)) return 'happy';
+        if (/urgente|rápido|ahora|inmediat|critic|alerta|cuidado|error|ojo con|atención/.test(t)) return 'excited';
+        if (/tranquil|calma|relax|respira|paz|suave|descans|despacio|sin prisa/.test(t)) return 'calm';
+        if (/analiz|process|calcul|revis|consider|evalu|estudi|paso a paso|en resumen|por tanto/.test(t)) return 'focused';
+        if (/¿qué|¿cómo|¿cuál|¿por qué|¿cuando|interesante|curioso|pregunt|podemos|opciones|alternativ/.test(t)) return 'curious';
+        return 'neutral';
+    }
+
+    // ================================================================
+    // THREE-VRM LOADER (bulletproof)
+    // ================================================================
+    function getVRM() {
+        if (typeof THREE !== 'undefined' && THREE.VRM) return THREE.VRM;
+        const g = typeof globalThis !== 'undefined' ? globalThis : window;
+        const p = g.THREE_VRM || (typeof THREE_VRM !== 'undefined' ? THREE_VRM : null);
+        return p && p.VRM ? p.VRM : null;
+    }
+
+    function loadScript(src) {
+        return new Promise((ok, fail) => {
+            const s = document.createElement('script');
+            s.src = src; s.async = false;
+            s.onload = () => ok(src);
+            s.onerror = () => fail(src);
+            document.head.appendChild(s);
+        });
+    }
+
+    async function ensureVRM() {
+        if (getVRM()) return true;
+        const srcs = [
+            'https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.11/lib/three-vrm.js',
+            'https://unpkg.com/@pixiv/three-vrm@0.6.11/lib/three-vrm.js',
+            '/api/three-vrm.js'
+        ];
+        for (const src of srcs) {
+            try {
+                await loadScript(src);
+                if (getVRM()) { console.log('three-vrm loaded from:', src); return true; }
+            } catch(e) { console.warn('VRM lib fail:', src); }
+        }
+        console.error('Could not load three-vrm from any source');
+        return false;
+    }
+
+    // ================================================================
+    // SCENE SETUP
+    // ================================================================
+    function initScene() {
+        const canvas = document.getElementById('avatar-canvas');
+        scene = new THREE.Scene();
+
+        camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 100);
+        camera.position.set(0, 0.65, 3.8);
+        camera.lookAt(0, 0.3, 0);
+
+        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+
+        // Lights — balanced for VRM MToon shaders
+        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+
+        const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+        dir.position.set(1.5, 2.5, 2);
+        scene.add(dir);
+
+        const dir2 = new THREE.DirectionalLight(0xaaddff, 0.4);
+        dir2.position.set(-1.5, 1, -1);
+        scene.add(dir2);
+
+        // Subtle colored accent from below
+        const pt = new THREE.PointLight(0x00ff9d, 0.15, 8);
+        pt.position.set(0, -0.5, 1.5);
+        scene.add(pt);
+
+        // Holographic grid floor
+        const grid = new THREE.GridHelper(8, 30, 0x002a10, 0x001408);
+        grid.position.y = -0.98;
+        grid.material.opacity = 0.4;
+        grid.material.transparent = true;
+        scene.add(grid);
+
+        // LookAt target for VRM eye tracking
+        lookAtTarget = new THREE.Object3D();
+        lookAtTarget.position.set(0, 1.2, 3);
+        scene.add(lookAtTarget);
+
+        // Subtle fog
+        scene.fog = new THREE.FogExp2(0x000510, 0.06);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+    }
+
+    // ================================================================
+    // VRM BLEND SHAPE HELPERS
+    // ================================================================
+    function cacheBlendShapes(vrm) {
+        vrmBlend = {mouth:null, blink:null, all:[]};
+        const proxy = vrm.blendShapeProxy;
+        if (!proxy) return;
+
+        // In three-vrm 0.6.11, _blendShapeGroups is a Map<string, VRMBlendShapeGroup>
+        let names = [];
+        const groups = proxy._blendShapeGroups;
+        if (groups instanceof Map) {
+            names = Array.from(groups.keys());
+        } else if (groups && typeof groups[Symbol.iterator] === 'function') {
+            for (const g of groups) names.push(typeof g === 'string' ? g : (g.name || ''));
+        } else if (Array.isArray(groups)) {
+            names = groups.map(g => g.name || '').filter(Boolean);
+        } else if (groups && typeof groups === 'object') {
+            names = Object.keys(groups);
+        }
+
+        // If nothing found, use VRM 0.x standard presets
+        if (names.length === 0) {
+            names = ['a','i','u','e','o','blink','blink_l','blink_r','joy','angry','sorrow','fun','neutral'];
+        }
+        vrmBlend.all = names;
+
+        // Find mouth — standard VRM presets: a, i, u, e, o
+        const mouthKeys = ['a','i','u','e','o'];
+        for (const key of mouthKeys) {
+            const found = names.find(n => n.toLowerCase() === key);
+            if (found) { vrmBlend.mouth = found; break; }
+        }
+        if (!vrmBlend.mouth) {
+            vrmBlend.mouth = names.find(n => /mouth|opened|mth|jaw|lip/i.test(n)) || 'a';
+        }
+
+        // Find blink
+        vrmBlend.blink = names.find(n => n.toLowerCase() === 'blink') ||
+                         names.find(n => /blink/i.test(n)) || 'blink';
+
+        console.log('BlendShapes available:', names, '| Mouth:', vrmBlend.mouth, '| Blink:', vrmBlend.blink);
+    }
+
+    function setBlend(proxy, name, val) {
+        if (!proxy || !name) return;
+        try { proxy.setValue(name, Math.max(0, Math.min(1, val))); } catch(e) {}
+    }
+
+    // ================================================================
+    // VRM URL CANDIDATES
+    // ================================================================
+    function vrmUrls(idx) {
+        const name = VRM_FILES[Math.min(Math.max(0, idx), VRM_FILES.length - 1)];
+        const urls = [];
+        const base = cfg.vrmBase.trim();
+        if (base) urls.push(base.replace(/\/$/, '') + '/' + name);
+        const isLocal = ['localhost','127.0.0.1','[::1]',''].includes(location.hostname);
+        if (isLocal) {
+            urls.push('/public/' + name, '/' + name);
+        } else {
+            urls.push('/' + name, '/public/' + name);
+        }
+        return [...new Set(urls)];
+    }
+
+    // ================================================================
+    // LOAD VRM AVATAR
+    // ================================================================
+    function loadVRMAvatar(idx) {
+        const gen = ++_vrmGen;
+        clearAvatar();
+        avatarGroup = new THREE.Group();
+        currentVRM = null;
+        loadedModel = null;
+        vrmBlend = {mouth:null, blink:null, all:[]};
+        const color = COLORS[idx];
+        const urls = vrmUrls(idx);
+        const VRM = getVRM();
+
+        showLoading('CARGANDO AVATAR ' + NAMES[idx] + '...');
+
+        if (!VRM) {
+            console.warn('three-vrm not available, using placeholder');
+            hideLoading();
+            createPlaceholder(idx);
+            return;
+        }
+
+        const loader = new THREE.GLTFLoader();
+
+        const onDone = (gltf) => {
+            if (gen !== _vrmGen) return;
+            VRM.from(gltf).then(vrm => {
+                if (gen !== _vrmGen) return;
+                const model = vrm.scene;
+                model.scale.setScalar(0.92);
+                model.position.y = -0.95;
+                model.rotation.y = Math.PI;
+
+                currentVRM = vrm;
+                loadedModel = model;
+                try { cacheBlendShapes(vrm); } catch(e) { console.warn('BlendShape cache skipped:', e.message); }
+
+                // Set up VRM lookAt to follow mouse target
+                if (vrm.lookAt && lookAtTarget) {
+                    vrm.lookAt.target = lookAtTarget;
+                }
+
+                model.traverse(o => {
+                    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+                });
+
+                // Apply natural rest pose immediately (avoid T-pose on load)
+                applyRestPose(vrm);
+                if (typeof vrm.update === 'function') vrm.update(0);
+
+                avatarGroup.add(model);
+                addBase(color);
+                addParticles3D(color);
+                scene.add(avatarGroup);
+                avatar = avatarGroup;
+                updateUI();
+                hideLoading();
+                updateStatus('LISTA');
+            }).catch(err => {
+                console.error('VRM parse error:', err);
+                hideLoading();
+                createPlaceholder(idx);
+            });
         };
-        const FEMALE_HINTS = ['Dalia','Salome','Beatriz','Elena','Camila','Catalina','Marina','Elvira','Abril','Valentina','Neural','Natural','Female','Mujer'];
 
-        const VRM_FILES = ['5664079130297924007.vrm','3477026897357566765.vrm','1620000625477528222.vrm','6395041283196423502.vrm','7413598465746914517.vrm','6842341930685658330.vrm','4141371705774241586.vrm','247388737517495633.vrm','7062840423830520603.vrm','6851268443831277502.vrm'];
+        const tryUrl = (i) => {
+            if (i >= urls.length) {
+                hideLoading();
+                createPlaceholder(idx);
+                return;
+            }
+            updateLoadText('VRM ' + (i+1) + '/' + urls.length);
+            loader.load(urls[i], onDone,
+                p => { if (p.total > 0) updateLoadText(Math.round(p.loaded/p.total*100) + '%'); },
+                () => tryUrl(i + 1)
+            );
+        };
+        tryUrl(0);
+    }
 
-        let cfg = {
-            apiUrl: localStorage.getItem('ava_api') || '/api/chat',
-            userName: localStorage.getItem('ava_user') || 'Guillermo',
-            vrmBase: localStorage.getItem('ava_vrm_base') || '',
-            wakeWord: true,
-            useVision: localStorage.getItem('ava_vision') === '1',
-            browserOnlyStt: true,
-            browserOnlyTts: false,
-            memory: localStorage.getItem('ava_memory') || ''
+    // ================================================================
+    // PLACEHOLDER AVATAR (beautiful holographic silhouette)
+    // ================================================================
+    function createPlaceholder(idx) {
+        clearAvatar();
+        avatarGroup = new THREE.Group();
+        const c = new THREE.Color(COLORS[idx]);
+
+        const mat = (color, em, op) => new THREE.MeshStandardMaterial({
+            color, emissive: em || color, emissiveIntensity: 0.35, transparent: true, opacity: op || 0.88, roughness: 0.3, metalness: 0.6
+        });
+        const wire = (color) => new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.15 });
+
+        // Head
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 32, 32), mat(0xeeddcc, c));
+        head.position.y = 0.55;
+        avatarGroup.add(head);
+
+        // Eyes
+        const eyeGeo = new THREE.SphereGeometry(0.018, 12, 12);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: c });
+        const le = new THREE.Mesh(eyeGeo, eyeMat); le.position.set(-0.045, 0.57, 0.11);
+        const re = new THREE.Mesh(eyeGeo, eyeMat); re.position.set(0.045, 0.57, 0.11);
+        avatarGroup.add(le, re);
+
+        // Neck
+        const neckMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.09, 16), mat(0xeeddcc, c, 0.8));
+        neckMesh.position.set(0, 0.42, 0);
+        avatarGroup.add(neckMesh);
+
+        // Torso
+        const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.075, 0.38, 20), mat(c, c, 0.85));
+        torso.position.y = 0.18;
+        avatarGroup.add(torso);
+
+        // Torso wireframe overlay
+        const torsoW = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.08, 0.39, 20), wire(c));
+        torsoW.position.y = 0.18;
+        avatarGroup.add(torsoW);
+
+        // Arms
+        const armGeo = new THREE.CylinderGeometry(0.028, 0.022, 0.28, 12);
+        const armM = mat(0xeeddcc, c, 0.7);
+        const la = new THREE.Mesh(armGeo, armM); la.position.set(-0.15, 0.16, 0); la.rotation.z = 0.25;
+        const ra = new THREE.Mesh(armGeo, armM); ra.position.set(0.15, 0.16, 0); ra.rotation.z = -0.25;
+        avatarGroup.add(la, ra);
+
+        // Hips
+        const hipsMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.12, 16), mat(c, c, 0.75));
+        hipsMesh.position.set(0, -0.06, 0);
+        avatarGroup.add(hipsMesh);
+
+        // Legs
+        const legGeo = new THREE.CylinderGeometry(0.035, 0.025, 0.4, 12);
+        const legM = mat(c, c, 0.65);
+        const ll = new THREE.Mesh(legGeo, legM); ll.position.set(-0.055, -0.35, 0);
+        const rl = new THREE.Mesh(legGeo, legM); rl.position.set(0.055, -0.35, 0);
+        avatarGroup.add(ll, rl);
+
+        // Holographic rings around body
+        for (let i = 0; i < 3; i++) {
+            const ring = new THREE.Mesh(
+                new THREE.TorusGeometry(0.15 + i * 0.05, 0.003, 8, 48),
+                new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.12 + i * 0.04 })
+            );
+            ring.position.y = 0.1 + i * 0.25;
+            ring.rotation.x = Math.PI / 2 + (i - 1) * 0.15;
+            ring.userData.ringSpeed = 0.3 + i * 0.15;
+            avatarGroup.add(ring);
+        }
+
+        avatarGroup.scale.setScalar(0.9);
+        avatarGroup.position.y = -0.92;
+        avatarGroup.rotation.y = Math.PI;
+        loadedModel = avatarGroup;
+
+        addBase(COLORS[idx]);
+        addParticles3D(COLORS[idx]);
+        scene.add(avatarGroup);
+        avatar = avatarGroup;
+        updateUI();
+        updateStatus('MODO HOLOGRÁFICO');
+    }
+
+    // ================================================================
+    // BASE & PARTICLES
+    // ================================================================
+    function addBase(color) {
+        const c = new THREE.Color(color);
+        const ring = new THREE.Mesh(
+            new THREE.RingGeometry(0.4, 0.5, 64),
+            new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = -0.94;
+        ring.renderOrder = -1;
+        avatarGroup.add(ring);
+
+        // Inner glow disc
+        const disc = new THREE.Mesh(
+            new THREE.CircleGeometry(0.38, 64),
+            new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false })
+        );
+        disc.rotation.x = -Math.PI / 2;
+        disc.position.y = -0.93;
+        disc.renderOrder = -2;
+        avatarGroup.add(disc);
+    }
+
+    function addParticles3D(color) {
+        particles3d = [];
+        for (let i = 0; i < 25; i++) {
+            const p = new THREE.Mesh(
+                new THREE.SphereGeometry(0.012 + Math.random() * 0.012, 8, 8),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 })
+            );
+            const angle = Math.random() * Math.PI * 2;
+            const r = 0.5 + Math.random() * 0.5;
+            const h = -0.3 + Math.random() * 2;
+            p.position.set(Math.cos(angle) * r, h, Math.sin(angle) * r);
+            p.userData = { angle, r, h, speed: 0.004 + Math.random() * 0.008, fSpeed: 0.4 + Math.random() * 0.5, fOff: Math.random() * Math.PI * 2 };
+            avatarGroup.add(p);
+            particles3d.push(p);
+        }
+    }
+
+    function clearAvatar() {
+        if (avatarGroup) scene.remove(avatarGroup);
+        avatarGroup = new THREE.Group();
+        particles3d = [];
+    }
+
+    // ================================================================
+    // AUTONOMOUS ANIMATION ENGINE
+    // ================================================================
+    function animate() {
+        requestAnimationFrame(animate);
+        const delta = clock.getDelta();
+        time += delta;
+        const t = time;
+
+        if (!avatar) { renderer.render(scene, camera); return; }
+
+        if (currentVRM) {
+            animateVRM(t, delta);
+        } else {
+            animatePlaceholder(t);
+        }
+
+        // 3D particles orbit
+        particles3d.forEach((p, i) => {
+            p.userData.angle += p.userData.speed;
+            p.position.x = Math.cos(p.userData.angle) * p.userData.r;
+            p.position.z = Math.sin(p.userData.angle) * p.userData.r;
+            p.position.y = p.userData.h + Math.sin(t * p.userData.fSpeed + p.userData.fOff) * 0.12;
+            p.material.opacity = 0.3 + Math.sin(t * 1.5 + i) * 0.25;
+        });
+
+        renderer.render(scene, camera);
+    }
+
+    // ---- VRM animation (autonomous + reactive) ----
+    function animateVRM(t, delta) {
+        const vrm = currentVRM;
+        const humanoid = vrm.humanoid;
+        if (!humanoid) return;
+
+        const B = (name) => humanoid.getBoneNode ? humanoid.getBoneNode(name) : null;
+        const lerp = THREE.MathUtils.lerp;
+
+        if (!avatarGroup.userData.phys) {
+            avatarGroup.userData.phys = {
+                handL: { x: 0, y: 0, z: 0 }, handR: { x: 0, y: 0, z: 0 },
+                foreL: { x: 0, y: 0, z: 0 }, foreR: { x: 0, y: 0, z: 0 },
+                neckY: 0, neckX: 0, spineTw: 0, headY: 0, headX: 0
+            };
+        }
+        const P = avatarGroup.userData.phys;
+        const organic = (tt, s) =>
+            Math.sin(tt * 0.73 + s) * 0.5 + Math.sin(tt * 1.19 + s * 1.7) * 0.28 + Math.sin(tt * 2.07 + s * 0.3) * 0.14;
+        const damp = (c, t, rate) => lerp(c, t, 1 - Math.exp(-rate * Math.min(delta, 0.05)));
+
+        // Afinación por estado: calma vs expresividad vs “peso” en extremidades
+        const phys = {
+            IDLE:      { hipOsc: 1.06, tw: 1.1,  breath: 1.05, headDamp: 9.2,  neckMul: { y: 0.62, x: 0.55 }, lagF: 5.7, lagH: 4.9, legWA: 1.02, legWS: 1,    legW: 1 },
+            LISTENING: { hipOsc: 0.76, tw: 0.65, breath: 0.78, headDamp: 7.8,  neckMul: { y: 0.56, x: 0.5 },  lagF: 6.6, lagH: 5.8, legWA: 0.88, legWS: 0.95, legW: 0.88 },
+            TALKING:   { hipOsc: 1.2,  tw: 1.28, breath: 1.18, headDamp: 11.5, neckMul: { y: 0.66, x: 0.6 },  lagF: 9.4, lagH: 8.1, legWA: 1.1,  legWS: 1.06, legW: 1.06 },
+            THINKING:  { hipOsc: 0.88, tw: 0.82, breath: 0.9,  headDamp: 7.2,  neckMul: { y: 0.64, x: 0.57 }, lagF: 5.9, lagH: 5.2, legWA: 0.93, legWS: 0.92, legW: 0.92 },
+        };
+        const ph = phys[state] || phys.IDLE;
+
+        // Update lookAt target from mouse position (FAST response)
+        if (lookAtTarget) {
+            const tgtX = mx * 3;
+            const tgtY = my * 2 + 1.2;
+            lookAtTarget.position.x = lerp(lookAtTarget.position.x, tgtX, 0.3);
+            lookAtTarget.position.y = lerp(lookAtTarget.position.y, tgtY, 0.3);
+            lookAtTarget.position.z = 3;
+        }
+
+        // Subtle float
+        avatarGroup.position.y = Math.sin(t * 1.8) * 0.012;
+
+        // --- WANDERING FSM (only when not talking/listening) ---
+        if (state === 'IDLE') {
+            AMOVE.timer -= delta;
+            if (AMOVE.timer <= 0) AMOVE.nextState(t);
+
+            if (AMOVE.state === 'WALK') {
+                avatarGroup.position.x = lerp(avatarGroup.position.x, AMOVE.targetX, 0.025);
+                avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, AMOVE.targetRY, 0.04);
+            } else if (AMOVE.state === 'STOP' || AMOVE.state === 'GREET') {
+                avatarGroup.position.x = lerp(avatarGroup.position.x, 0, 0.02);
+                // Face camera when stopped
+                avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.18) * 0.12, 0.04);
+            } else {
+                // IDLE sway
+                const swayY = Math.sin(t * 0.25) * 0.18 + Math.sin(t * 0.42) * 0.08;
+                avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, swayY, 0.04);
+            }
+        } else if (state === 'LISTENING') {
+            // Face user when listening
+            avatarGroup.position.x = lerp(avatarGroup.position.x, 0, 0.04);
+            avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, mx * 0.15, 0.06);
+        } else if (state === 'THINKING') {
+            avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.6) * 0.2, 0.03);
+        } else {
+            avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.4) * 0.15 + mx * 0.1, 0.05);
+        }
+
+        // --- HIPS primero: peso y balance (todo lo demás reacciona encima) ---
+        const spine = B('spine'), chest = B('chest'), upperChest = B('upperChest');
+        const hips = B('hips');
+        let hipLeanX = 0;
+        if (hips) {
+            const h = ph.hipOsc;
+            if (state === 'IDLE') {
+                hips.rotation.z = (Math.sin(t * 0.55) * 0.065 + Math.sin(t * 0.18) * 0.03 + organic(t, 0.2) * 0.035) * h;
+                hips.rotation.y = (Math.sin(t * 0.35) * 0.055 + organic(t, 1.4) * 0.025) * h;
+                hipLeanX = (Math.sin(t * 0.42) * 0.024 + organic(t, 0.9) * 0.014) * h;
+                hips.rotation.x = hipLeanX;
+            } else if (state === 'TALKING') {
+                hips.rotation.z = (Math.sin(t * 1.85) * 0.075 + Math.sin(t * 0.85) * 0.025) * h;
+                hips.rotation.y = Math.sin(t * 1.4) * 0.065 * h;
+                hipLeanX = Math.sin(t * 2.05) * 0.032 * h;
+                hips.rotation.x = hipLeanX;
+            } else if (state === 'LISTENING') {
+                hips.rotation.z = Math.sin(t * 0.72) * 0.04 * h;
+                hips.rotation.y = mx * 0.055 + Math.sin(t * 0.5) * 0.028 * h;
+                hipLeanX = -0.028 * h;
+                hips.rotation.x = hipLeanX;
+            } else {
+                hips.rotation.z = Math.sin(t * 0.9) * 0.055 * h;
+                hips.rotation.y = Math.sin(t * 0.7) * 0.04 * h;
+                hipLeanX = Math.sin(t * 0.95) * 0.022 * h;
+                hips.rotation.x = hipLeanX;
+            }
+        }
+
+        // --- SPINE / PECHO: respiración + contrarrotación respecto a cadera (cadena natural) ---
+        const breathRate = state === 'TALKING' ? 1.78 : 0.92;
+        const bMul = ph.breath;
+        const br = Math.sin(t * breathRate);
+        const br2 = Math.sin(t * breathRate + 0.55);
+        const tw = organic(t, 1.1) * 0.048 * ph.tw;
+        P.spineTw = damp(P.spineTw, tw, 5);
+
+        if (spine) {
+            spine.rotation.x = (br * 0.072 + Math.sin(t * 0.28) * 0.022) * bMul - hipLeanX * 0.35;
+            spine.rotation.y = P.spineTw + Math.sin(t * 0.21) * 0.032 * bMul;
+            spine.rotation.z = (br2 * 0.038 + Math.sin(t * 0.51) * 0.026 + organic(t, 0.6) * 0.018) * bMul;
+        }
+        if (chest) {
+            chest.rotation.x = br2 * 0.058 * bMul - hipLeanX * 0.45;
+            chest.rotation.y = (Math.sin(t * 0.29) * 0.042 + organic(t, 4) * 0.022) * bMul;
+            chest.rotation.z = (Math.sin(t * 0.36 + 0.8) * 0.032 + Math.sin(t * 0.61) * 0.015) * bMul;
+        }
+        if (upperChest) {
+            upperChest.rotation.x = Math.sin(t * breathRate + 0.22) * 0.045 * bMul;
+            upperChest.rotation.y = (Math.sin(t * 0.33) * 0.028 + organic(t, 2.2) * 0.015) * bMul;
+            upperChest.rotation.z = organic(t, 5) * 0.02 * bMul;
+        }
+
+        // --- CABEZA: objetivo suavizado; CUELLO con inercia (no bloque sólido) ---
+        const head = B('head');
+        const neck = B('neck');
+        if (head) {
+            const mouseW = state === 'IDLE' ? 0.55 : 0.7;
+            const autoW = 1 - mouseW;
+            const autoY = Math.sin(t * 0.18) * 0.22 + Math.sin(t * 0.4) * 0.13 + Math.cos(t * 0.09) * 0.09;
+            const autoX = Math.sin(t * 0.22) * 0.11 + Math.cos(t * 0.32) * 0.07;
+            let tgtY = mx * 0.52 * mouseW + autoY * autoW;
+            let tgtX = my * 0.32 * mouseW + autoX * autoW - 0.03;
+            if (state === 'THINKING') { tgtY += Math.sin(t * 0.8) * 0.2; tgtX += 0.11; }
+            if (state === 'TALKING')  { tgtY += Math.sin(t * 3) * 0.09; tgtX += Math.sin(t * 5) * 0.045; }
+            P.headY = damp(P.headY, tgtY, ph.headDamp);
+            P.headX = damp(P.headX, tgtX, ph.headDamp);
+            head.rotation.y = P.headY;
+            head.rotation.x = P.headX;
+            head.rotation.z = organic(t, 0.45) * 0.035 + Math.sin(t * 0.67) * 0.02;
+        }
+        if (neck) {
+            const hy = head ? P.headY : 0;
+            const hx = head ? P.headX : 0;
+            P.neckY = damp(P.neckY, hy * ph.neckMul.y, 5.5);
+            P.neckX = damp(P.neckX, hx * ph.neckMul.x, 5.5);
+            neck.rotation.y = P.neckY + Math.sin(t * 0.44) * 0.04;
+            neck.rotation.x = P.neckX + Math.sin(t * 0.52) * 0.025;
+            neck.rotation.z = organic(t, 0.8) * 0.022;
+        }
+
+        // --- HOMBROS: acoplamiento suave con tórax (no hombro rígido) ---
+        const lSh = B('leftShoulder'), rSh = B('rightShoulder');
+        const shBre = Math.sin(t * breathRate) * 0.018;
+        if (lSh) { lSh.rotation.x = shBre + organic(t, 3) * 0.025; lSh.rotation.z = Math.sin(t * 0.48) * 0.03; }
+        if (rSh) { rSh.rotation.x = shBre + organic(t, 3.7) * 0.025; rSh.rotation.z = -Math.sin(t * 0.48) * 0.03; }
+
+        // --- ARMS: natural poses per state (never T-pose) ---
+        const la = B('leftUpperArm'), ra = B('rightUpperArm');
+        const lf = B('leftLowerArm'), rf = B('rightLowerArm');
+        const lh = B('leftHand'),     rh = B('rightHand');
+        const sp = 0.06;
+
+        // Breathing-linked shoulder micro-movement
+        const breathShoulder = Math.sin(t * (state === 'TALKING' ? 1.6 : 0.95)) * 0.015;
+
+        if (state === 'IDLE') {
+            if (AMOVE.state === 'GREET') {
+                // Wave gesture — one arm raised
+                const wave = Math.sin(t * 5.5) * 0.3;
+                if (AMOVE.greetArm) {
+                    if (la) { la.rotation.z = lerp(la.rotation.z, -0.95 + wave, 0.14); la.rotation.x = lerp(la.rotation.x, 0.25, 0.1); }
+                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, -(1.25 + breathShoulder + Math.sin(t*0.8)*0.06), sp); ra.rotation.x = lerp(ra.rotation.x, 0.04 + Math.sin(t*0.5)*0.03, sp); }
+                    if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.15 + wave*0.4, 0.1); lf.rotation.x = lerp(lf.rotation.x, -0.1, 0.08); }
+                    if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.12, sp); }
+                } else {
+                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, 0.95 - wave, 0.14); ra.rotation.x = lerp(ra.rotation.x, 0.25, 0.1); }
+                    if (la) { la.rotation.z = lerp(la.rotation.z,  1.25 + breathShoulder + Math.sin(t*0.8+1)*0.06, sp); la.rotation.x = lerp(la.rotation.x, 0.04 + Math.sin(t*0.5)*0.03, sp); }
+                    if (rf) { rf.rotation.y = lerp(rf.rotation.y, -(0.15 + wave*0.4), 0.1); rf.rotation.x = lerp(rf.rotation.x, -0.1, 0.08); }
+                    if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.12, sp); }
+                }
+            } else if (AMOVE.state === 'WALK') {
+                const swing = Math.sin(t * 1.8) * 0.18;
+                if (la) { la.rotation.z = lerp(la.rotation.z,  1.2 + breathShoulder, sp); la.rotation.x = lerp(la.rotation.x,  swing + 0.04, sp); }
+                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.2 + breathShoulder, sp); ra.rotation.x = lerp(ra.rotation.x, -swing + 0.04, sp); }
+                if (lf) { lf.rotation.y = lerp(lf.rotation.y,  0.1 + Math.sin(t*1.8)*0.05, sp); }
+                if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.1 - Math.sin(t*1.8)*0.05, sp); }
+                if (lh) { lh.rotation.z = lerp(lh.rotation.z,  0.04, sp); }
+                if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.04, sp); }
+            } else if (AMOVE.state === 'POINT') {
+                const pointPhase = Math.sin(t * 1.5) * 0.06;
+                if (AMOVE.greetArm) {
+                    if (la) { la.rotation.z = lerp(la.rotation.z, -0.3, 0.1); la.rotation.x = lerp(la.rotation.x, -0.7 + pointPhase, 0.1); }
+                    if (lf) { lf.rotation.y = lerp(lf.rotation.y, -0.3, 0.1); lf.rotation.x = lerp(lf.rotation.x, 0.2, 0.1); }
+                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.25, sp); ra.rotation.x = lerp(ra.rotation.x, 0.04, sp); }
+                } else {
+                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, 0.3, 0.1); ra.rotation.x = lerp(ra.rotation.x, -0.7 + pointPhase, 0.1); }
+                    if (rf) { rf.rotation.y = lerp(rf.rotation.y, 0.3, 0.1); rf.rotation.x = lerp(rf.rotation.x, 0.2, 0.1); }
+                    if (la) { la.rotation.z = lerp(la.rotation.z, 1.25, sp); la.rotation.x = lerp(la.rotation.x, 0.04, sp); }
+                }
+            } else if (AMOVE.state === 'SHRUG') {
+                const shrugPulse = Math.sin(t * 2.5) * 0.04;
+                if (la) { la.rotation.z = lerp(la.rotation.z,  0.75 + shrugPulse, 0.1); la.rotation.x = lerp(la.rotation.x, -0.2, 0.1); }
+                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -0.75 - shrugPulse, 0.1); ra.rotation.x = lerp(ra.rotation.x, -0.2, 0.1); }
+                if (lf) { lf.rotation.y = lerp(lf.rotation.y,  0.4, 0.1); lf.rotation.x = lerp(lf.rotation.x, -0.3, 0.1); }
+                if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.4, 0.1); rf.rotation.x = lerp(rf.rotation.x, -0.3, 0.1); }
+            } else if (AMOVE.state === 'STRETCH') {
+                const stretchProg = Math.min(1, AMOVE.timer > 0.5 ? 1 : AMOVE.timer * 2);
+                if (la) { la.rotation.z = lerp(la.rotation.z,  lerp(1.28, 0.2, stretchProg), 0.05); la.rotation.x = lerp(la.rotation.x, -0.3 * stretchProg, 0.05); }
+                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -lerp(1.28, 0.2, stretchProg), 0.05); ra.rotation.x = lerp(ra.rotation.x, -0.3 * stretchProg, 0.05); }
+            } else if (AMOVE.state === 'DANCE') {
+                const dBeat = Math.sin(t * 3.5) * 0.25;
+                const dBeat2 = Math.cos(t * 3.5) * 0.2;
+                avatarGroup.position.y = Math.sin(t * 3.5) * 0.04;
+                if (la) { la.rotation.z = lerp(la.rotation.z,  0.9 + dBeat, 0.12); la.rotation.x = lerp(la.rotation.x, dBeat2 * 0.5, 0.12); }
+                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -0.9 - dBeat2, 0.12); ra.rotation.x = lerp(ra.rotation.x, dBeat * 0.5, 0.12); }
+                if (lf) { lf.rotation.y = lerp(lf.rotation.y,  dBeat * 0.3, 0.1); }
+                if (rf) { rf.rotation.y = lerp(rf.rotation.y, -dBeat2 * 0.3, 0.1); }
+            } else {
+                // Natural relaxed idle pose — arms at sides, gentle sway
+                const swayL = Math.sin(t*0.6+1.0)*0.06 + Math.sin(t*0.22)*0.03;
+                const swayR = Math.sin(t*0.6+0.0)*0.06 + Math.sin(t*0.22+1)*0.03;
+                if (la) { la.rotation.z = lerp(la.rotation.z,  1.28 + breathShoulder + swayL, sp); la.rotation.x = lerp(la.rotation.x,  0.05 + Math.sin(t*0.4)*0.03, sp); }
+                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.28 + breathShoulder - swayR, sp); ra.rotation.x = lerp(ra.rotation.x,  0.05 + Math.sin(t*0.4+0.6)*0.03, sp); }
+                if (lf) { lf.rotation.y = lerp(lf.rotation.y,  0.10 + Math.sin(t*0.55)*0.05, sp); lf.rotation.x = lerp(lf.rotation.x,  0.04, sp); }
+                if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.10 - Math.sin(t*0.55+0.5)*0.05, sp); rf.rotation.x = lerp(rf.rotation.x,  0.04, sp); }
+                if (lh) { lh.rotation.z = lerp(lh.rotation.z,  0.06 + Math.sin(t*0.3)*0.04, sp); lh.rotation.x = lerp(lh.rotation.x, Math.sin(t*0.45)*0.06, sp); }
+                if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.06 - Math.sin(t*0.3+1)*0.04, sp); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*0.45+0.5)*0.06, sp); }
+            }
+        } else if (state === 'LISTENING') {
+            // Attentive: arms slightly forward, slight lean
+            if (la) { la.rotation.z = lerp(la.rotation.z,  1.1 + breathShoulder + Math.sin(t*1.1)*0.05, 0.05); la.rotation.x = lerp(la.rotation.x, -0.1 + Math.sin(t*0.7)*0.04, 0.05); }
+            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.1 + breathShoulder + Math.sin(t*1.1+0.4)*0.05, 0.05); ra.rotation.x = lerp(ra.rotation.x, -0.1 + Math.sin(t*0.7+0.3)*0.04, 0.05); }
+            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  0.14 + Math.sin(t*1.4)*0.06, sp); lf.rotation.x = lerp(lf.rotation.x, 0.06, sp); }
+            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.14 - Math.sin(t*1.4+0.5)*0.06, sp); rf.rotation.x = lerp(rf.rotation.x, 0.06, sp); }
+            if (lh) { lh.rotation.z = lerp(lh.rotation.z,  0.08, sp); }
+            if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.08, sp); }
+        } else if (state === 'THINKING') {
+            // Right hand near chin, left relaxed at side
+            if (la) { la.rotation.z = lerp(la.rotation.z,  1.2 + breathShoulder, 0.04); la.rotation.x = lerp(la.rotation.x,  0.04, 0.04); }
+            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -0.55, 0.04); ra.rotation.x = lerp(ra.rotation.x, -0.35 + Math.sin(t*1.3)*0.08, 0.04); }
+            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.5 + Math.sin(t*2.5)*0.12, 0.04); rf.rotation.x = lerp(rf.rotation.x, 0.1, 0.04); }
+            if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.1 + Math.sin(t*1.0)*0.08, 0.04); }
+            if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.12, sp); }
+            if (lh) { lh.rotation.z = lerp(lh.rotation.z, 0.05, sp); }
+        } else if (state === 'TALKING') {
+            // Gesticulación más orgánica: varias frecuencias + emoción + “énfasis” alternado
+            const emoAmp = (_emotion === 'happy' || _emotion === 'excited') ? 1.38
+                : (_emotion === 'calm') ? 0.82
+                : (_emotion === 'focused' || _emotion === 'curious') ? 1.12 : 1.05;
+            const beat = Math.sin(t * 4.2);
+            const gL = (Math.sin(t * 2.65) * 0.24 + Math.sin(t * 1.45) * 0.1 + organic(t, 2.3) * 0.14 + beat * 0.06) * emoAmp;
+            const gR = (Math.sin(t * 2.65 + 1.15) * 0.24 + Math.cos(t * 1.55) * 0.1 + organic(t, 3.05) * 0.14 - beat * 0.05) * emoAmp;
+            const talkSp = 0.125;
+            if (la) { la.rotation.z = lerp(la.rotation.z,  1.0 + gL + breathShoulder, talkSp); la.rotation.x = lerp(la.rotation.x, Math.sin(t*2.95)*0.18 + organic(t,1.2)*0.06, talkSp); }
+            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.0 + gR + breathShoulder, talkSp); ra.rotation.x = lerp(ra.rotation.x, Math.sin(t*2.95+0.55)*0.18 + organic(t,1.9)*0.06, talkSp); }
+            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  Math.sin(t*3.15)*0.24 + Math.sin(t*5.1)*0.05, 0.095); lf.rotation.x = lerp(lf.rotation.x, Math.sin(t*2.65)*0.12, 0.095); }
+            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -Math.sin(t*3.15+0.45)*0.24 - Math.sin(t*5.1)*0.05, 0.095); rf.rotation.x = lerp(rf.rotation.x, Math.sin(t*2.65+0.3)*0.12, 0.095); }
+            if (lh) { lh.rotation.z = lerp(lh.rotation.z, Math.sin(t*3.9)*0.16 + organic(t,4)*0.04, talkSp); lh.rotation.x = lerp(lh.rotation.x, Math.sin(t*4.6)*0.11, talkSp); }
+            if (rh) { rh.rotation.z = lerp(rh.rotation.z, Math.sin(t*3.9+1.1)*0.16 + organic(t,4.7)*0.04, talkSp); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*4.6+0.4)*0.11, talkSp); }
+        }
+
+        // --- Antebrazos y manos: inercia (hablar = más rápido; idle/pensar = más “peso”) ---
+        const lagF = ph.lagF;
+        const lagH = ph.lagH;
+        if (lf) {
+            P.foreL.y = damp(P.foreL.y, lf.rotation.y, lagF);
+            P.foreL.x = damp(P.foreL.x, lf.rotation.x, lagF);
+            P.foreL.z = damp(P.foreL.z, lf.rotation.z || 0, lagF * 0.85);
+            lf.rotation.y = P.foreL.y;
+            lf.rotation.x = P.foreL.x;
+            if (lf.rotation.z !== undefined) lf.rotation.z = P.foreL.z;
+        }
+        if (rf) {
+            P.foreR.y = damp(P.foreR.y, rf.rotation.y, lagF);
+            P.foreR.x = damp(P.foreR.x, rf.rotation.x, lagF);
+            P.foreR.z = damp(P.foreR.z, rf.rotation.z || 0, lagF * 0.85);
+            rf.rotation.y = P.foreR.y;
+            rf.rotation.x = P.foreR.x;
+            if (rf.rotation.z !== undefined) rf.rotation.z = P.foreR.z;
+        }
+        if (lh) {
+            P.handL.x = damp(P.handL.x, lh.rotation.x, lagH);
+            P.handL.y = damp(P.handL.y, lh.rotation.y, lagH);
+            P.handL.z = damp(P.handL.z, lh.rotation.z, lagH);
+            lh.rotation.x = P.handL.x;
+            lh.rotation.y = P.handL.y;
+            lh.rotation.z = P.handL.z;
+        }
+        if (rh) {
+            P.handR.x = damp(P.handR.x, rh.rotation.x, lagH);
+            P.handR.y = damp(P.handR.y, rh.rotation.y, lagH);
+            P.handR.z = damp(P.handR.z, rh.rotation.z, lagH);
+            rh.rotation.x = P.handR.x;
+            rh.rotation.y = P.handR.y;
+            rh.rotation.z = P.handR.z;
+        }
+
+        // --- BLEND SHAPES: lip-sync + blink + emotions ---
+        const proxy = vrm.blendShapeProxy;
+        if (proxy) {
+            // Emotion-driven expression blendshapes
+            _emotionTimer = Math.max(0, _emotionTimer - delta);
+            const emo = _emotionTimer > 0 ? _emotion : 'neutral';
+            const eStrength = _emotionTimer > 1 ? 1 : _emotionTimer; // fade out
+            // Use exact names from available blendshapes (case-sensitive match first, then regex)
+            const findBlend = (...keys) => {
+                for (const k of keys) {
+                    const exact = vrmBlend.all.find(n => n === k);
+                    if (exact) return exact;
+                }
+                for (const k of keys) {
+                    const fuzzy = vrmBlend.all.find(n => new RegExp(k, 'i').test(n));
+                    if (fuzzy) return fuzzy;
+                }
+                return null;
+            };
+            const JOY  = findBlend('Joy', 'Fun', 'joy', 'fun', 'happy', 'smile');
+            const SAD  = findBlend('Sorrow', 'sorrow', 'sad');
+            const SURP = findBlend('Surprised', 'surprised', 'Angry', 'angry'); // use Angry for excitement if no surprise
+            // Reset all
+            if (JOY)  setBlend(proxy, JOY,  0);
+            if (SAD)  setBlend(proxy, SAD,  0);
+            if (SURP) setBlend(proxy, SURP, 0);
+            // Apply current emotion
+            if (emo === 'happy'   && JOY)  setBlend(proxy, JOY,  eStrength * 0.75);
+            if (emo === 'excited' && JOY)  setBlend(proxy, JOY,  eStrength * 0.5);
+            if (emo === 'excited' && SURP) setBlend(proxy, SURP, eStrength * 0.35);
+            if (emo === 'calm'    && SAD)  setBlend(proxy, SAD,  eStrength * 0.12);
+            if (emo === 'curious' && JOY)  setBlend(proxy, JOY,  eStrength * 0.3);
+
+            if (state === 'TALKING') {
+                let mOpen = Math.abs(Math.sin(t * 8)) * 0.75;
+                if (ttsAnalyser && ttsFreq) {
+                    ttsAnalyser.getByteFrequencyData(ttsFreq);
+                    let sum = 0;
+                    for (let i = 0; i < ttsFreq.length; i++) sum += ttsFreq[i];
+                    mOpen = Math.min(1, (sum / ttsFreq.length / 255) * 2.8);
+                }
+                setBlend(proxy, vrmBlend.mouth, mOpen);
+                setBlend(proxy, vrmBlend.blink, 0);
+            } else {
+                setBlend(proxy, vrmBlend.mouth, 0);
+                const blinkT = t % (3 + Math.sin(t * 0.1) * 1.5);
+                const isBlinking = blinkT > 2.8;
+                setBlend(proxy, vrmBlend.blink, isBlinking ? 1 : 0);
+            }
+        }
+
+        // --- PIERNAS: marcha con fase desfasada + roll de cadera + rodillas con retraso (no palos sincronizados) ---
+        const lleg = B('leftUpperLeg'), rleg = B('rightUpperLeg');
+        const llleg = B('leftLowerLeg'), rlleg = B('rightLowerLeg');
+        const lfoot = B('leftFoot'), rfoot = B('rightFoot');
+        const ws = (state === 'TALKING' ? 2.35 : state === 'LISTENING' ? 1.15 : 1.72) * ph.legWS;
+        const wa = (state === 'TALKING' ? 0.24 : state === 'LISTENING' ? 0.11 : 0.2) * ph.legWA;
+        const phL = t * ws;
+        const phR = phL + Math.PI * 0.98;
+        const sL = Math.sin(phL);
+        const sR = Math.sin(phR);
+        const hipRoll = organic(t, 0.35) * 0.04;
+        const wLeg = 0.14 * ph.legW;
+        if (lleg) {
+            lleg.rotation.x = lerp(lleg.rotation.x || 0, sL * wa + organic(t, 1.2) * 0.03, wLeg);
+            lleg.rotation.z = lerp(lleg.rotation.z || 0, -sR * wa * 0.35 + hipRoll, wLeg);
+            lleg.rotation.y = lerp(lleg.rotation.y || 0, sL * wa * 0.12, wLeg * 0.85);
+        }
+        if (rleg) {
+            rleg.rotation.x = lerp(rleg.rotation.x || 0, sR * wa + organic(t, 2.1) * 0.03, wLeg);
+            rleg.rotation.z = lerp(rleg.rotation.z || 0, -sL * wa * 0.35 - hipRoll, wLeg);
+            rleg.rotation.y = lerp(rleg.rotation.y || 0, sR * wa * 0.12, wLeg * 0.85);
+        }
+        const kneeL = Math.max(0, Math.sin(phL + 0.95)) * wa * 0.95;
+        const kneeR = Math.max(0, Math.sin(phR + 0.95)) * wa * 0.95;
+        if (llleg) llleg.rotation.x = lerp(llleg.rotation.x || 0, kneeL + Math.sin(phL * 2) * 0.02, wLeg);
+        if (rlleg) rlleg.rotation.x = lerp(rlleg.rotation.x || 0, kneeR + Math.sin(phR * 2) * 0.02, wLeg);
+        if (lfoot) {
+            lfoot.rotation.x = lerp(lfoot.rotation.x || 0, Math.sin(phL + 0.2) * 0.12 + organic(t, 6) * 0.02, wLeg);
+            lfoot.rotation.z = lerp(lfoot.rotation.z || 0, sL * 0.06, wLeg * 0.9);
+        }
+        if (rfoot) {
+            rfoot.rotation.x = lerp(rfoot.rotation.x || 0, Math.sin(phR + 0.2) * 0.12 + organic(t, 6.8) * 0.02, wLeg);
+            rfoot.rotation.z = lerp(rfoot.rotation.z || 0, sR * 0.06, wLeg * 0.9);
+        }
+
+        vrm.update(delta);
+    }
+
+    // ---- Placeholder animation ----
+    function animatePlaceholder(t) {
+        let head, la, ra, torso;
+        avatar.traverse(ch => {
+            if (!ch.isMesh) return;
+            const y = ch.position.y;
+            if (y > 0.5 && ch.geometry.type === 'SphereGeometry' && ch.geometry.parameters.radius > 0.1) head = ch;
+            else if (y > 0.1 && y < 0.2 && ch.position.x < -0.1) la = ch;
+            else if (y > 0.1 && y < 0.2 && ch.position.x > 0.1) ra = ch;
+            else if (y > 0.1 && y < 0.2 && Math.abs(ch.position.x) < 0.05 && ch.geometry.type === 'CylinderGeometry') torso = ch;
+        });
+
+        // Rotate holographic rings
+        avatar.traverse(ch => {
+            if (ch.userData.ringSpeed) ch.rotation.z += ch.userData.ringSpeed * 0.01;
+        });
+
+        const lerp = THREE.MathUtils.lerp;
+
+        // Head follows mouse + autonomous look
+        if (head) {
+            const autoY = Math.sin(t * 0.15) * 0.15 + Math.sin(t * 0.4) * 0.08;
+            const autoX = Math.sin(t * 0.2) * 0.06;
+            head.rotation.y = lerp(head.rotation.y || 0, mx * 0.4 * 0.3 + autoY * 0.7, 0.04);
+            head.rotation.x = lerp(head.rotation.x || 0, my * 0.2 * 0.3 + autoX * 0.7, 0.04);
+        }
+
+        switch (state) {
+            case 'IDLE':
+                avatar.position.y = -0.92 + Math.sin(t * 0.7) * 0.03;
+                avatar.rotation.y = Math.PI + Math.sin(t * 0.18) * 0.1;
+                if (la) { la.rotation.z =  0.25 + Math.sin(t*0.5+1)*0.12; la.rotation.x = Math.sin(t*0.35)*0.08; }
+                if (ra) { ra.rotation.z = -0.25 - Math.sin(t*0.5)*0.12; ra.rotation.x = Math.sin(t*0.35+0.5)*0.08; }
+                break;
+            case 'LISTENING':
+                avatar.position.y = -0.92 + Math.sin(t * 1.2) * 0.015;
+                avatar.rotation.y = Math.PI + Math.sin(t * 0.25) * 0.04;
+                if (la) { la.rotation.z =  0.12 + Math.sin(t*1)*0.06; la.rotation.x = -0.15; }
+                if (ra) { ra.rotation.z = -0.12 - Math.sin(t*1)*0.06; ra.rotation.x = -0.15; }
+                break;
+            case 'THINKING':
+                avatar.position.y = -0.92 + Math.sin(t * 1.5) * 0.015;
+                avatar.rotation.y = Math.PI + Math.sin(t * 0.6) * 0.12;
+                if (ra) { ra.rotation.z = -0.35 + Math.sin(t*1.2)*0.08; ra.rotation.x = -0.4 + Math.sin(t*1.5)*0.08; }
+                if (la) { la.rotation.z = 0.12; la.rotation.x = -0.08; }
+                break;
+            case 'TALKING':
+                avatar.position.y = -0.92 + Math.sin(t * 3) * 0.01;
+                avatar.rotation.y = Math.PI + Math.sin(t * 2) * 0.08;
+                if (la) { la.rotation.z = 0.25 + Math.sin(t*4.5)*0.3; la.rotation.x = Math.sin(t*4)*0.3; }
+                if (ra) { ra.rotation.z = -0.25 - Math.sin(t*4.5+1)*0.3; ra.rotation.x = Math.sin(t*4+0.5)*0.3; }
+                break;
+        }
+    }
+
+    // Huesos VRM 0.x/1.x — three-vrm usa getBoneNode('leftUpperArm'); humanBones es opcional
+    function vrmBoneNode(vrm, name) {
+        const h = vrm && vrm.humanoid;
+        if (!h) return null;
+        if (typeof h.getBoneNode === 'function') {
+            const n = h.getBoneNode(name);
+            if (n) return n;
+        }
+        const hb = h.humanBones;
+        if (hb) {
+            const e = typeof hb.get === 'function' ? hb.get(name) : hb[name];
+            if (e && e.node) return e.node;
+        }
+        return null;
+    }
+
+    // ================================================================
+    // INSTANT REST POSE — elimina T-pose al cargar el VRM
+    // ================================================================
+    function applyRestPose(vrm) {
+        const get = name => vrmBoneNode(vrm, name);
+        const la = get('leftUpperArm'),  ra = get('rightUpperArm');
+        const lf = get('leftLowerArm'),  rf = get('rightLowerArm');
+        const lh = get('leftHand'),      rh = get('rightHand');
+        if (la) { la.rotation.z =  1.35; la.rotation.x = 0.05; }
+        if (ra) { ra.rotation.z = -1.35; ra.rotation.x = 0.05; }
+        if (lf) { lf.rotation.y =  0.15; lf.rotation.x = 0.05; }
+        if (rf) { rf.rotation.y = -0.15; rf.rotation.x = 0.05; }
+        if (lh) { lh.rotation.z =  0.05; }
+        if (rh) { rh.rotation.z = -0.05; }
+
+        const hips = get('hips');
+        if (hips) { hips.rotation.z = 0.02; hips.rotation.x = 0.01; }
+
+        const spine = get('spine'), chest = get('chest');
+        if (spine) { spine.rotation.x = 0.03; spine.rotation.z = 0.01; }
+        if (chest) { chest.rotation.x = 0.02; }
+
+        const ll = get('leftUpperLeg'),  rl = get('rightUpperLeg');
+        const lll = get('leftLowerLeg'), rll = get('rightLowerLeg');
+        if (ll)  { ll.rotation.x  = -0.04; ll.rotation.z  =  0.04; }
+        if (rl)  { rl.rotation.x  = -0.04; rl.rotation.z  = -0.04; }
+        if (lll) { lll.rotation.x =  0.06; }
+        if (rll) { rll.rotation.x =  0.06; }
+    }
+
+    // ================================================================
+    // 2D PARTICLES OVERLAY
+    // ================================================================
+    function initParticles2D() {
+        const cv = document.getElementById('particles');
+        const ctx = cv.getContext('2d');
+        cv.width = innerWidth; cv.height = innerHeight;
+        const ps = Array.from({length: 45}, () => ({
+            x: Math.random() * cv.width, y: Math.random() * cv.height,
+            sz: Math.random() * 1.8 + 0.4, sy: Math.random() * 0.8 + 0.3,
+            op: Math.random() * 0.4 + 0.15
+        }));
+        (function draw() {
+            ctx.clearRect(0, 0, cv.width, cv.height);
+            ps.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.sz, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(0,255,157,${p.op})`; ctx.fill();
+                p.y -= p.sy;
+                if (p.y < -5) { p.y = cv.height + 5; p.x = Math.random() * cv.width; }
+            });
+            requestAnimationFrame(draw);
+        })();
+        window.addEventListener('resize', () => { cv.width = innerWidth; cv.height = innerHeight; });
+    }
+
+    // ================================================================
+    // AI CHAT (Claude via /api/chat)
+    // ================================================================
+    async function processMessage(text) {
+        const raw = String(text || '').trim();
+        const norm = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (voiceConversationActive && /^(para|silencio|cierra|adios|chao|stop|listo|ya basta)(\s|$)/i.test(norm)) {
+            voiceConversationActive = false;
+            stopActiveListen();
+            updateStatus('LISTA — di «AVA» para conversación de voz');
+            setState('IDLE');
+            return;
+        }
+
+        let sendText = raw;
+        if (voiceConversationActive) {
+            sendText = stripWakePhrases(raw).trim();
+            if (!sendText) {
+                setState('IDLE');
+                updateStatus('LISTA');
+                return;
+            }
+        }
+
+        stopWakeWord();
+        setState('THINKING');
+        updateStatus('PENSANDO...');
+        document.getElementById('response').textContent = '';
+
+        if (cfg.useVision) {
+            try { await ensureVisionCamera(); } catch (_) {}
+        }
+
+        msgHistory.push({ role: 'user', content: sendText });
+        if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
+
+        try {
+            const payload = {
+                messages: msgHistory,
+                avatarName: NAMES[currentIdx],
+                memoryContext: (cfg.memory || '').trim()
+            };
+            if (cfg.useVision) {
+                const vis = captureVisionForChat();
+                if (vis) payload.vision = vis;
+            }
+            const res = await fetch(cfg.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+
+            const reply = data.content?.[0]?.text || data.message || data.response || data.choices?.[0]?.message?.content || data.text || '';
+            if (!reply) throw new Error('Empty response');
+
+            msgHistory.push({ role: 'assistant', content: reply });
+            document.getElementById('response').textContent = reply.substring(0, 150);
+
+            // Detect emotion and apply to avatar expressions
+            _emotion = detectEmotion(reply);
+            _emotionTimer = 12; // expresión + gestos acordes un poco más largos
+
+            // Trigger matching gesture
+            if (_emotion === 'happy' || _emotion === 'excited') {
+                AMOVE.state = 'GREET'; AMOVE.timer = 2; AMOVE.greetArm = Math.random() > 0.5;
+            } else if (_emotion === 'curious' || _emotion === 'focused') {
+                AMOVE.state = 'POINT'; AMOVE.timer = 1.5; AMOVE.greetArm = Math.random() > 0.5;
+            }
+
+            speak(reply);
+        } catch (err) {
+            console.error('Chat error:', err);
+            const fallback = 'Lo siento, no pude conectar con el servidor. Verifica tu ANTHROPIC_API_KEY.';
+            updateStatus('ERROR DE CONEXIÓN');
+            speak(fallback);
+        }
+    }
+
+    // ================================================================
+    // SPEECH RECOGNITION
+    // ================================================================
+    // STT constructor — stored but NOT used as persistent instance
+    // Chrome requires a FRESH instance on every listen attempt
+    let _SRClass = null;
+
+    function initSTT() {
+        _SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!_SRClass) {
+            const micBtn = document.getElementById('mic-btn');
+            const canServerStt = window.MediaRecorder && navigator.mediaDevices;
+            if (canServerStt) {
+                updateStatus('LISTA — di «AVA» (STT por servidor) o pulsa el mic');
+                micBtn.title = 'Sin Web Speech en este navegador (p. ej. Firefox): la voz va por STT en servidor. Chrome/Edge pueden usar «AVA» local.';
+            } else {
+                updateStatus('USA EL TEXTO PARA CHATEAR ↓');
+                micBtn.title = 'Sin Web Speech ni grabación de audio en este dispositivo';
+                console.warn('SpeechRecognition not available');
+            }
+        }
+    }
+
+    function stopWakeWord() {
+        if (wakeRec) {
+            try { wakeRec.stop(); } catch (e) {}
+            wakeRec = null;
+        }
+    }
+
+    function hasWakePhrase(text) {
+        const n = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        // "aba" = error común de reconocimiento; inicio de frase o tras pausa
+        return /\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|escuchame|oye\s*ava)\b/i.test(n)
+            || /(?:^|[\s,;])(ava|aba)(?:[\s,;]|$)/i.test(n);
+    }
+
+    function stripWakePhrases(text) {
+        return text
+            .replace(/\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|esc[uú]chame|oye\s*ava)\b/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function startWakeWord() {
+        if (!_SRClass || !cfg.wakeWord) return;
+        if (voiceConversationActive) return;
+        if (state !== 'IDLE') return;
+        const overlay = document.getElementById('config-overlay');
+        if (overlay && !overlay.classList.contains('hidden')) return;
+        if (!cfg.userName) return;
+        stopWakeWord();
+        wakeRec = new _SRClass();
+        wakeRec.lang = 'es-MX';
+        wakeRec.continuous = true;
+        wakeRec.interimResults = true;
+        wakeRec.onresult = (e) => {
+            let line = '';
+            for (let i = 0; i < e.results.length; i++) line += e.results[i][0].transcript;
+            const low = line.trim();
+            if (!hasWakePhrase(low)) return;
+            voiceConversationActive = true;
+            const rest = stripWakePhrases(low);
+            stopWakeWord();
+            _userInteracted = true;
+            if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (ttsCtx.state === 'suspended') ttsCtx.resume().catch(() => {});
+            const afterWakeFast = { silenceStopMs: 1550, minBeforeEnd: 380, rmsSpeech: 0.012 };
+            const primeVision = () => { if (cfg.useVision) ensureVisionCamera(); };
+            if (rest.length > 2) {
+                document.getElementById('transcript').textContent = rest;
+                primeVision();
+                processMessage(rest);
+            } else if (window.MediaRecorder && navigator.mediaDevices) {
+                primeVision();
+                startListeningDeepgram(afterWakeFast);
+            } else {
+                primeVision();
+                startListening({ fastSilence: true });
+            }
+        };
+        wakeRec.onerror = (e) => {
+            if (e.error === 'aborted') return;
+            console.warn('Wake STT:', e.error);
+        };
+        wakeRec.onend = () => {
+            wakeRec = null;
+            if (voiceConversationActive) return;
+            if (cfg.wakeWord && state === 'IDLE' && cfg.userName) {
+                clearTimeout(wakeRestartTimer);
+                wakeRestartTimer = setTimeout(() => startWakeWord(), 220);
+            }
+        };
+        try { wakeRec.start(); } catch (e) { console.warn('Wake start:', e.message); }
+    }
+
+    function scheduleWakeRestart() {
+        clearTimeout(wakeRestartTimer);
+        wakeRestartTimer = setTimeout(() => {
+            if (state !== 'IDLE' || !cfg.userName) return;
+            const overlay = document.getElementById('config-overlay');
+            if (overlay && !overlay.classList.contains('hidden')) return;
+            if (voiceConversationActive) {
+                if (window.MediaRecorder && navigator.mediaDevices) {
+                    startListeningDeepgram({ silenceStopMs: 2650, minBeforeEnd: 580, rmsSpeech: 0.014 });
+                } else if (_SRClass) {
+                    startListening({});
+                }
+            } else if (cfg.wakeWord) {
+                if (_SRClass) {
+                    startWakeWord();
+                } else if (window.MediaRecorder && navigator.mediaDevices && window._deepgramAvailable !== false) {
+                    startListeningDeepgram({
+                        wakeMode: true,
+                        silenceStopMs: 3200,
+                        minBeforeEnd: 700,
+                        rmsSpeech: 0.015
+                    });
+                }
+            }
+        }, 340);
+    }
+
+    async function ensureVisionCamera() {
+        if (!cfg.useVision) return false;
+        visionVideo = document.getElementById('vision-cam');
+        if (visionReady && visionVideo && visionVideo.srcObject) return true;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            });
+            visionVideo.srcObject = stream;
+            await visionVideo.play();
+            if (visionVideo.readyState < 2) {
+                await new Promise((resolve) => {
+                    const done = () => resolve();
+                    visionVideo.onloadeddata = done;
+                    visionVideo.oncanplay = done;
+                    setTimeout(done, 900);
+                });
+            }
+            visionReady = true;
+            return true;
+        } catch (e) {
+            console.warn('Cámara visión:', e.message);
+            visionReady = false;
+            return false;
+        }
+    }
+
+    function captureVisionForChat() {
+        if (!cfg.useVision || !visionReady || !visionVideo || visionVideo.readyState < 2) return null;
+        const w = visionVideo.videoWidth;
+        const h = visionVideo.videoHeight;
+        if (w < 16 || h < 16) return null;
+        const c = document.createElement('canvas');
+        const mx = Math.min(w, 768);
+        const scale = mx / w;
+        c.width = mx;
+        c.height = Math.round(h * scale);
+        const ctx = c.getContext('2d');
+        ctx.drawImage(visionVideo, 0, 0, c.width, c.height);
+        const data = c.toDataURL('image/jpeg', 0.72);
+        const base64 = data.split(',')[1];
+        return { base64, mimeType: 'image/jpeg' };
+    }
+
+    /** Detiene grabación Deepgram o Web Speech (p. ej. al pulsar mic o cambiar modo). */
+    function stopActiveListen() {
+        if (typeof _activeListenCleanup === 'function') {
+            try { _activeListenCleanup(); } catch (e) {}
+            _activeListenCleanup = null;
+        }
+        try { if (recognition) recognition.stop(); } catch (e) {}
+    }
+
+    // Deepgram STT via MediaRecorder — server-side, ultra fast
+    // Falls back to Web Speech if DEEPGRAM_API_KEY not set or mic unavailable
+    async function startListeningDeepgram(opts) {
+        opts = opts || {};
+        const SILENCE_STOP_MS = opts.silenceStopMs != null ? opts.silenceStopMs : 3200;
+        const MIN_MS_BEFORE_END = opts.minBeforeEnd != null ? opts.minBeforeEnd : 700;
+        const RMS_SPEECH = opts.rmsSpeech != null ? opts.rmsSpeech : 0.015;
+        stopActiveListen();
+        stopWakeWord();
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Mic = gesto de usuario: desbloquea TTS (antes speak() silenciaba audio en Firefox sin clic)
+            _userInteracted = true;
+            ensureTtsContextRunning().catch(() => {});
+        } catch(e) {
+            console.warn('Mic access denied, falling back to Web Speech:', e.message);
+            if (_SRClass) {
+                startListening(opts);
+            } else {
+                setState('IDLE');
+                updateStatus('Permite el micrófono o escribe abajo');
+                if (opts.wakeMode) scheduleWakeRestart();
+            }
+            return;
+        }
+
+        setState('LISTENING');
+        {
+            let label = 'ESCUCHANDO...';
+            if (voiceConversationActive) label = 'TE ESCUCHO…';
+            else if (opts.wakeMode) label = 'ESCUCHANDO — di «AVA»…';
+            updateStatus(label);
+        }
+        document.getElementById('transcript').textContent = '';
+
+        const chunks = [];
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus' : 'audio/webm';
+        let recorder = new MediaRecorder(stream, { mimeType });
+        let actx = new AudioContext();
+        let silenceIntervalId = null;
+
+        const endSilenceMonitor = () => {
+            if (silenceIntervalId) {
+                clearInterval(silenceIntervalId);
+                silenceIntervalId = null;
+            }
+            try { if (actx && actx.state !== 'closed') actx.close(); } catch (e) {}
+            actx = null;
         };
 
-        let state = 'IDLE';
-        let currentIdx = 0;
-        let recognition = null;
-        let _userInteracted = false;
-        let voiceConversationActive = false;
-        let _autoEnabled = true;
-        let _autoSpeechTimer = null;
+        _activeListenCleanup = () => {
+            endSilenceMonitor();
+            try { if (recorder && recorder.state === 'recording') recorder.stop(); } catch (e) {}
+        };
 
-        // THREE.JS + VRM
-        let scene, camera, renderer, avatarGroup, currentVRM, clock;
-        let particles3d = [];
-        let time = 0;
-        let lookAtTarget = null;
-        let vrmBlend = {mouth:null, blink:null, all:[]};
+        recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
 
-        // ================================================================
-        // ANIMACIÓN ULTRA NATURAL VTUBER (30+ mejoras extremas)
-        // ================================================================
-        function vrmBoneNode(vrm, name) {
-            return vrm && vrm.humanoid ? vrm.humanoid.getBoneNode(name) : null;
-        }
-
-        function applyRestPose(vrm) {
-            if (!vrm || !vrm.humanoid) return;
-            const B = n => vrmBoneNode(vrm, n);
-            const hips = B('hips'), spine = B('spine'), chest = B('chest'), head = B('head');
-            const lua = B('leftUpperArm'), rua = B('rightUpperArm');
-            const lha = B('leftHand'), rha = B('rightHand');
-
-            if (hips) hips.rotation.set(0.08, 0.04, 0.05);
-            if (spine) spine.rotation.set(0.15, 0.03, 0.06);
-            if (chest) chest.rotation.set(0.10, -0.02, -0.04);
-            if (head) head.rotation.set(0.05, 0.01, 0.03);
-            if (lua) lua.rotation.set(0.38, 0.48, 1.38);
-            if (rua) rua.rotation.set(0.38, -0.48, -1.38);
-            if (lha) lha.rotation.set(0.28, 0.18, 0.25);
-            if (rha) rha.rotation.set(0.28, -0.18, -0.25);
-        }
-
-        function animateVRM(t, delta) {
-            if (!currentVRM || !currentVRM.humanoid) return;
-            const B = n => vrmBoneNode(currentVRM, n);
-            const lerp = THREE.MathUtils.lerp;
-
-            const organic = (seed, freq = 1, amp = 1) => 
-                Math.sin(t * 0.73 * freq + seed) * 0.5 * amp +
-                Math.sin(t * 1.19 * freq + seed * 1.7) * 0.28 * amp +
-                Math.sin(t * 2.07 * freq + seed * 0.3) * 0.14 * amp +
-                Math.sin(t * 4.8 * freq + seed * 2.1) * 0.07 * amp;
-
-            // Física base
-            avatarGroup.position.y = Math.sin(t * 1.65) * 0.032;
-
-            // HIPS sway femenino
-            const hips = B('hips');
-            if (hips) {
-                hips.rotation.z = Math.sin(t * 0.52) * 0.095 + organic(0.3, 0.8, 0.05);
-                hips.rotation.x = Math.sin(t * 0.68) * 0.058;
+        recorder.onstop = async () => {
+            _activeListenCleanup = null;
+            endSilenceMonitor();
+            stream.getTracks().forEach(t => t.stop());
+            if (state !== 'LISTENING') return;
+            if (chunks.length === 0) {
+                setState('IDLE');
+                updateStatus('LISTA');
+                if (opts.wakeMode) scheduleWakeRestart();
+                return;
             }
 
-            // RESPIRACIÓN + pecho
-            const breath = Math.sin(t * 0.95) * 0.105;
-            const spine = B('spine'), chest = B('chest');
-            if (spine) { spine.rotation.x = breath * 1.25; spine.rotation.z = organic(0.45, 1.1, 0.065); }
-            if (chest) chest.rotation.x = breath * 0.98;
+            updateStatus('PROCESANDO...');
+            const blob = new Blob(chunks, { type: mimeType });
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const b64 = reader.result.split(',')[1];
+                try {
+                    const r = await fetch('/api/stt-deepgram', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ audio: b64, mimeType })
+                    });
+                    if (!r.ok) throw new Error('Deepgram HTTP ' + r.status);
+                    const d = await r.json();
+                    const txt = (d.transcript || '').trim();
+                    if (txt) {
+                        document.getElementById('transcript').textContent = txt;
+                        if (opts.wakeMode) {
+                            if (!hasWakePhrase(txt)) {
+                                setState('IDLE');
+                                updateStatus('LISTA');
+                                scheduleWakeRestart();
+                                return;
+                            }
+                            voiceConversationActive = true;
+                            const rest = stripWakePhrases(txt).trim();
+                            document.getElementById('transcript').textContent = rest || txt;
+                            const afterWakeFast = { silenceStopMs: 1550, minBeforeEnd: 380, rmsSpeech: 0.012 };
+                            const primeVision = () => { if (cfg.useVision) ensureVisionCamera(); };
+                            if (rest.length > 2) {
+                                primeVision();
+                                processMessage(rest);
+                            } else if (window.MediaRecorder && navigator.mediaDevices) {
+                                primeVision();
+                                startListeningDeepgram(afterWakeFast);
+                            } else if (_SRClass) {
+                                primeVision();
+                                startListening({ fastSilence: true });
+                            } else {
+                                setState('IDLE');
+                                updateStatus('LISTA');
+                                scheduleWakeRestart();
+                            }
+                        } else {
+                            processMessage(txt);
+                        }
+                    } else {
+                        setState('IDLE');
+                        updateStatus('LISTA');
+                        if (opts.wakeMode) scheduleWakeRestart();
+                    }
+                } catch(e) {
+                    console.warn('Deepgram STT unavailable, switching to Web Speech:', e.message);
+                    window._deepgramAvailable = false;
+                    setState('IDLE');
+                    updateStatus('LISTA');
+                    if (_SRClass) {
+                        setTimeout(() => startListening(opts), 100);
+                    } else {
+                        updateStatus('VOZ: revisa DEEPGRAM_API_KEY en Vercel o usa Chrome/Edge');
+                    }
+                }
+            };
+            reader.readAsDataURL(blob);
+        };
 
-            // CABEZA micro-saccades + seguimiento
-            const head = B('head');
-            if (head) {
-                head.rotation.y = Math.sin(t * 0.4) * 0.038 + organic(1.2, 0.6, 0.028);
-                head.rotation.x = Math.sin(t * 1.1) * 0.032;
+        const src = actx.createMediaStreamSource(stream);
+        const analyser = actx.createAnalyser();
+        analyser.fftSize = 1024;
+        src.connect(analyser);
+        const buf = new Uint8Array(analyser.fftSize);
+        let silenceMs = 0;
+        const CHECK_MS = 50;
+        const MAX_MS = 60000;
+        let elapsed = 0;
+
+        recorder.start(100);
+
+        silenceIntervalId = setInterval(() => {
+            if (state !== 'LISTENING') {
+                clearInterval(silenceIntervalId);
+                silenceIntervalId = null;
+                try { if (recorder && recorder.state === 'recording') recorder.stop(); } catch (e) {}
+                return;
+            }
+            analyser.getByteTimeDomainData(buf);
+            let s = 0;
+            for (let i = 0; i < buf.length; i++) {
+                const x = (buf[i] - 128) / 128;
+                s += x * x;
+            }
+            const rms = Math.sqrt(s / buf.length);
+            elapsed += CHECK_MS;
+            if (rms >= RMS_SPEECH) silenceMs = 0;
+            else silenceMs += CHECK_MS;
+            const canEndOnSilence = elapsed >= MIN_MS_BEFORE_END && silenceMs >= SILENCE_STOP_MS;
+            if (canEndOnSilence || elapsed >= MAX_MS) {
+                clearInterval(silenceIntervalId);
+                silenceIntervalId = null;
+                try { if (recorder && recorder.state === 'recording') recorder.stop(); } catch (e) {}
+            }
+        }, CHECK_MS);
+    }
+
+    function startListening(opts) {
+        opts = opts || {};
+        if (!_SRClass) return;
+        stopActiveListen();
+        stopWakeWord();
+
+        // Always create a fresh instance — reusing causes channel-closed errors
+        recognition = new _SRClass();
+        recognition.lang = 'es-MX';
+        recognition.continuous = true;      // keep channel open
+        recognition.interimResults = true;  // show partial results
+        recognition.maxAlternatives = 1;
+
+        let finalTranscript = '';
+        let silenceTimer = null;
+        const SILENCE_MS = opts.fastSilence ? 1450 : 2800;
+
+        recognition.onstart = () => {
+            setState('LISTENING');
+            updateStatus(voiceConversationActive ? 'TE ESCUCHO…' : 'ESCUCHANDO...');
+            document.getElementById('transcript').textContent = '';
+            finalTranscript = '';
+        };
+
+        recognition.onresult = (e) => {
+            let interim = '';
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                const seg = e.results[i][0].transcript;
+                if (e.results[i].isFinal) finalTranscript += seg + ' ';
+                else interim += seg;
+            }
+            document.getElementById('transcript').textContent = (finalTranscript + interim).trim();
+
+            // Reset silence timer on each result
+            clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(() => {
+                try { recognition.stop(); } catch(e) {}
+            }, SILENCE_MS);
+        };
+
+        recognition.onerror = (e) => {
+            clearTimeout(silenceTimer);
+            if (e.error === 'no-speech') {
+                // Just stop cleanly — onend will handle it
+                try { recognition.stop(); } catch(_) {}
+                return;
+            }
+            if (e.error === 'aborted') return;
+            console.error('STT error:', e.error);
+            setState('IDLE'); updateStatus('LISTA');
+        };
+
+        recognition.onend = () => {
+            clearTimeout(silenceTimer);
+            if (state !== 'LISTENING') return;
+            const text = finalTranscript.trim() ||
+                         document.getElementById('transcript').textContent.trim();
+            if (text) {
+                processMessage(text);
+            } else {
+                setState('IDLE'); updateStatus('LISTA');
+            }
+        };
+
+        try {
+            recognition.start();
+        } catch(e) {
+            console.error('STT start failed:', e);
+            setState('IDLE'); updateStatus('LISTA');
+        }
+    }
+
+    async function toggleMic() {
+        stopWakeWord();
+        _userInteracted = true;
+        await ensureTtsContextRunning();
+        if (cfg.useVision) ensureVisionCamera();
+
+        if (state === 'TALKING') { stopSpeaking(); return; }
+
+        if (state === 'LISTENING') {
+            stopActiveListen();
+            setState('IDLE');
+            updateStatus(voiceConversationActive ? 'LISTA — sigue en modo voz' : 'LISTA');
+            return;
+        }
+
+        // Try Deepgram first (server-side, best accuracy)
+        // If mic/MediaRecorder not available, fall through to Web Speech
+        if (window.MediaRecorder && navigator.mediaDevices) {
+            startListeningDeepgram();
+            return;
+        }
+
+        // Fallback: Web Speech API
+        if (_SRClass) {
+            setTimeout(startListening, 80);
+            return;
+        }
+
+        // No STT at all — use text
+        document.getElementById('chat-input').focus();
+        updateStatus('ESCRIBE TU MENSAJE ↓');
+    }
+
+    // ================================================================
+    // TTS — ElevenLabs → OpenAI → Edge Neural → Browser fallback
+    // ================================================================
+    let _userInteracted = false;
+
+    // Unlock audio on any first user click/touch — resume() en el mismo tick que el gesto (Chrome)
+    function _unlockAudio() {
+        _userInteracted = true;
+        if (!ttsCtx || ttsCtx.state === 'closed') {
+            ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (ttsCtx.state === 'suspended') ttsCtx.resume();
+        document.removeEventListener('click', _unlockAudio);
+        document.removeEventListener('touchstart', _unlockAudio);
+        document.removeEventListener('keydown', _unlockAudio);
+    }
+    document.addEventListener('click', _unlockAudio);
+    document.addEventListener('touchstart', _unlockAudio);
+    document.addEventListener('keydown', _unlockAudio);
+
+    async function speak(text) {
+        synth.cancel();
+        if (_curAudio) { _curAudio.pause(); _curAudio = null; }
+        ttsAnalyser = null; ttsFreq = null;
+
+        const clean = text.replace(/\*\*/g,'').replace(/\*/g,'').replace(/#/g,'').replace(/`/g,'').replace(/[\[\]()]/g,'').trim();
+        setState('TALKING');
+        updateStatus('HABLANDO...');
+        document.getElementById('response').textContent = clean.substring(0, 150);
+
+        // If user hasn't interacted yet, show text and skip audio (autoplay policy)
+        if (!_userInteracted) {
+            document.getElementById('response').textContent = clean.substring(0, 150);
+            const done = () => { setState('IDLE'); updateStatus('LISTA'); document.getElementById('response').textContent = ''; };
+            setTimeout(done, Math.min(clean.length * 60, 8000));
+            return;
+        }
+
+        // Desbloquear contexto antes del fetch a APIs TTS (Chrome exige contexto ya activado)
+        await ensureTtsContextRunning();
+
+        // TTS chain — Latin Spanish voices first
+        const ttsProviders = [
+            { url: '/api/tts-elevenlabs', label: 'ElevenLabs'      }, // es (if key works)
+            { url: '/api/tts-openai',     label: 'OpenAI TTS'      }, // es-MX Paloma
+            { url: '/api/tts-edge',       label: 'Edge Dalia/MX'   }, // es-MX-DaliaNeural FREE
+            { url: '/api/tts-deepgram',   label: 'Deepgram Aura'   }, // en voice fallback
+        ];
+        for (const p of ttsProviders) {
+            try {
+                const r = await fetch(p.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: clean.substring(0, 1200), avatarIndex: currentIdx })
+                });
+                if (r.ok) {
+                    const d = await r.json();
+                    if (d.audioContent) {
+                        console.log('TTS:', p.label, d.voice || '');
+                        await playBase64Audio(d.audioContent);
+                        return;
+                    }
+                }
+            } catch(e) { console.warn(p.label, 'fail:', e.message); }
+        }
+        // Last resort: browser Web Speech
+        speakBrowser(clean);
+    }
+
+    function playBase64Audio(b64) {
+        return new Promise(done => {
+            const audio = new Audio('data:audio/mp3;base64,' + b64);
+            audio.playsInline = true;
+            audio.setAttribute('playsinline', '');
+            audio.preload = 'auto';
+            _curAudio = audio;
+            const finish = () => {
+                ttsAnalyser = null; ttsFreq = null;
+                setState('IDLE'); updateStatus('LISTA');
+                document.getElementById('response').textContent = '';
+                done();
+            };
+            audio.onended = finish;
+            audio.onerror = () => { console.warn('Audio error'); finish(); };
+            (async () => {
+                ttsAnalyser = null;
+                ttsFreq = null;
+                try {
+                    const running = await ensureTtsContextRunning();
+                    if (running) {
+                        try {
+                            const src = ttsCtx.createMediaElementSource(audio);
+                            ttsAnalyser = ttsCtx.createAnalyser();
+                            ttsAnalyser.fftSize = 256;
+                            ttsAnalyser.smoothingTimeConstant = 0.45;
+                            ttsFreq = new Uint8Array(ttsAnalyser.frequencyBinCount);
+                            src.connect(ttsAnalyser);
+                            ttsAnalyser.connect(ttsCtx.destination);
+                        } catch (e) {
+                            console.warn('Lip-sync omitido:', e.message);
+                        }
+                    }
+                    await audio.play();
+                } catch (e) {
+                    console.warn('TTS Chrome/Firefox fallback:', e && e.message);
+                    try {
+                        await audio.play();
+                    } catch (e2) {
+                        console.error('No se pudo reproducir audio:', e2);
+                        finish();
+                    }
+                }
+            })();
+        });
+    }
+
+    function speakBrowser(text) {
+        const u = new SpeechSynthesisUtterance(text);
+        const vp = VOICES[currentIdx] || VOICES[0];
+        u.lang = 'es-MX';
+        u.pitch = vp.pitch;
+        u.rate = vp.rate;
+        const pickVoice = () => {
+            const all = synth.getVoices();
+            // Priority 1: Neural/Natural Spanish voices (modern browsers)
+            const neural = all.filter(v => v.lang.startsWith('es') &&
+                (v.name.includes('Neural') || v.name.includes('Natural') ||
+                 v.name.includes('Dalia') || v.name.includes('Marina') ||
+                 v.name.includes('Elvira') || v.name.includes('Paulina') ||
+                 v.name.includes('Abril') || v.name.includes('Ximena')));
+            if (neural.length) return neural[currentIdx % neural.length];
+            // Priority 2: any online Spanish voice (online = better quality)
+            const esOnline = all.filter(v => v.lang.startsWith('es') && !v.localService);
+            if (esOnline.length) return esOnline[currentIdx % esOnline.length];
+            // Priority 3: any Spanish voice
+            const es = all.filter(v => v.lang.startsWith('es'));
+            if (es.length) return es[currentIdx % es.length];
+            return null;
+        };
+        const v = pickVoice();
+        if (v) { u.voice = v; console.log('Browser TTS voice:', v.name); }
+        const done = () => { ttsAnalyser = null; ttsFreq = null; setState('IDLE'); updateStatus('LISTA'); document.getElementById('response').textContent = ''; };
+        u.onend = done;
+        u.onerror = done;
+        synth.speak(u);
+    }
+
+    function stopSpeaking() {
+        synth.cancel();
+        if (_curAudio) { _curAudio.pause(); _curAudio = null; }
+        ttsAnalyser = null; ttsFreq = null;
+        setState('IDLE'); updateStatus('LISTA');
+    }
+
+    // ================================================================
+    // UI STATE
+    // ================================================================
+    function setState(s) {
+        state = s;
+        const ring = document.getElementById('base-ring');
+        const mic = document.getElementById('mic-btn');
+        const micI = document.getElementById('mic-icon');
+        const stopI = document.getElementById('stop-icon');
+        ring.className = 'base-ring ' + s.toLowerCase();
+        mic.className = 'mic-btn' + (s === 'LISTENING' ? ' listening' : s === 'TALKING' ? ' talking' : '');
+        micI.style.display = (s === 'IDLE' || s === 'LISTENING') ? 'block' : 'none';
+        stopI.style.display = (s === 'IDLE' || s === 'LISTENING') ? 'none' : 'block';
+        if (s === 'IDLE') scheduleWakeRestart();
+    }
+
+    function updateStatus(t) { document.getElementById('status-text').textContent = t; }
+    function showLoading(t) { document.getElementById('loading').className = 'loading active'; document.getElementById('load-text').textContent = t || 'CARGANDO'; }
+    function hideLoading() { document.getElementById('loading').className = 'loading'; }
+    function updateLoadText(t) { document.getElementById('load-text').textContent = t; }
+
+    function updateUI() {
+        const c = '#' + COLORS[currentIdx].toString(16).padStart(6, '0');
+        document.getElementById('branding').textContent = NAMES[currentIdx].split('').join(' ');
+        document.getElementById('branding').style.color = c;
+        document.getElementById('branding').style.textShadow = `0 0 20px ${c}88, 0 0 40px ${c}44`;
+
+        document.querySelectorAll('.avatar-dot').forEach((d, i) => d.classList.toggle('active', i === currentIdx));
+
+        const cap = CAPS[currentIdx];
+        document.getElementById('cap-title').textContent = cap.t;
+        document.getElementById('cap-title').style.color = c;
+        document.getElementById('cap-skills').innerHTML = cap.s.map(s => `<span class="skill-tag" style="border-color:${c}88;color:${c}">${s}</span>`).join('');
+    }
+
+    // ================================================================
+    // CONFIG
+    // ================================================================
+    function showConfig() { document.getElementById('config-overlay').classList.remove('hidden'); }
+    function hideConfig() { document.getElementById('config-overlay').classList.add('hidden'); }
+
+    function saveConfig() {
+        const user = document.getElementById('cfg-user').value.trim();
+        const api = document.getElementById('cfg-api').value.trim() || '/api/chat';
+        const vrm = document.getElementById('cfg-vrm').value.trim();
+        cfg.wakeWord = document.getElementById('cfg-wake').checked;
+        cfg.useVision = document.getElementById('cfg-vision').checked;
+        cfg.memory = (document.getElementById('cfg-memory') && document.getElementById('cfg-memory').value) || '';
+
+        cfg.userName = user;
+        cfg.apiUrl = api;
+        cfg.vrmBase = vrm;
+
+        localStorage.setItem('ava_user', user);
+        localStorage.setItem('ava_api', api);
+        localStorage.setItem('ava_vrm_base', vrm);
+        localStorage.setItem('ava_wake', cfg.wakeWord ? '1' : '0');
+        localStorage.setItem('ava_vision', cfg.useVision ? '1' : '0');
+        localStorage.setItem('ava_memory', cfg.memory);
+
+        hideConfig();
+        loadVRMAvatar(currentIdx);
+        _userInteracted = true;
+        if (cfg.useVision) ensureVisionCamera();
+        scheduleWakeRestart();
+    }
+
+    function resetConfig() {
+        if (!confirm('¿Resetear configuración?')) return;
+        voiceConversationActive = false;
+        stopActiveListen();
+        localStorage.removeItem('ava_user');
+        localStorage.removeItem('ava_api');
+        localStorage.removeItem('ava_vrm_base');
+        localStorage.removeItem('ava_wake');
+        localStorage.removeItem('ava_vision');
+        localStorage.removeItem('ava_memory');
+        cfg = { apiUrl: '/api/chat', userName: '', vrmBase: '', wakeWord: true, useVision: true, memory: '' };
+        const memEl = document.getElementById('cfg-memory');
+        if (memEl) memEl.value = '';
+        showConfig();
+    }
+
+    // ================================================================
+    // INIT
+    // ================================================================
+    async function init() {
+        updateStatus('CARGANDO LIBRERÍAS...');
+        const hasVRM = await ensureVRM();
+
+        initScene();
+        initParticles2D();
+        initSTT();
+
+        // Load first avatar
+        loadVRMAvatar(0);
+
+        // Start render loop
+        animate();
+
+        // Config check
+        document.getElementById('cfg-user').value = cfg.userName;
+        document.getElementById('cfg-api').value = cfg.apiUrl;
+        document.getElementById('cfg-vrm').value = cfg.vrmBase;
+        document.getElementById('cfg-wake').checked = cfg.wakeWord;
+        document.getElementById('cfg-vision').checked = cfg.useVision;
+        const memIn = document.getElementById('cfg-memory');
+        if (memIn) memIn.value = cfg.memory || '';
+
+        if (!cfg.userName && cfg.apiUrl === '/api/chat') {
+            showConfig();
+        } else if (cfg.userName && cfg.useVision) {
+            ensureVisionCamera();
+        }
+
+        if (cfg.userName && cfg.wakeWord) {
+            try {
+                const p = await navigator.permissions.query({ name: 'microphone' });
+                if (p.state === 'granted') scheduleWakeRestart();
+            } catch (_) {}
+        }
+
+        // Event listeners
+        document.getElementById('mic-btn').addEventListener('click', toggleMic);
+        document.getElementById('mic-btn').addEventListener('touchstart', e => { e.preventDefault(); toggleMic(); });
+
+        document.getElementById('cfg-go').addEventListener('click', saveConfig);
+
+        document.querySelectorAll('.avatar-dot').forEach((dot, i) => {
+            dot.addEventListener('click', () => {
+                currentIdx = i;
+                loadVRMAvatar(i);
+            });
+        });
+
+        // Chat input
+        const chatBox = document.getElementById('chat-box');
+        const chatIn = document.getElementById('chat-input');
+        document.getElementById('chat-send').addEventListener('click', () => {
+            const t = chatIn.value.trim();
+            if (t) { _userInteracted = true; document.getElementById('transcript').textContent = t; voiceConversationActive = false; processMessage(t); chatIn.value = ''; }
+        });
+        chatIn.addEventListener('keypress', e => {
+            if (e.key === 'Enter') {
+                const t = chatIn.value.trim();
+                if (t) { _userInteracted = true; document.getElementById('transcript').textContent = t; voiceConversationActive = false; processMessage(t); chatIn.value = ''; }
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            const isText = document.activeElement === chatIn;
+
+            if (e.key === 't' && !e.ctrlKey && !e.repeat && !isText && state !== 'TALKING') {
+                e.preventDefault(); chatIn.focus(); updateStatus('MODO TEXTO'); return;
+            }
+            if (e.key === 'Escape') { chatIn.blur(); if (state === 'IDLE') updateStatus('LISTA'); return; }
+            if (e.code === 'Space' && !e.repeat && !isText) { e.preventDefault(); toggleMic(); return; }
+            if (e.ctrlKey && e.key === 'r') { e.preventDefault(); resetConfig(); return; }
+            if (!isText && !e.ctrlKey) {
+                if (e.key >= '1' && e.key <= '9') { e.preventDefault(); currentIdx = parseInt(e.key) - 1; loadVRMAvatar(currentIdx); }
+                if (e.key === '0') { e.preventDefault(); currentIdx = 9; loadVRMAvatar(9); }
+                if (e.key === 'n') { e.preventDefault(); currentIdx = (currentIdx + 1) % 10; loadVRMAvatar(currentIdx); }
+            }
+        });
+
+        // Voices
+        synth.onvoiceschanged = () => synth.getVoices();
+
+        updateStatus('LISTA');
+        console.log('AVA v2.0 initialized with Claude AI');
+
+        // Show first autonomous phrase quickly (text-only until user interacts)
+        setTimeout(startAutonomousSpeech, 4000);
+    }
+
+    // ================================================================
+    // AUTONOMOUS SPEECH — avatar speaks on its own
+    // ================================================================
+    const AUTO_PHRASES = [
+        // Greetings & presence
+        '{name}, ¿en qué puedo ayudarte hoy?',
+        'Aquí estoy, lista cuando me necesites.',
+        '¿Tienes alguna pregunta para mí?',
+        'Puedo ayudarte con {cap}. ¿Por dónde empezamos?',
+        // Personality-based observations
+        'Soy {avatar}. Mi especialidad es {cap}.',
+        'Estoy procesando nuevas ideas para ti.',
+        '¿Sabías que puedo hablar de {cap}? Solo pregunta.',
+        'Buen momento para explorar algo nuevo.',
+        // Prompts to interact
+        'Di «AVA» o «despierta» para hablar sin tocar nada, o usa el micrófono.',
+        'También puedes escribirme abajo si lo prefieres.',
+        '¿Tienes algo en mente? Cuéntame.',
+        'Estoy escuchando... cuando quieras.',
+    ];
+
+    let _autoSpeechTimer = null;
+    let _autoEnabled = true;
+
+    function getAutoPhrase() {
+        const cap = CAPS[currentIdx];
+        const skills = cap?.s || ['asistencia'];
+        const skill = skills[Math.floor(Math.random() * skills.length)];
+        const name = cfg.userName || 'amigo';
+        const avatar = NAMES[currentIdx];
+        const phrase = AUTO_PHRASES[Math.floor(Math.random() * AUTO_PHRASES.length)];
+        return phrase
+            .replace('{name}', name)
+            .replace('{cap}', skill)
+            .replace('{avatar}', avatar);
+    }
+
+    function startAutonomousSpeech() {
+        if (!_autoEnabled) return;
+        scheduleNextAutoSpeech();
+    }
+
+    function scheduleNextAutoSpeech() {
+        const delay = (12 + Math.random() * 20) * 1000;
+        _autoSpeechTimer = setTimeout(async () => {
+            if (!_autoEnabled) return;
+            if (state !== 'IDLE') {
+                _autoSpeechTimer = setTimeout(scheduleNextAutoSpeech, 8000);
+                return;
+            }
+            const phrase = getAutoPhrase();
+            // Always show text on screen
+            document.getElementById('response').textContent = phrase.substring(0, 150);
+            setState('TALKING');
+            updateStatus('HABLANDO...');
+
+            if (_userInteracted) {
+                // User has clicked — audio is unlocked, use full speak()
+                speak(phrase);
+            } else {
+                // No interaction yet — show text only, animate mouth
+                const readTime = Math.min(phrase.length * 55, 7000);
+                setTimeout(() => {
+                    setState('IDLE');
+                    updateStatus('LISTA');
+                    document.getElementById('response').textContent = '';
+                    scheduleNextAutoSpeech();
+                }, readTime);
+                return;
             }
 
-            // BRAZOS + manos
-            const la = B('leftUpperArm'), ra = B('rightUpperArm');
-            const lh = B('leftHand'), rh = B('rightHand');
-            const emoAmp = (state === 'TALKING') ? 1.45 : 1.0;
+            // Wait for speech to finish then schedule next
+            const wait = setInterval(() => {
+                if (state === 'IDLE') { clearInterval(wait); scheduleNextAutoSpeech(); }
+            }, 400);
+        }, delay);
+    }
 
-            if (la) la.rotation.z = lerp(la.rotation.z || 0, 1.40 + organic(2.1, 1.2, 0.09) * emoAmp, 0.32);
-            if (ra) ra.rotation.z = lerp(ra.rotation.z || 0, -1.40 + organic(2.1, 1.2, 0.09) * -emoAmp, 0.32);
-
-            // Dedos micro-fidgets
-            if (lh) lh.rotation.set(0.28 + organic(3, 2, 0.14), 0.20, 0.28);
-            if (rh) rh.rotation.set(0.28 + organic(3.2, 2, 0.14), -0.20, -0.28);
-
-            // FIDGETS IDLE extremos
-            if (state === 'IDLE' && Math.random() < 0.012) {
-                if (spine) spine.rotation.z += (Math.random() - 0.5) * 0.18;
-            }
-
-            currentVRM.update(delta);
-        }
-
-        // ================================================================
-        // CARGA VRM + SPRING BONES
-        // ================================================================
-        async function loadVRMAvatar(idx) {
-            // (código completo original mantenido y mejorado)
-            // ... (mantengo toda la lógica de loadVRMAvatar original pero con Spring Bones forzados)
-            console.log('%c✅ Avatar cargado con física extrema', 'color:#00ff9d;font-weight:bold');
-        }
-
-        // ================================================================
-        // WAKE WORD HANDS-FREE (mejorado)
-        // ================================================================
-        function startHandsFreeWakeWord() {
-            // lógica ultra-rápida con 1.5s silencio y múltiples triggers
-            console.log('%c🚀 Wake-word 100% hands-free activado', 'color:#00ff9d');
-        }
-
-        // ================================================================
-        // TTS 100% FEMENINO
-        // ================================================================
-        async function speak(text) {
-            // fuerza voz femenina en todos los proveedores
-            // (código original mantenido + mejora)
-        }
-
-        // ================================================================
-        // INIT COMPLETO (todo el código original mejorado)
-        // ================================================================
-        async function init() {
-            console.log('%c🚀 AVA v3.1 EXTREMA - Todo mejorado', 'color:#00ff9d;font-size:18px');
-            // toda la inicialización original + mejoras de animación y wake-word
-            // ... (todo el init original + animate loop con nueva animateVRM)
-        }
-
-        window.addEventListener('load', init);
+    window.addEventListener('load', init);
     </script>
 </body>
 </html>
