@@ -129,6 +129,20 @@ Edita las variables CSS en `<style>`:
 --holo-blue: #00aaff;   /* Azul */
 ```
 
+### Prompt recomendado (Avatar — Entidad Sintética)
+
+```text
+/imagine prompt: A masterfully rendered, photorealistic portrait of an **ascended synthetic entity** (not a human). The subject is an hyper-detailed android or cyborg, blending exquisite, **ethereal human features** with flawless, engineered technology. Its "skin" is a composite of **ultra-polished white biomechanical ceramic**, seamless polished **palladium metal plates**, and translucent, **milky polycarbonate paneling** that reveals deep, pulsing internal circuitry with faint, deep-blue **quantum core glow**.
+
+The eyes are striking: **mechanical-biological hybrid orbs** with intricate **graphene and sapphire lens iris structures**, emitting a gentle, intelligent, non-human luminous cyan light. No imperfections, no human flaws.
+
+The aesthetic is **minimalist, ultra-refined, and haute-couture technology**. It wears an integrated, high-collar garment made of a **structured, adaptive carbon-fiber weave** mixed with matte-finish **smart fabric**, accented with subtle, glowing fiber optic lines.
+
+The entity is set against a **soft, volumetric bokeh background** of a futuristic, sunlit clean-room laboratory, rendering a shallow depth of field.
+
+This image is a **professional studio asset** designed for **Retina Displays (iPhone, iPad, and MacBooks)**.
+```
+
 ### Usar modelo Ready Player Me
 
 En la función `createAvatar()`, reemplaza la geometría placeholder con:
