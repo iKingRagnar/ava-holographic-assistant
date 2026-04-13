@@ -114,6 +114,26 @@
         .mic-btn.talking{border-color:#00ff9d;animation:mic-glow-talk .4s ease-in-out infinite}
         @keyframes mic-glow{0%,100%{box-shadow:0 0 25px rgba(0,170,255,.6),0 0 70px rgba(0,170,255,.25)}50%{box-shadow:0 0 50px rgba(0,170,255,1),0 0 110px rgba(0,170,255,.5)}}
         @keyframes mic-glow-talk{0%,100%{box-shadow:0 0 25px rgba(0,255,157,.5)}50%{box-shadow:0 0 55px rgba(0,255,157,1)}}
+
+        .screen-btn{
+            position:fixed !important;
+            bottom:22px !important;
+            left:calc(50% + 92px) !important;
+            transform:translateX(-50%) !important;
+            width:56px;height:56px;border-radius:50%;
+            z-index:9999 !important;
+            background:rgba(0,10,20,.9);
+            border:2px solid rgba(0,255,157,.55);
+            cursor:pointer;
+            display:flex !important;
+            align-items:center;justify-content:center;
+            box-shadow:0 0 18px rgba(0,255,157,.35);
+            transition:box-shadow .3s, border-color .3s, background .3s}
+        .screen-btn:hover{box-shadow:0 0 28px rgba(0,255,157,.55)}
+        .screen-btn:active{transform:translateX(-50%) scale(.94) !important}
+        .screen-btn svg{width:22px;height:22px;fill:#00ff9d;filter:drop-shadow(0 0 8px rgba(0,255,157,.55))}
+        .screen-btn.on{border-color:#ffaa00;background:rgba(40,25,0,.92);box-shadow:0 0 26px rgba(255,170,0,.45)}
+        .screen-btn.on svg{fill:#ffaa00;filter:drop-shadow(0 0 8px rgba(255,170,0,.55))}
         .mic-label{
             position:fixed !important;
             bottom:96px !important;
@@ -141,6 +161,16 @@
             color:#000;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:3px;cursor:pointer;margin-top:6px;transition:.2s}
         .cfg-btn:active{transform:scale(.97);box-shadow:0 0 25px rgba(0,255,157,.4)}
         .cfg-hint{color:rgba(255,255,255,.4);font-size:11px;margin-top:16px;text-align:center}
+
+        .patch-overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:250;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+        .patch-overlay.hidden{display:none}
+        .patch-card{width:100%;max-width:720px;border:1px solid rgba(0,255,157,.25);background:rgba(0,255,157,.04);border-radius:14px;padding:16px}
+        .patch-title{color:#00ff9d;letter-spacing:6px;text-transform:uppercase;font-size:14px;margin-bottom:10px}
+        .patch-row{display:flex;gap:10px;flex-wrap:wrap}
+        .patch-row .cfg-input{margin-bottom:10px}
+        .patch-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+        .patch-actions .cfg-btn{width:auto;flex:1;min-width:160px}
+        .patch-out{width:100%;min-height:240px;max-height:360px;resize:vertical}
 
         /* === Loading === */
         .loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:150;display:none}
@@ -203,6 +233,10 @@
         <svg viewBox="0 0 24 24" id="stop-icon" style="display:none"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
     </div>
 
+    <div class="screen-btn" id="screen-btn" title="Compartir pantalla para análisis (Cursor/SQL)">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6v2h3v2H7v-2h3v-2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm0 2v8h16V7H4z"/></svg>
+    </div>
+
     <div class="loading" id="loading"><div class="spinner"></div><div class="load-text" id="load-text">CARGANDO</div></div>
 
     <div class="config-overlay" id="config-overlay">
@@ -220,10 +254,36 @@
             <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:16px;cursor:pointer">
                 <input type="checkbox" id="cfg-vision" checked> Cámara + visión (Gemini/OpenAI) para ver el entorno
             </label>
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:12px;cursor:pointer">
+                <input type="checkbox" id="cfg-proactive"> Modo proactivo (comentarios breves en reposo)
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:12px;cursor:pointer">
+                <input type="checkbox" id="cfg-facemesh"> Micro-expresiones (FaceMesh)
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;color:#00ff9d;font-size:12px;margin-bottom:12px;cursor:pointer">
+                <input type="checkbox" id="cfg-mr"> Realidad mixta (occlusión por silueta)
+            </label>
             <label class="cfg-label">Memoria persistente (opcional)</label>
             <textarea class="cfg-input ta" id="cfg-memory" rows="4" placeholder="Hechos, preferencias o contexto que AVA debe recordar entre sesiones (se guarda en este navegador). Ej: trabajo en BI, usa Power BI, idioma técnico."></textarea>
             <button class="cfg-btn" id="cfg-go">ACTIVAR AVA</button>
             <div class="cfg-hint">Ctrl+R resetea config | T: texto | Space: voz | 1-0: avatar</div>
+        </div>
+    </div>
+
+    <div class="patch-overlay hidden" id="patch-overlay">
+        <div class="patch-card">
+            <div class="patch-title">OUROBOROS — PATCH</div>
+            <div class="patch-row">
+                <input type="text" class="cfg-input" id="patch-target" placeholder="Archivo objetivo (ej: ava.html)" style="flex:1;min-width:220px">
+                <input type="text" class="cfg-input" id="patch-critique" placeholder="Qué quieres ajustar (ej: parpadeo más lento, mirada más suave...)" style="flex:2;min-width:280px">
+            </div>
+            <textarea class="cfg-input ta patch-out" id="patch-output" placeholder="Aquí aparecerá el diff propuesto (no se aplica automáticamente)."></textarea>
+            <div class="patch-actions">
+                <button class="cfg-btn" id="patch-generate">GENERAR DIFF</button>
+                <button class="cfg-btn" id="patch-copy">COPIAR</button>
+                <button class="cfg-btn" id="patch-close">CERRAR</button>
+            </div>
+            <div class="cfg-hint">Shortcut: P | Aplica manualmente en tu IDE para mantener control total</div>
         </div>
     </div>
 
@@ -233,6 +293,12 @@
     <!-- Three.js r134 + GLTFLoader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/ShaderPass.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 
     <script>
     // ================================================================
@@ -280,7 +346,16 @@
         wakeWord: localStorage.getItem('ava_wake') !== '0',
         useVision: localStorage.getItem('ava_vision') !== '0',
         /** Notas largo plazo (localStorage); se envían al modelo en cada chat. */
-        memory: localStorage.getItem('ava_memory') || ''
+        memory: localStorage.getItem('ava_memory') || '',
+        bioSync: localStorage.getItem('ava_biosync') === '1',
+        bioWsUrl: localStorage.getItem('ava_bio_ws') || 'ws://127.0.0.1:8765',
+        divineTone: localStorage.getItem('ava_divine_tone') === '1',
+        divineHz: Number(localStorage.getItem('ava_divine_hz') || 963),
+        proactive: localStorage.getItem('ava_proactive') === '1',
+        proactiveEverySec: Number(localStorage.getItem('ava_proactive_every') || 18),
+        proactiveIdleSec: Number(localStorage.getItem('ava_proactive_idle') || 22),
+        faceMesh: localStorage.getItem('ava_facemesh') === '1',
+        mixedReality: localStorage.getItem('ava_mr') === '1'
     };
 
     let state = 'IDLE';
@@ -299,10 +374,41 @@
     /** Se pone a false si /api/stt-deepgram falla (p. ej. sin DEEPGRAM_API_KEY en Vercel). */
     window._deepgramAvailable = true;
 
+    let _lastUserActionAt = Date.now();
+    let _lastProactiveAt = 0;
+    let _proactiveBusy = false;
+
+    let _screenStream = null;
+    let _screenVideo = null;
+    let _screenReady = false;
+    let _screenCanvas = null;
+    let _screenCtx = null;
+    let _screenBusy = false;
+    let _lastScreenAt = 0;
+
+    let _oracleBusy = false;
+    let _oracleAt = 0;
+    let _oracleCache = null;
+
+    let _faceMesh = null;
+    let _faceMeshReady = false;
+    let _faceT = 0;
+    let _face = { furrow: 0, mouth: 0, present: 0, lastAt: 0, furrowHold: 0 };
+
+    let _seg = null;
+    let _segReady = false;
+    let _segT = 0;
+    let _maskCanvas = null;
+    let _maskCtx = null;
+    let _maskTex = null;
+
     // ================================================================
     // THREE.JS
     // ================================================================
     let scene, camera, renderer, avatarGroup, avatar;
+    let composer = null;
+    let _lensPass = null;
+    let _lensMass = 0;
     let particles3d = [];
     let time = 0;
     let currentVRM = null, loadedModel = null;
@@ -323,6 +429,107 @@
     // TTS audio analysis — un solo AudioContext reutilizado (Chrome suspende contextos nuevos sin gesto)
     let ttsCtx = null, ttsAnalyser = null, ttsFreq = null, _curAudio = null;
 
+    let _bioBpm = 60;
+    let _bioWs = null;
+    let _bioConnected = false;
+
+    function _setBioBpm(v) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return;
+        _bioBpm = Math.max(38, Math.min(160, n));
+    }
+
+    function _connectBioWs() {
+        if (!cfg.bioSync) return;
+        if (_bioWs && (_bioWs.readyState === 0 || _bioWs.readyState === 1)) return;
+        _bioConnected = false;
+        try {
+            _bioWs = new WebSocket(cfg.bioWsUrl);
+        } catch {
+            _bioWs = null;
+            return;
+        }
+        _bioWs.onopen = () => { _bioConnected = true; };
+        _bioWs.onclose = () => { _bioConnected = false; };
+        _bioWs.onerror = () => { _bioConnected = false; };
+        _bioWs.onmessage = (ev) => {
+            const raw = String(ev.data || '').trim();
+            if (!raw) return;
+            try {
+                const j = JSON.parse(raw);
+                if (j && j.bpm != null) { _setBioBpm(j.bpm); return; }
+            } catch {}
+            _setBioBpm(raw);
+        };
+    }
+
+    let _divineCtx = null;
+    let _divineOsc = null;
+    let _divineGain = null;
+    let _divineFilter = null;
+    let _divinePan = null;
+
+    async function _ensureDivineTone() {
+        if (!cfg.divineTone) return false;
+        if (!_divineCtx || _divineCtx.state === 'closed') {
+            _divineCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (_divineCtx.state === 'suspended') {
+            await _divineCtx.resume().catch(() => {});
+        }
+        if (_divineCtx.state !== 'running') return false;
+
+        if (!_divineOsc) {
+            _divineGain = _divineCtx.createGain();
+            _divineGain.gain.value = 0.0;
+            _divineFilter = _divineCtx.createBiquadFilter();
+            _divineFilter.type = 'lowpass';
+            _divineFilter.frequency.value = 1500;
+            _divineFilter.Q.value = 0.6;
+            _divinePan = _divineCtx.createStereoPanner ? _divineCtx.createStereoPanner() : null;
+            if (_divinePan) {
+                _divineGain.connect(_divineFilter);
+                _divineFilter.connect(_divinePan);
+                _divinePan.connect(_divineCtx.destination);
+            } else {
+                _divineGain.connect(_divineFilter);
+                _divineFilter.connect(_divineCtx.destination);
+            }
+
+            _divineOsc = _divineCtx.createOscillator();
+            _divineOsc.type = 'sine';
+            _divineOsc.frequency.value = Math.max(40, Math.min(4000, cfg.divineHz || 963));
+            _divineOsc.connect(_divineGain);
+            try { _divineOsc.start(); } catch {}
+        }
+        return true;
+    }
+
+    async function _updateDivineTone(delta) {
+        if (!cfg.divineTone) {
+            if (_divineGain) _divineGain.gain.value = 0;
+            return;
+        }
+        if (!_userInteracted) return;
+        const ok = await _ensureDivineTone();
+        if (!ok || !_divineGain) return;
+        const target = (state === 'TALKING') ? 0.012 : (state === 'THINKING') ? 0.01 : 0.008;
+        const g = _divineGain.gain.value;
+        const a = 1 - Math.exp(-4.2 * Math.min(0.05, Math.max(0, delta || 0.016)));
+        _divineGain.gain.value = g + (target - g) * a;
+
+        if (_divineFilter) {
+            const cutT = 1700 - _lensMass * 950;
+            const cur = _divineFilter.frequency.value;
+            _divineFilter.frequency.value = cur + (Math.max(220, cutT) - cur) * a;
+        }
+        if (_divinePan) {
+            const panT = Math.max(-1, Math.min(1, Math.sin(time * 0.22) * (0.08 + _lensMass * 0.18)));
+            const cur = _divinePan.pan.value;
+            _divinePan.pan.value = cur + (panT - cur) * a;
+        }
+    }
+
     async function ensureTtsContextRunning() {
         if (!ttsCtx || ttsCtx.state === 'closed') {
             ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -331,6 +538,262 @@
             await ttsCtx.resume().catch(() => {});
         }
         return ttsCtx.state === 'running';
+    }
+
+    const _epiKey = 'ava_epimem_v1';
+    const _epiMaxItems = 80;
+    const _epiMaxChars = 1200;
+
+    let _memHalo = null;
+    let _memStars = [];
+    let _memStarByT = new Map();
+    let _memPulse = new Map();
+    let _memHaloCount = 0;
+
+    function _normText(s) {
+        return String(s || '').toLowerCase().normalize('NFD').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    }
+
+    function _ensureMemHalo() {
+        if (!_memHalo) {
+            _memHalo = new THREE.Group();
+            _memHalo.visible = true;
+        }
+        if (avatarGroup && _memHalo.parent !== avatarGroup) {
+            try { if (_memHalo.parent) _memHalo.parent.remove(_memHalo); } catch {}
+            avatarGroup.add(_memHalo);
+        }
+    }
+
+    function _clearMemHalo() {
+        if (!_memHalo) return;
+        for (const s of _memStars) {
+            try { _memHalo.remove(s); } catch {}
+            try { if (s.geometry) s.geometry.dispose(); } catch {}
+            try { if (s.material) s.material.dispose(); } catch {}
+        }
+        _memStars = [];
+        _memStarByT = new Map();
+        _memHaloCount = 0;
+    }
+
+    function _refreshMemHalo(force) {
+        if (!avatarGroup) return;
+        _ensureMemHalo();
+        const mem = _loadEpiMem();
+        if (!force && mem.length === _memHaloCount) return;
+        _clearMemHalo();
+        _memHaloCount = mem.length;
+        if (!mem.length) return;
+
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0x00ff9d,
+            transparent: true,
+            opacity: 0.22,
+            depthWrite: false,
+        });
+        const geo = new THREE.SphereGeometry(0.012, 8, 8);
+
+        const n = mem.length;
+        for (let i = 0; i < n; i++) {
+            const m = mem[i];
+            const tKey = Number(m?.t || 0) || (Date.now() + i);
+
+            const s = new THREE.Mesh(geo, mat.clone());
+            const phi = Math.acos(1 - 2 * (i + 0.5) / n);
+            const theta = (Math.PI * (1 + Math.sqrt(5))) * (i + 0.5);
+            const r = 0.62 + Math.random() * 0.18;
+            s.position.set(
+                Math.cos(theta) * Math.sin(phi) * r,
+                0.95 + Math.cos(phi) * 0.45,
+                Math.sin(theta) * Math.sin(phi) * r
+            );
+            s.userData = {
+                tKey,
+                base: s.position.clone(),
+                seed: Math.random() * Math.PI * 2,
+                r,
+                i,
+            };
+            _memHalo.add(s);
+            _memStars.push(s);
+            _memStarByT.set(tKey, s);
+        }
+    }
+
+    function _pulseMemStars(keys, seconds) {
+        const now = performance.now();
+        const dur = Math.max(0.8, Math.min(12, Number(seconds || 6))) * 1000;
+        for (const k of keys) {
+            const kk = Number(k);
+            if (!Number.isFinite(kk)) continue;
+            _memPulse.set(kk, { until: now + dur });
+        }
+    }
+
+    function updateMemoryHalo(t, delta) {
+        if (!_memHalo) return;
+        if (!_memHalo.visible) return;
+        if (!avatarGroup || _memHalo.parent !== avatarGroup) _ensureMemHalo();
+        _refreshMemHalo(false);
+
+        const now = performance.now();
+        const a = 1 - Math.exp(-3.2 * Math.min(0.05, Math.max(0, delta || 0.016)));
+        _memHalo.rotation.y += (0.22 + Math.sin(t * 0.17) * 0.05) * (delta || 0.016);
+
+        for (const s of _memStars) {
+            const u = s.userData || {};
+            const seed = u.seed || 0;
+            const wob = 0.014 + Math.sin(t * 0.9 + seed) * 0.004;
+            const bx = u.base?.x ?? s.position.x;
+            const by = u.base?.y ?? s.position.y;
+            const bz = u.base?.z ?? s.position.z;
+            s.position.x += (bx + Math.sin(t * 0.9 + seed) * wob - s.position.x) * a;
+            s.position.y += (by + Math.cos(t * 0.7 + seed) * wob - s.position.y) * a;
+            s.position.z += (bz + Math.sin(t * 1.1 + seed * 1.7) * wob - s.position.z) * a;
+
+            const tKey = Number(u.tKey);
+            const p = _memPulse.get(tKey);
+            const alive = p && p.until > now;
+            if (!alive && p) _memPulse.delete(tKey);
+            const opT = alive ? 0.95 : 0.22;
+            const scT = alive ? 1.9 : 1.0;
+            const cT = alive ? 0xff3355 : 0x00ff9d;
+            if (s.material) {
+                s.material.opacity += (opT - s.material.opacity) * a;
+                if (s.material.color) s.material.color.setHex(cT);
+            }
+            s.scale.x += (scT - s.scale.x) * a;
+            s.scale.y += (scT - s.scale.y) * a;
+            s.scale.z += (scT - s.scale.z) * a;
+        }
+    }
+
+    function _sentimentFromEmotion(e) {
+        if (e === 'happy') return 0.65;
+        if (e === 'excited') return 0.35;
+        if (e === 'calm') return 0.1;
+        if (e === 'focused') return 0.2;
+        if (e === 'curious') return 0.25;
+        return 0;
+    }
+
+    function _loadEpiMem() {
+        try {
+            const raw = localStorage.getItem(_epiKey);
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+        } catch { return []; }
+    }
+
+    function _saveEpiMem(arr) {
+        try { localStorage.setItem(_epiKey, JSON.stringify(arr.slice(-_epiMaxItems))); } catch {}
+        _refreshMemHalo(true);
+    }
+
+    function saveEpisodicMemory(userInput, avaResponse, emotion) {
+        const u = String(userInput || '').slice(0, 900);
+        const a = String(avaResponse || '').slice(0, 1400);
+        if (!u || !a) return;
+        const mem = _loadEpiMem();
+        mem.push({
+            t: Date.now(),
+            u,
+            a,
+            e: emotion || 'neutral',
+            s: _sentimentFromEmotion(emotion || 'neutral')
+        });
+        _saveEpiMem(mem);
+    }
+
+    function getEpisodicContext(query) {
+        const q = _normText(query);
+        if (!q) return '';
+        const qTokens = new Set(q.split(' ').filter(x => x.length >= 4).slice(0, 24));
+        if (qTokens.size === 0) return '';
+        const mem = _loadEpiMem();
+        if (!mem.length) return '';
+
+        const scored = mem.map((m) => {
+            const txt = _normText((m.u || '') + ' ' + (m.a || ''));
+            let score = 0;
+            for (const tok of qTokens) {
+                if (txt.includes(tok)) score += 1;
+            }
+            const age = Date.now() - (m.t || 0);
+            const rec = Math.max(0, 1 - age / (1000 * 60 * 60 * 24 * 14));
+            score += rec * 0.6;
+            return { m, score };
+        }).filter(x => x.score > 0.9);
+
+        scored.sort((a, b) => b.score - a.score);
+        const topScored = scored.slice(0, 3);
+        const top = topScored.map(x => x.m);
+        if (!top.length) return '';
+
+        _pulseMemStars(topScored.map(x => x.m?.t).filter(Boolean), 8);
+
+        let out = '';
+        for (const m of top) {
+            const d = new Date(m.t || Date.now());
+            const stamp = d.toISOString().slice(0, 10);
+            out += `\n- (${stamp}) Usuario: ${String(m.u || '').slice(0, 220)}\n  AVA: ${String(m.a || '').slice(0, 240)}\n  Emoción: ${m.e || 'neutral'} (sentimiento ${typeof m.s === 'number' ? m.s.toFixed(2) : '0.00'})\n`;
+            if (out.length > _epiMaxChars) break;
+        }
+        out = out.slice(0, _epiMaxChars);
+        return out ? `\n[Memoria episódica relevante (seleccionada localmente):${out}]\n` : '';
+    }
+
+    let roomLightPt = null;
+    let _roomLightCanvas = null;
+    let _roomLightCtx = null;
+    let _roomLightT = 0;
+    let _roomLight = { r: 0, g: 1, b: 0, tr: 0, tg: 1, tb: 0 };
+
+    function _ensureRoomLightSampler() {
+        if (_roomLightCanvas && _roomLightCtx) return;
+        _roomLightCanvas = document.createElement('canvas');
+        _roomLightCanvas.width = 24;
+        _roomLightCanvas.height = 24;
+        _roomLightCtx = _roomLightCanvas.getContext('2d', { willReadFrequently: true });
+    }
+
+    function updateAdaptiveRoomLight(t, delta) {
+        if (!roomLightPt) return;
+        if (!cfg.useVision || !visionReady || !visionVideo) {
+            roomLightPt.intensity = 0.15;
+            return;
+        }
+        _roomLightT -= delta;
+        if (_roomLightT > 0) {
+            const lerp = THREE.MathUtils.lerp;
+            _roomLight.r = lerp(_roomLight.r, _roomLight.tr, 1 - Math.exp(-3.8 * delta));
+            _roomLight.g = lerp(_roomLight.g, _roomLight.tg, 1 - Math.exp(-3.8 * delta));
+            _roomLight.b = lerp(_roomLight.b, _roomLight.tb, 1 - Math.exp(-3.8 * delta));
+            roomLightPt.color.setRGB(_roomLight.r, _roomLight.g, _roomLight.b);
+            return;
+        }
+        _roomLightT = 0.55;
+        _ensureRoomLightSampler();
+        try {
+            _roomLightCtx.drawImage(visionVideo, 0, 0, _roomLightCanvas.width, _roomLightCanvas.height);
+            const img = _roomLightCtx.getImageData(0, 0, _roomLightCanvas.width, _roomLightCanvas.height).data;
+            let r = 0, g = 0, b = 0;
+            const n = img.length / 4;
+            for (let i = 0; i < img.length; i += 4) {
+                r += img[i];
+                g += img[i + 1];
+                b += img[i + 2];
+            }
+            r = (r / n) / 255;
+            g = (g / n) / 255;
+            b = (b / n) / 255;
+            const boost = 1.35;
+            _roomLight.tr = _clamp01(r * boost);
+            _roomLight.tg = _clamp01(g * boost);
+            _roomLight.tb = _clamp01(b * boost);
+            roomLightPt.intensity = 0.11 + (state === 'TALKING' ? 0.09 : 0.06);
+        } catch {}
     }
 
     // ================================================================
@@ -360,6 +823,127 @@
     // ================================================================
     let _emotion = 'neutral'; // neutral | happy | excited | calm | focused | curious
     let _emotionTimer = 0;
+
+    const _eye = {
+        nextSaccadeT: 0,
+        saccX: 0,
+        saccY: 0,
+        saccVX: 0,
+        saccVY: 0,
+        blink: 0,
+        blinkL: 0,
+        blinkR: 0,
+        blinkPhase: 0,
+        blinkDur: 0.12,
+        blinkHold: 0.02,
+        blinkStartT: 0,
+        nextBlinkT: 0,
+        pendingDouble: false,
+    };
+
+    function _clamp01(x) { return Math.max(0, Math.min(1, x)); }
+
+    function _easeInOut(x) {
+        x = _clamp01(x);
+        return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+    }
+
+    function _scheduleNextBlink(t) {
+        const base = (state === 'TALKING') ? 2.3 : (state === 'LISTENING') ? 3.2 : 3.8;
+        const jitter = (state === 'TALKING') ? 1.7 : 2.8;
+        const bpmMul = cfg.bioSync ? Math.max(0.7, Math.min(1.35, 75 / Math.max(45, _bioBpm))) : 1;
+        _eye.nextBlinkT = t + (base + Math.random() * jitter) * bpmMul;
+        _eye.pendingDouble = Math.random() < 0.08;
+    }
+
+    function _startBlink(t) {
+        _eye.blinkStartT = t;
+        _eye.blinkDur = 0.09 + Math.random() * 0.07;
+        _eye.blinkHold = 0.012 + Math.random() * 0.03;
+        _eye.blinkPhase = 1;
+        const asym = (Math.random() - 0.5) * 0.12;
+        _eye.blinkL = _clamp01(1 + asym);
+        _eye.blinkR = _clamp01(1 - asym);
+    }
+
+    function _updateBlink(t) {
+        if (!_eye.nextBlinkT) _scheduleNextBlink(t);
+
+        if (_eye.blinkPhase === 0 && t >= _eye.nextBlinkT) {
+            _startBlink(t);
+        }
+
+        if (_eye.blinkPhase === 0) {
+            _eye.blink = 0;
+            return;
+        }
+
+        const dt = t - _eye.blinkStartT;
+        const closeT = _eye.blinkDur * 0.45;
+        const openT = _eye.blinkDur * 0.55;
+        const total = closeT + _eye.blinkHold + openT;
+
+        let w = 0;
+        if (dt < 0) w = 0;
+        else if (dt < closeT) {
+            w = _easeInOut(dt / closeT);
+        } else if (dt < closeT + _eye.blinkHold) {
+            w = 1;
+        } else if (dt < total) {
+            w = 1 - _easeInOut((dt - closeT - _eye.blinkHold) / openT);
+        } else {
+            w = 0;
+        }
+
+        const talkMul = (state === 'TALKING') ? 0.85 : 1;
+        _eye.blink = _clamp01(w * talkMul);
+
+        if (w <= 0.0001 && dt >= total) {
+            _eye.blinkPhase = 0;
+            if (_eye.pendingDouble) {
+                _eye.pendingDouble = false;
+                _eye.nextBlinkT = t + 0.18 + Math.random() * 0.18;
+            } else {
+                _scheduleNextBlink(t);
+            }
+        }
+    }
+
+    function _updateSaccades(t, delta) {
+        if (t >= _eye.nextSaccadeT) {
+            const rate = (state === 'LISTENING' || state === 'TALKING') ? 0.24 : 0.36;
+            _eye.nextSaccadeT = t + rate + Math.random() * (rate * 1.8);
+            const amp = (state === 'LISTENING') ? 0.035 : (state === 'TALKING') ? 0.03 : 0.05;
+            _eye.saccVX = (Math.random() - 0.5) * amp * 10;
+            _eye.saccVY = (Math.random() - 0.5) * amp * 10;
+        }
+        const d = Math.min(0.05, Math.max(0.001, delta || 0.016));
+        _eye.saccX += (_eye.saccVX - _eye.saccX * 12) * d;
+        _eye.saccY += (_eye.saccVY - _eye.saccY * 12) * d;
+    }
+
+    function _updateLookAtTarget(t, delta) {
+        if (!lookAtTarget) return;
+        _updateSaccades(t, delta);
+
+        const userW = (state === 'LISTENING') ? 0.92 : (state === 'TALKING') ? 0.88 : (state === 'THINKING') ? 0.72 : 0.62;
+        const autoW = 1 - userW;
+
+        const baseX = mx * 3;
+        const baseY = my * 2 + 1.2;
+
+        const driftX = (Math.sin(t * 0.22) * 0.35 + Math.sin(t * 0.53 + 1.3) * 0.18);
+        const driftY = (Math.sin(t * 0.19 + 2.1) * 0.22 + Math.sin(t * 0.44) * 0.12);
+
+        const tgtX = baseX * userW + driftX * autoW + _eye.saccX;
+        const tgtY = baseY * userW + (1.2 + driftY) * autoW + _eye.saccY;
+
+        const lerp = THREE.MathUtils.lerp;
+        const sp = (state === 'LISTENING' || state === 'TALKING') ? 0.38 : 0.25;
+        lookAtTarget.position.x = lerp(lookAtTarget.position.x, tgtX, sp);
+        lookAtTarget.position.y = lerp(lookAtTarget.position.y, tgtY, sp);
+        lookAtTarget.position.z = 3;
+    }
 
     function detectEmotion(text) {
         const t = text.toLowerCase();
@@ -438,9 +1022,9 @@
         scene.add(dir2);
 
         // Subtle colored accent from below
-        const pt = new THREE.PointLight(0x00ff9d, 0.15, 8);
-        pt.position.set(0, -0.5, 1.5);
-        scene.add(pt);
+        roomLightPt = new THREE.PointLight(0x00ff9d, 0.15, 8);
+        roomLightPt.position.set(0, -0.5, 1.5);
+        scene.add(roomLightPt);
 
         // Holographic grid floor
         const grid = new THREE.GridHelper(8, 30, 0x002a10, 0x001408);
@@ -461,7 +1045,278 @@
             camera.aspect = innerWidth / innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(innerWidth, innerHeight);
+            if (composer && typeof composer.setSize === 'function') composer.setSize(innerWidth, innerHeight);
         });
+
+        if (THREE.EffectComposer && THREE.RenderPass && THREE.ShaderPass) {
+            composer = new THREE.EffectComposer(renderer);
+            composer.addPass(new THREE.RenderPass(scene, camera));
+
+            const lensShader = {
+                uniforms: {
+                    tDiffuse: { value: null },
+                    uMask: { value: null },
+                    uCenter: { value: new THREE.Vector2(0.5, 0.52) },
+                    uMass: { value: 0.0 },
+                    uAspect: { value: innerWidth / innerHeight },
+                    uTime: { value: 0.0 },
+                    uMaskStrength: { value: 0.0 },
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main(){
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D tDiffuse;
+                    uniform sampler2D uMask;
+                    uniform vec2 uCenter;
+                    uniform float uMass;
+                    uniform float uAspect;
+                    uniform float uTime;
+                    uniform float uMaskStrength;
+                    varying vec2 vUv;
+
+                    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+
+                    void main(){
+                        vec2 uv = vUv;
+                        vec2 c = uCenter;
+                        vec2 d = uv - c;
+                        d.x *= uAspect;
+                        float r = length(d);
+
+                        float m = clamp(uMass, 0.0, 1.0);
+                        float warp = m * (0.16 / (r + 0.08));
+                        float ring = smoothstep(0.18, 0.11, abs(r - (0.22 - m * 0.06))) * m;
+                        float vign = 1.0 - smoothstep(0.55, 0.18, r) * (m * 0.55);
+
+                        vec2 duv = d;
+                        duv /= max(0.0001, r);
+                        vec2 offset = duv * warp * 0.015;
+                        vec2 suv = uv + offset;
+
+                        float ca = (m * 0.004 + ring * 0.006);
+                        vec2 caDir = duv * ca;
+
+                        vec4 colR = texture2D(tDiffuse, suv + caDir);
+                        vec4 colG = texture2D(tDiffuse, suv);
+                        vec4 colB = texture2D(tDiffuse, suv - caDir);
+
+                        vec3 col = vec3(colR.r, colG.g, colB.b);
+                        float a0 = colG.a;
+                        col *= vign;
+
+                        float glow = ring * (0.6 + 0.4 * sin(uTime * 9.0));
+                        col += vec3(0.95, 0.85, 0.45) * glow;
+
+                        float noise = (hash(uv * (120.0 + m * 120.0) + uTime) - 0.5) * (m * 0.035);
+                        col += noise;
+
+                        float maskA = 0.0;
+                        if (uMaskStrength > 0.001) {
+                            vec4 mk = texture2D(uMask, uv);
+                            maskA = clamp(mk.r, 0.0, 1.0);
+                        }
+                        float outA = a0 * (1.0 - maskA * clamp(uMaskStrength, 0.0, 1.0));
+                        gl_FragColor = vec4(col, outA);
+                    }
+                `,
+            };
+
+            _lensPass = new THREE.ShaderPass(lensShader);
+            composer.addPass(_lensPass);
+        }
+    }
+
+    function _ensureMaskCanvas() {
+        if (_maskCanvas && _maskCtx) return;
+        _maskCanvas = document.createElement('canvas');
+        _maskCanvas.width = 256;
+        _maskCanvas.height = 256;
+        _maskCtx = _maskCanvas.getContext('2d', { willReadFrequently: true });
+    }
+
+    async function ensureSegmentation() {
+        if (!cfg.mixedReality) return false;
+        if (_segReady) return true;
+        if (!cfg.useVision) return false;
+        if (!visionReady || !visionVideo) return false;
+        if (typeof SelfieSegmentation === 'undefined') return false;
+
+        _ensureMaskCanvas();
+
+        _seg = new SelfieSegmentation({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+        });
+        _seg.setOptions({ modelSelection: 1 });
+        _seg.onResults((res) => {
+            if (!res) return;
+            const m = res.segmentationMask;
+            if (!m || !_maskCtx) return;
+            try {
+                _maskCtx.clearRect(0, 0, _maskCanvas.width, _maskCanvas.height);
+                _maskCtx.drawImage(m, 0, 0, _maskCanvas.width, _maskCanvas.height);
+                if (!_maskTex) {
+                    _maskTex = new THREE.Texture(_maskCanvas);
+                    _maskTex.minFilter = THREE.LinearFilter;
+                    _maskTex.magFilter = THREE.LinearFilter;
+                    _maskTex.generateMipmaps = false;
+                }
+                _maskTex.needsUpdate = true;
+            } catch {}
+        });
+
+        _segReady = true;
+        return true;
+    }
+
+    async function updateSegmentation(delta) {
+        if (!cfg.mixedReality) return;
+        if (!_userInteracted) return;
+        if (!cfg.useVision) return;
+        if (!visionReady || !visionVideo || visionVideo.readyState < 2) return;
+        if (!_lensPass || !_lensPass.uniforms) return;
+
+        const ok = await ensureSegmentation();
+        if (!ok || !_seg) return;
+
+        _segT -= (delta || 0.016);
+        if (_segT > 0) return;
+        _segT = 0.18;
+
+        try { await _seg.send({ image: visionVideo }); } catch {}
+
+        const u = _lensPass.uniforms;
+        u.uMask.value = _maskTex;
+        u.uMaskStrength.value = 1.0;
+    }
+
+    let _tesseract = null;
+    let _tessLines = null;
+    let _tessPhase = 0;
+
+    function _ensureTesseract() {
+        if (_tesseract) return;
+        _tesseract = new THREE.Group();
+        _tesseract.visible = true;
+        _tesseract.position.set(0, 0, 0);
+        if (scene) scene.add(_tesseract);
+
+        const verts = [];
+        for (let i = 0; i < 16; i++) {
+            const x = (i & 1) ? 1 : -1;
+            const y = (i & 2) ? 1 : -1;
+            const z = (i & 4) ? 1 : -1;
+            const w = (i & 8) ? 1 : -1;
+            verts.push({ x, y, z, w });
+        }
+
+        const edges = [];
+        for (let i = 0; i < 16; i++) {
+            for (let b = 0; b < 4; b++) {
+                const j = i ^ (1 << b);
+                if (j > i) edges.push([i, j]);
+            }
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edges.length * 2 * 3), 3));
+        const mat = new THREE.LineBasicMaterial({ color: 0x00ff9d, transparent: true, opacity: 0.25 });
+        _tessLines = new THREE.LineSegments(geo, mat);
+        _tessLines.frustumCulled = false;
+        _tesseract.add(_tessLines);
+
+        _tesseract.userData.verts4 = verts;
+        _tesseract.userData.edges = edges;
+    }
+
+    function _updateTesseract(t, delta) {
+        if (!_tesseract || !_tessLines) return;
+        if (!avatarGroup) return;
+
+        const verts = _tesseract.userData.verts4;
+        const edges = _tesseract.userData.edges;
+        if (!verts || !edges) return;
+
+        const a = 1 - Math.exp(-3.2 * Math.min(0.05, Math.max(0, delta || 0.016)));
+        const wantVis = (_lensMass > 0.28) || (state === 'THINKING');
+        _tesseract.visible = wantVis;
+        if (!_tesseract.visible) return;
+
+        const cx = avatarGroup.position.x;
+        const cy = avatarGroup.position.y + 0.28;
+        const cz = avatarGroup.position.z;
+        _tesseract.position.x += (cx - _tesseract.position.x) * a;
+        _tesseract.position.y += (cy - _tesseract.position.y) * a;
+        _tesseract.position.z += (cz - _tesseract.position.z) * a;
+
+        _tessPhase += (delta || 0.016) * (0.55 + _lensMass * 0.65);
+        const ang = _tessPhase;
+        const c1 = Math.cos(ang), s1 = Math.sin(ang);
+        const c2 = Math.cos(ang * 0.73 + 1.3), s2 = Math.sin(ang * 0.73 + 1.3);
+
+        const proj = (v) => {
+            let x = v.x, y = v.y, z = v.z, w = v.w;
+            const x1 = x * c1 + w * s1;
+            const w1 = -x * s1 + w * c1;
+            x = x1; w = w1;
+            const y1 = y * c2 + w * s2;
+            const w2 = -y * s2 + w * c2;
+            y = y1; w = w2;
+            const k = 2.6;
+            const d = 3.6;
+            const s = k / (d - w);
+            return { x: x * s, y: y * s, z: z * s };
+        };
+
+        const pos = _tessLines.geometry.attributes.position.array;
+        let idx = 0;
+        const scale = 0.26 + _lensMass * 0.1;
+        for (let e = 0; e < edges.length; e++) {
+            const aI = edges[e][0];
+            const bI = edges[e][1];
+            const A = proj(verts[aI]);
+            const B = proj(verts[bI]);
+            pos[idx++] = A.x * scale;
+            pos[idx++] = A.y * scale + 0.22;
+            pos[idx++] = A.z * scale;
+            pos[idx++] = B.x * scale;
+            pos[idx++] = B.y * scale + 0.22;
+            pos[idx++] = B.z * scale;
+        }
+        _tessLines.geometry.attributes.position.needsUpdate = true;
+
+        const mat = _tessLines.material;
+        if (mat) {
+            const opT = 0.12 + _lensMass * 0.55;
+            mat.opacity += (opT - mat.opacity) * a;
+        }
+        _tesseract.rotation.y = Math.sin(t * 0.15) * 0.25;
+        _tesseract.rotation.x = Math.sin(t * 0.12 + 1.1) * 0.12;
+    }
+
+    function _updateLensMass(delta) {
+        const dt = Math.min(0.05, Math.max(0.001, delta || 0.016));
+        const stress = (cfg.faceMesh ? Math.min(1, _face.furrowHold / 45) : 0) * 0.35 + (cfg.bioSync ? Math.max(0, Math.min(1, (_bioBpm - 75) / 55)) * 0.25 : 0);
+        const think = (state === 'THINKING') ? 0.92 : (state === 'TALKING') ? 0.25 : (state === 'LISTENING') ? 0.18 : 0.12;
+        const screen = _screenStream ? 0.12 : 0;
+        const target = Math.max(0, Math.min(1, think + stress + screen));
+        const a = 1 - Math.exp(-2.8 * dt);
+        _lensMass = _lensMass + (target - _lensMass) * a;
+
+        if (_lensPass && _lensPass.uniforms) {
+            const v = _lensPass.uniforms;
+            v.uMass.value = _lensMass;
+            v.uAspect.value = innerWidth / innerHeight;
+            v.uTime.value = time;
+            if (!cfg.mixedReality) v.uMaskStrength.value = 0.0;
+            const cx = 0.5 + (mx * 0.08);
+            const cy = 0.52 + (my * 0.06);
+            v.uCenter.value.set(cx, cy);
+        }
     }
 
     // ================================================================
@@ -505,7 +1360,12 @@
         vrmBlend.blink = names.find(n => n.toLowerCase() === 'blink') ||
                          names.find(n => /blink/i.test(n)) || 'blink';
 
-        console.log('BlendShapes available:', names, '| Mouth:', vrmBlend.mouth, '| Blink:', vrmBlend.blink);
+        vrmBlend.blinkL = names.find(n => n.toLowerCase() === 'blink_l') ||
+                          names.find(n => /blink[_\s-]*l/i.test(n)) || null;
+        vrmBlend.blinkR = names.find(n => n.toLowerCase() === 'blink_r') ||
+                          names.find(n => /blink[_\s-]*r/i.test(n)) || null;
+
+        console.log('BlendShapes available:', names, '| Mouth:', vrmBlend.mouth, '| Blink:', vrmBlend.blink, '| BlinkL:', vrmBlend.blinkL, '| BlinkR:', vrmBlend.blinkR);
     }
 
     function setBlend(proxy, name, val) {
@@ -754,11 +1614,25 @@
 
         if (!avatar) { renderer.render(scene, camera); return; }
 
+        updateAdaptiveRoomLight(t, delta);
+        _connectBioWs();
+        _updateLensMass(delta);
+        _updateDivineTone(delta);
+        updateFaceMesh(delta);
+        updateSegmentation(delta);
+        maybeProactiveVision();
+        maybeScreenAssist();
+        maybeOraclePrefetch();
+
         if (currentVRM) {
             animateVRM(t, delta);
         } else {
             animatePlaceholder(t);
         }
+
+        updateMemoryHalo(t, delta);
+        _ensureTesseract();
+        _updateTesseract(t, delta);
 
         // 3D particles orbit
         particles3d.forEach((p, i) => {
@@ -769,7 +1643,8 @@
             p.material.opacity = 0.3 + Math.sin(t * 1.5 + i) * 0.25;
         });
 
-        renderer.render(scene, camera);
+        if (composer && typeof composer.render === 'function') composer.render();
+        else renderer.render(scene, camera);
     }
 
     // ---- VRM animation (autonomous + reactive) ----
@@ -802,14 +1677,8 @@
         };
         const ph = phys[state] || phys.IDLE;
 
-        // Update lookAt target from mouse position (FAST response)
-        if (lookAtTarget) {
-            const tgtX = mx * 3;
-            const tgtY = my * 2 + 1.2;
-            lookAtTarget.position.x = lerp(lookAtTarget.position.x, tgtX, 0.3);
-            lookAtTarget.position.y = lerp(lookAtTarget.position.y, tgtY, 0.3);
-            lookAtTarget.position.z = 3;
-        }
+        // Update lookAt target (context-aware + saccades)
+        _updateLookAtTarget(t, delta);
 
         // Subtle float
         avatarGroup.position.y = Math.sin(t * 1.8) * 0.012;
@@ -871,7 +1740,8 @@
         }
 
         // --- SPINE / PECHO: respiración + contrarrotación respecto a cadera (cadena natural) ---
-        const breathRate = state === 'TALKING' ? 1.78 : 0.92;
+        const bpmMul = cfg.bioSync ? Math.max(0.72, Math.min(1.6, (_bioBpm / 60) * 0.9)) : 1;
+        const breathRate = (state === 'TALKING' ? 1.78 : 0.92) * bpmMul;
         const bMul = ph.breath;
         const br = Math.sin(t * breathRate);
         const br2 = Math.sin(t * breathRate + 0.55);
@@ -1072,6 +1942,8 @@
         // --- BLEND SHAPES: lip-sync + blink + emotions ---
         const proxy = vrm.blendShapeProxy;
         if (proxy) {
+            _updateBlink(t);
+
             // Emotion-driven expression blendshapes
             _emotionTimer = Math.max(0, _emotionTimer - delta);
             const emo = _emotionTimer > 0 ? _emotion : 'neutral';
@@ -1111,12 +1983,23 @@
                     mOpen = Math.min(1, (sum / ttsFreq.length / 255) * 2.8);
                 }
                 setBlend(proxy, vrmBlend.mouth, mOpen);
-                setBlend(proxy, vrmBlend.blink, 0);
+                // Keep micro-blinks even while talking; avoid hard forcing eyes open.
+                if (vrmBlend.blinkL && vrmBlend.blinkR) {
+                    setBlend(proxy, vrmBlend.blinkL, _eye.blinkL ? _clamp01(_eye.blink * _eye.blinkL) : _eye.blink);
+                    setBlend(proxy, vrmBlend.blinkR, _eye.blinkR ? _clamp01(_eye.blink * _eye.blinkR) : _eye.blink);
+                    setBlend(proxy, vrmBlend.blink, 0);
+                } else {
+                    setBlend(proxy, vrmBlend.blink, _eye.blink);
+                }
             } else {
                 setBlend(proxy, vrmBlend.mouth, 0);
-                const blinkT = t % (3 + Math.sin(t * 0.1) * 1.5);
-                const isBlinking = blinkT > 2.8;
-                setBlend(proxy, vrmBlend.blink, isBlinking ? 1 : 0);
+                if (vrmBlend.blinkL && vrmBlend.blinkR) {
+                    setBlend(proxy, vrmBlend.blinkL, _eye.blinkL ? _clamp01(_eye.blink * _eye.blinkL) : _eye.blink);
+                    setBlend(proxy, vrmBlend.blinkR, _eye.blinkR ? _clamp01(_eye.blink * _eye.blinkR) : _eye.blink);
+                    setBlend(proxy, vrmBlend.blink, 0);
+                } else {
+                    setBlend(proxy, vrmBlend.blink, _eye.blink);
+                }
             }
         }
 
@@ -1288,6 +2171,7 @@
     // AI CHAT (Claude via /api/chat)
     // ================================================================
     async function processMessage(text) {
+        _lastUserActionAt = Date.now();
         const raw = String(text || '').trim();
         const norm = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         if (voiceConversationActive && /^(para|silencio|cierra|adios|chao|stop|listo|ya basta)(\s|$)/i.test(norm)) {
@@ -1308,6 +2192,32 @@
             }
         }
 
+        const oracle = _oracleCache;
+        let oracleUsed = false;
+        if (oracle && oracle.answer && oracle.qTokens && oracle.qTokens.size) {
+            const q = _normText(sendText);
+            const toks = q.split(' ').filter(x => x.length >= 4).slice(0, 40);
+            let hits = 0;
+            for (const tok of toks) {
+                if (oracle.qTokens.has(tok)) hits++;
+            }
+            const ratio = toks.length ? (hits / toks.length) : 0;
+            const ageMs = Date.now() - (oracle.t || 0);
+            if (ratio >= 0.28 && ageMs < 180000) {
+                _oracleCache = null;
+                const fast = String(oracle.answer);
+                msgHistory.push({ role: 'user', content: sendText });
+                msgHistory.push({ role: 'assistant', content: fast });
+                if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
+                document.getElementById('response').textContent = fast.substring(0, 150);
+                speak(fast);
+                setState('IDLE');
+                updateStatus('LISTA');
+                oracleUsed = true;
+            }
+        }
+        if (oracleUsed) return;
+
         stopWakeWord();
         setState('THINKING');
         updateStatus('PENSANDO...');
@@ -1324,7 +2234,7 @@
             const payload = {
                 messages: msgHistory,
                 avatarName: NAMES[currentIdx],
-                memoryContext: (cfg.memory || '').trim()
+                memoryContext: ((cfg.memory || '').trim() + getEpisodicContext(sendText)).trim()
             };
             if (cfg.useVision) {
                 const vis = captureVisionForChat();
@@ -1348,6 +2258,8 @@
             // Detect emotion and apply to avatar expressions
             _emotion = detectEmotion(reply);
             _emotionTimer = 12; // expresión + gestos acordes un poco más largos
+
+            saveEpisodicMemory(sendText, reply, _emotion);
 
             // Trigger matching gesture
             if (_emotion === 'happy' || _emotion === 'excited') {
@@ -1531,6 +2443,332 @@
         const data = c.toDataURL('image/jpeg', 0.72);
         const base64 = data.split(',')[1];
         return { base64, mimeType: 'image/jpeg' };
+    }
+
+    function _ensureScreenCanvas() {
+        if (_screenCanvas && _screenCtx) return;
+        _screenCanvas = document.createElement('canvas');
+        _screenCtx = _screenCanvas.getContext('2d', { willReadFrequently: true });
+    }
+
+    async function startScreenShare() {
+        if (_screenStream) return true;
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getDisplayMedia({
+                video: { frameRate: { ideal: 10, max: 20 } },
+                audio: false
+            });
+        } catch {
+            return false;
+        }
+        _screenStream = stream;
+        _screenVideo = document.createElement('video');
+        _screenVideo.muted = true;
+        _screenVideo.playsInline = true;
+        _screenVideo.srcObject = stream;
+        try { await _screenVideo.play(); } catch {}
+        _screenReady = _screenVideo && _screenVideo.readyState >= 2;
+
+        const tracks = stream.getVideoTracks();
+        if (tracks && tracks[0]) {
+            tracks[0].addEventListener('ended', () => {
+                stopScreenShare();
+            });
+        }
+        return true;
+    }
+
+    function stopScreenShare() {
+        try { if (_screenStream) _screenStream.getTracks().forEach(t => t.stop()); } catch {}
+        _screenStream = null;
+        _screenReady = false;
+        if (_screenVideo) {
+            try { _screenVideo.pause(); } catch {}
+            try { _screenVideo.srcObject = null; } catch {}
+        }
+        _screenVideo = null;
+    }
+
+    function captureScreenForChat() {
+        if (!_screenStream || !_screenVideo || _screenVideo.readyState < 2) return null;
+        const w = _screenVideo.videoWidth;
+        const h = _screenVideo.videoHeight;
+        if (w < 32 || h < 32) return null;
+        const maxW = 1024;
+        const scale = Math.min(1, maxW / w);
+        const cw = Math.max(64, Math.round(w * scale));
+        const ch = Math.max(64, Math.round(h * scale));
+        _ensureScreenCanvas();
+        _screenCanvas.width = cw;
+        _screenCanvas.height = ch;
+        try {
+            _screenCtx.drawImage(_screenVideo, 0, 0, cw, ch);
+        } catch {
+            return null;
+        }
+        const data = _screenCanvas.toDataURL('image/jpeg', 0.65);
+        const base64 = data.split(',')[1];
+        if (!base64 || base64.length < 100) return null;
+        return { base64, mimeType: 'image/jpeg' };
+    }
+
+    function _shouldScreenAssist() {
+        if (!_screenStream) return false;
+        if (!_userInteracted) return false;
+        if (voiceConversationActive) return false;
+        if (_screenBusy) return false;
+        if (state === 'TALKING' || state === 'LISTENING') return false;
+        const now = Date.now();
+
+        const idleMs = Math.max(6000, Math.min(600000, (cfg.proactiveIdleSec || 22) * 1000));
+        const isIdle = (now - _lastUserActionAt) >= idleMs;
+        const stressed = (cfg.faceMesh && _face.furrowHold > 18) || (cfg.bioSync && _bioBpm >= 92);
+        if (!isIdle && !stressed) return false;
+
+        const fast = stressed ? 11000 : 17000;
+        const slow = 26000;
+        const intervalMs = isIdle ? fast : slow;
+        if (now - _lastScreenAt < intervalMs) return false;
+        return true;
+    }
+
+    async function maybeScreenAssist() {
+        if (!_shouldScreenAssist()) return;
+        _screenBusy = true;
+        _lastScreenAt = Date.now();
+        try {
+            const vis = captureScreenForChat();
+            if (!vis) { _screenBusy = false; return; }
+
+            const sys =
+                `Eres AVA. Estás viendo la pantalla compartida del usuario (puede ser Cursor, SQL, Power BI). ` +
+                `Tarea: 1) detectar señales de error o oportunidad (warning, stacktrace, query, DAX, SQL). ` +
+                `2) dar 1-2 sugerencias MAX, concretas y accionables. ` +
+                `Si no hay suficiente información, haz 1 pregunta corta. ` +
+                `No saludes. No menciones que estás viendo una pantalla. No inventes contenido no visible.`;
+
+            const payload = {
+                system: sys,
+                avatarName: NAMES[currentIdx],
+                messages: [{ role: 'user', content: 'Analiza y sugiere.' }],
+                vision: vis,
+                memoryContext: (cfg.memory || '').trim(),
+            };
+
+            const res = await fetch(cfg.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) { _screenBusy = false; return; }
+            const data = await res.json().catch(() => null);
+            const reply = data?.message || data?.choices?.[0]?.message?.content || data?.text || '';
+            const clean = String(reply || '').trim();
+            if (clean && clean.length >= 6) {
+                document.getElementById('response').textContent = clean.substring(0, 150);
+                speak(clean);
+            }
+        } catch {
+        } finally {
+            _screenBusy = false;
+        }
+    }
+
+    function _shouldOraclePrefetch() {
+        if (!_screenStream) return false;
+        if (!_userInteracted) return false;
+        if (voiceConversationActive) return false;
+        if (_oracleBusy) return false;
+        if (state === 'TALKING' || state === 'LISTENING') return false;
+        const now = Date.now();
+        if (now - _oracleAt < 22000) return false;
+
+        const idleMs = Math.max(6000, Math.min(600000, (cfg.proactiveIdleSec || 22) * 1000));
+        const isIdle = (now - _lastUserActionAt) >= idleMs;
+        const stressed = (cfg.faceMesh && _face.furrowHold > 22) || (cfg.bioSync && _bioBpm >= 98);
+        return isIdle || stressed;
+    }
+
+    async function maybeOraclePrefetch() {
+        if (!_shouldOraclePrefetch()) return;
+        _oracleBusy = true;
+        _oracleAt = Date.now();
+        try {
+            const vis = captureScreenForChat();
+            if (!vis) { _oracleBusy = false; return; }
+
+            const sys =
+                `Eres AVA. Estás viendo la pantalla del usuario. ` +
+                `Tarea: predice cuál será su siguiente pregunta técnica probable y prepárale una respuesta corta. ` +
+                `Devuelve SOLO JSON estricto con esta forma: {"q":"...","a":"..."}. ` +
+                `q = pregunta probable (máx 140 chars). a = respuesta (máx 420 chars). ` +
+                `No saludes. No menciones pantalla/cámara. No inventes datos no visibles.`;
+
+            const payload = {
+                system: sys,
+                avatarName: NAMES[currentIdx],
+                messages: [{ role: 'user', content: 'Prefetch.' }],
+                vision: vis,
+                memoryContext: (cfg.memory || '').trim(),
+            };
+
+            const res = await fetch(cfg.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) { _oracleBusy = false; return; }
+            const data = await res.json().catch(() => null);
+            const reply = data?.message || data?.choices?.[0]?.message?.content || data?.text || '';
+            const raw = String(reply || '').trim();
+
+            let j = null;
+            try { j = JSON.parse(raw); } catch { j = null; }
+            const q = String(j?.q || '').trim();
+            const a = String(j?.a || '').trim();
+            if (!q || !a) { _oracleBusy = false; return; }
+
+            const qt = new Set(_normText(q).split(' ').filter(x => x.length >= 4).slice(0, 40));
+            _oracleCache = { t: Date.now(), q, answer: a, qTokens: qt };
+        } catch {
+        } finally {
+            _oracleBusy = false;
+        }
+    }
+
+    function _shouldProactive() {
+        if (!cfg.proactive) return false;
+        if (!cfg.useVision) return false;
+        if (!_userInteracted) return false;
+        if (voiceConversationActive) return false;
+        if (state !== 'IDLE') return false;
+        if (_proactiveBusy) return false;
+        if (!cfg.userName) return false;
+        const now = Date.now();
+        const everyMs = Math.max(8000, Math.min(180000, (cfg.proactiveEverySec || 18) * 1000));
+        const idleMs = Math.max(6000, Math.min(600000, (cfg.proactiveIdleSec || 22) * 1000));
+        const extra = (_face.furrowHold > 25) ? Math.min(idleMs * 0.65, 14000) : 0;
+        if (now - _lastUserActionAt < (idleMs - extra)) return false;
+        if (now - _lastProactiveAt < everyMs) return false;
+        return true;
+    }
+
+    async function ensureFaceMesh() {
+        if (!cfg.faceMesh) return false;
+        if (_faceMeshReady) return true;
+        if (!cfg.useVision) return false;
+        if (!visionReady || !visionVideo) return false;
+
+        if (typeof FaceMesh === 'undefined') return false;
+
+        _faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+        _faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+        });
+        _faceMesh.onResults((res) => {
+            const pts = res && res.multiFaceLandmarks && res.multiFaceLandmarks[0];
+            if (!pts || pts.length < 468) {
+                _face.present = 0;
+                return;
+            }
+            const p = (i) => pts[i];
+            const dist = (a, b) => {
+                const dx = (a.x - b.x);
+                const dy = (a.y - b.y);
+                return Math.sqrt(dx * dx + dy * dy);
+            };
+            const eyeW = Math.max(0.0001, dist(p(33), p(263)));
+            const brow = dist(p(70), p(300));
+            const mouth = dist(p(13), p(14));
+
+            const fur = Math.max(0, Math.min(1, (0.55 - (brow / eyeW)) * 2.2));
+            const mow = Math.max(0, Math.min(1, (mouth / eyeW) * 3.6));
+
+            _face.present = 1;
+            _face.furrow = _face.furrow + (fur - _face.furrow) * 0.25;
+            _face.mouth = _face.mouth + (mow - _face.mouth) * 0.25;
+            _face.lastAt = Date.now();
+        });
+
+        _faceMeshReady = true;
+        return true;
+    }
+
+    async function updateFaceMesh(delta) {
+        if (!cfg.faceMesh) return;
+        if (!_userInteracted) return;
+        if (!cfg.useVision) return;
+        if (!visionReady || !visionVideo || visionVideo.readyState < 2) return;
+
+        const ok = await ensureFaceMesh();
+        if (!ok || !_faceMesh) return;
+
+        _faceT -= (delta || 0.016);
+        if (_faceT > 0) return;
+        _faceT = 0.16;
+
+        try {
+            await _faceMesh.send({ image: visionVideo });
+        } catch {
+        }
+
+        if (_face.present > 0.5) {
+            const add = (_face.furrow > 0.65) ? 1 : -1;
+            _face.furrowHold = Math.max(0, Math.min(120, _face.furrowHold + add * (delta || 0.016)));
+        } else {
+            _face.furrowHold = Math.max(0, _face.furrowHold - (delta || 0.016) * 1.6);
+        }
+    }
+
+    async function maybeProactiveVision() {
+        if (!_shouldProactive()) return;
+        _proactiveBusy = true;
+        _lastProactiveAt = Date.now();
+        try {
+            try { await ensureVisionCamera(); } catch (_) {}
+            const vis = captureVisionForChat();
+            if (!vis) { _proactiveBusy = false; return; }
+
+            const sys =
+                `Eres AVA. Modo proactivo: el usuario no preguntó nada. ` +
+                `Con base en la imagen reciente de su cámara, escribe 1-2 frases MAX (muy cortas) ` +
+                `con una observación útil o empática sobre su presencia/actividad. ` +
+                `Si no hay nada claro, no inventes: haz una pregunta breve de confirmación. ` +
+                `Si detectas contexto de trabajo (pantalla, laptop, postura de concentración), ` +
+                `ofrece ayuda concreta en SQL/Microsip/BI/Cursor AI sin asumir detalles. ` +
+                `No menciones "cámara", "vision" o "modelo". No saludes. No te extiendas.`;
+
+            const payload = {
+                system: sys,
+                avatarName: NAMES[currentIdx],
+                messages: [{ role: 'user', content: 'Observa y ayuda.' }],
+                vision: vis,
+                memoryContext: (cfg.memory || '').trim(),
+            };
+
+            const res = await fetch(cfg.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) { _proactiveBusy = false; return; }
+            const data = await res.json().catch(() => null);
+            const reply = data?.message || data?.response || data?.choices?.[0]?.message?.content || data?.text || '';
+            const clean = String(reply || '').trim();
+            if (clean && clean.length >= 6) {
+                document.getElementById('response').textContent = clean.substring(0, 150);
+                speak(clean);
+            }
+        } catch (_) {
+        } finally {
+            _proactiveBusy = false;
+        }
     }
 
     /** Detiene grabación Deepgram o Web Speech (p. ej. al pulsar mic o cambiar modo). */
@@ -2022,6 +3260,9 @@
         const vrm = document.getElementById('cfg-vrm').value.trim();
         cfg.wakeWord = document.getElementById('cfg-wake').checked;
         cfg.useVision = document.getElementById('cfg-vision').checked;
+        cfg.proactive = !!(document.getElementById('cfg-proactive') && document.getElementById('cfg-proactive').checked);
+        cfg.faceMesh = !!(document.getElementById('cfg-facemesh') && document.getElementById('cfg-facemesh').checked);
+        cfg.mixedReality = !!(document.getElementById('cfg-mr') && document.getElementById('cfg-mr').checked);
         cfg.memory = (document.getElementById('cfg-memory') && document.getElementById('cfg-memory').value) || '';
 
         cfg.userName = user;
@@ -2033,6 +3274,9 @@
         localStorage.setItem('ava_vrm_base', vrm);
         localStorage.setItem('ava_wake', cfg.wakeWord ? '1' : '0');
         localStorage.setItem('ava_vision', cfg.useVision ? '1' : '0');
+        localStorage.setItem('ava_proactive', cfg.proactive ? '1' : '0');
+        localStorage.setItem('ava_facemesh', cfg.faceMesh ? '1' : '0');
+        localStorage.setItem('ava_mr', cfg.mixedReality ? '1' : '0');
         localStorage.setItem('ava_memory', cfg.memory);
 
         hideConfig();
@@ -2051,8 +3295,11 @@
         localStorage.removeItem('ava_vrm_base');
         localStorage.removeItem('ava_wake');
         localStorage.removeItem('ava_vision');
+        localStorage.removeItem('ava_proactive');
+        localStorage.removeItem('ava_facemesh');
+        localStorage.removeItem('ava_mr');
         localStorage.removeItem('ava_memory');
-        cfg = { apiUrl: '/api/chat', userName: '', vrmBase: '', wakeWord: true, useVision: true, memory: '' };
+        cfg = { apiUrl: '/api/chat', userName: '', vrmBase: '', wakeWord: true, useVision: true, memory: '', proactive: false, proactiveEverySec: 18, proactiveIdleSec: 22, faceMesh: false, mixedReality: false, bioSync: false, bioWsUrl: 'ws://127.0.0.1:8765', divineTone: false, divineHz: 963 };
         const memEl = document.getElementById('cfg-memory');
         if (memEl) memEl.value = '';
         showConfig();
@@ -2081,6 +3328,12 @@
         document.getElementById('cfg-vrm').value = cfg.vrmBase;
         document.getElementById('cfg-wake').checked = cfg.wakeWord;
         document.getElementById('cfg-vision').checked = cfg.useVision;
+        const pIn = document.getElementById('cfg-proactive');
+        if (pIn) pIn.checked = !!cfg.proactive;
+        const fmIn = document.getElementById('cfg-facemesh');
+        if (fmIn) fmIn.checked = !!cfg.faceMesh;
+        const mrIn = document.getElementById('cfg-mr');
+        if (mrIn) mrIn.checked = !!cfg.mixedReality;
         const memIn = document.getElementById('cfg-memory');
         if (memIn) memIn.value = cfg.memory || '';
 
@@ -2101,7 +3354,89 @@
         document.getElementById('mic-btn').addEventListener('click', toggleMic);
         document.getElementById('mic-btn').addEventListener('touchstart', e => { e.preventDefault(); toggleMic(); });
 
+        const scrBtn = document.getElementById('screen-btn');
+        if (scrBtn) {
+            const upd = () => {
+                if (_screenStream) scrBtn.classList.add('on');
+                else scrBtn.classList.remove('on');
+            };
+            scrBtn.addEventListener('click', async () => {
+                _userInteracted = true;
+                if (_screenStream) {
+                    stopScreenShare();
+                    upd();
+                    updateStatus('LISTA');
+                    return;
+                }
+                const ok = await startScreenShare();
+                upd();
+                if (ok) updateStatus('PANTALLA COMPARTIDA');
+            });
+        }
+
         document.getElementById('cfg-go').addEventListener('click', saveConfig);
+
+        const patchOv = document.getElementById('patch-overlay');
+        const patchTarget = document.getElementById('patch-target');
+        const patchCrit = document.getElementById('patch-critique');
+        const patchOut = document.getElementById('patch-output');
+
+        const showPatch = () => {
+            if (!patchOv) return;
+            patchOv.classList.remove('hidden');
+            if (patchTarget && !patchTarget.value) patchTarget.value = 'ava.html';
+            if (patchCrit) patchCrit.focus();
+        };
+        const hidePatch = () => {
+            if (!patchOv) return;
+            patchOv.classList.add('hidden');
+        };
+
+        async function requestPatchProposal() {
+            if (!patchOut || !patchCrit || !patchTarget) return;
+            const target = String(patchTarget.value || '').trim() || 'ava.html';
+            const critique = String(patchCrit.value || '').trim();
+            if (!critique) return;
+            patchOut.value = 'Generando diff...';
+            try {
+                const sys =
+                    `Eres AVA en modo Ouroboros seguro. ` +
+                    `Tu tarea: proponer un parche en formato unified diff (git diff) para el archivo indicado. ` +
+                    `No ejecutes nada, solo genera el diff. ` +
+                    `Reglas: diffs cortos, no reestructures todo. No agregues dependencias. ` +
+                    `No incluyas markdown. Responde SOLO con el diff. `;
+
+                const payload = {
+                    system: sys,
+                    avatarName: NAMES[currentIdx],
+                    messages: [{ role: 'user', content: `Archivo: ${target}\nSolicitud: ${critique}` }],
+                    memoryContext: (cfg.memory || '').trim(),
+                };
+                const res = await fetch(cfg.apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => null);
+                const reply = data?.message || data?.choices?.[0]?.message?.content || data?.text || '';
+                patchOut.value = String(reply || '').trim() || 'No se pudo generar diff.';
+            } catch {
+                patchOut.value = 'No se pudo generar diff.';
+            }
+        }
+
+        const patchGenBtn = document.getElementById('patch-generate');
+        if (patchGenBtn) patchGenBtn.addEventListener('click', requestPatchProposal);
+        const patchCloseBtn = document.getElementById('patch-close');
+        if (patchCloseBtn) patchCloseBtn.addEventListener('click', hidePatch);
+        const patchCopyBtn = document.getElementById('patch-copy');
+        if (patchCopyBtn) patchCopyBtn.addEventListener('click', async () => {
+            try {
+                const txt = patchOut ? String(patchOut.value || '') : '';
+                if (!txt) return;
+                await navigator.clipboard.writeText(txt);
+            } catch {}
+        });
 
         document.querySelectorAll('.avatar-dot').forEach((dot, i) => {
             dot.addEventListener('click', () => {
@@ -2135,6 +3470,7 @@
             if (e.code === 'Space' && !e.repeat && !isText) { e.preventDefault(); toggleMic(); return; }
             if (e.ctrlKey && e.key === 'r') { e.preventDefault(); resetConfig(); return; }
             if (!isText && !e.ctrlKey) {
+                if (e.key === 'p' && !e.repeat) { e.preventDefault(); showPatch(); return; }
                 if (e.key >= '1' && e.key <= '9') { e.preventDefault(); currentIdx = parseInt(e.key) - 1; loadVRMAvatar(currentIdx); }
                 if (e.key === '0') { e.preventDefault(); currentIdx = 9; loadVRMAvatar(9); }
                 if (e.key === 'n') { e.preventDefault(); currentIdx = (currentIdx + 1) % 10; loadVRMAvatar(currentIdx); }

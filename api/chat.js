@@ -35,6 +35,40 @@ function abortMs(ms) {
   return c.signal;
 }
 
+async function tryOllama(systemPrompt, msgList) {
+  const enabled = process.env.OLLAMA_ENABLE === '1' || !!process.env.OLLAMA_API_URL;
+  if (!enabled) return null;
+
+  const base = (process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/api/chat').trim();
+  const model = (process.env.OLLAMA_MODEL || 'llama3.1').trim();
+  const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS || 45000);
+
+  const messages = [
+    { role: 'system', content: String(systemPrompt || '').slice(0, 24000) },
+    ...msgList.map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: String(m.content || '').slice(0, 8000),
+    })),
+  ];
+
+  try {
+    const r = await fetch(base, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, stream: false, messages }),
+      signal: abortMs(timeoutMs),
+    });
+    if (!r.ok) return null;
+    const d = await r.json().catch(() => null);
+    const text = d?.message?.content || d?.response || '';
+    if (!text) return null;
+    return { text, source: 'ollama', model };
+  } catch (e) {
+    console.warn('Ollama failed:', e.message);
+    return null;
+  }
+}
+
 /** Hora y fecha local para contexto (timezone por env o México por defecto). Una línea corta. */
 function getAmbientTimeBlock() {
   try {
@@ -491,10 +525,13 @@ export default async function handler(req, res) {
 
   const hasVision = !!(vision && vision.base64 && String(vision.base64).length > 100);
 
+  const useOllama = process.env.OLLAMA_ENABLE === '1' || !!process.env.OLLAMA_API_URL;
+
   // Con imagen: multimodal primero; si falla, texto rápido (Gemini/Groq) antes que Claude
   // Sin visión: calidad primero (Claude → GPT → …). Con visión: multimodal primero, luego el mismo orden en texto.
   const providers = hasVision
     ? [
+        ...(useOllama ? [() => tryOllama(systemPrompt, msgList)] : []),
         () => tryGemini(systemPrompt, msgList, vision),
         () => tryOpenAIVision(systemPrompt, msgList, vision),
         () => tryAnthropic(systemPrompt, msgList),
@@ -504,6 +541,7 @@ export default async function handler(req, res) {
         () => tryGroq(systemPrompt, msgList),
       ]
     : [
+        ...(useOllama ? [() => tryOllama(systemPrompt, msgList)] : []),
         () => tryAnthropic(systemPrompt, msgList),
         () => tryOpenAI(systemPrompt, msgList),
         () => tryGemini(systemPrompt, msgList, null),
@@ -525,6 +563,7 @@ export default async function handler(req, res) {
 
   // No provider worked
   const configured = [
+    (process.env.OLLAMA_ENABLE === '1' || process.env.OLLAMA_API_URL) && 'OLLAMA_API_URL/OLLAMA_ENABLE',
     process.env.ANTHROPIC_API_KEY && 'ANTHROPIC_API_KEY',
     process.env.OPENAI_API_KEY    && 'OPENAI_API_KEY',
     process.env.GEMINI_API_KEY    && 'GEMINI_API_KEY',
