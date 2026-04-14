@@ -2387,14 +2387,8 @@
     }
 
     function scheduleWakeRestart() {
-        // Prevent multiple simultaneous restarts
-        if (_wakeRestartPending || _wakeActive) {
-            console.log('%c⏭️ Wake restart already pending/active', 'color:#888');
-            return;
-        }
-        
+        // Always clear any pending timer first
         clearTimeout(wakeRestartTimer);
-        _wakeRestartPending = true;
         
         wakeRestartTimer = setTimeout(() => {
             _wakeRestartPending = false;
@@ -2403,22 +2397,22 @@
             const overlay = document.getElementById('config-overlay');
             if (overlay && !overlay.classList.contains('hidden')) return;
             
-            // Only restart if not in conversation and not already active
-            if (!voiceConversationActive && cfg.wakeWord && !_wakeActive) {
+            // Restart wake word if not in conversation
+            if (!voiceConversationActive && cfg.wakeWord) {
                 console.log('%c🔄 Wake word restart', 'color:#00ff9d');
                 
                 if (window.MediaRecorder && navigator.mediaDevices) {
                     startListeningDeepgram({
                         wakeMode: true,
-                        silenceStopMs: 5500,   // 5.5s - balanced
-                        minBeforeEnd: 800,     // 800ms - stable detection
-                        rmsSpeech: 0.011       // Balanced threshold
+                        silenceStopMs: 5500,
+                        minBeforeEnd: 800,
+                        rmsSpeech: 0.011
                     });
                 } else if (_SRClass) {
                     startWakeWord();
                 }
             }
-        }, 100); // Small delay for stability
+        }, 150);
     }
 
     async function ensureVisionCamera() {
@@ -2855,6 +2849,8 @@
     }
 
     function stopActiveListen() {
+        _wakeActive = false;
+        _wakeRestartPending = false;
         if (typeof _activeListenCleanup === 'function') {
             try { _activeListenCleanup(); } catch (e) {}
             _activeListenCleanup = null;
@@ -3174,6 +3170,10 @@
         updateStatus('HABLANDO...');
         document.getElementById('response').textContent = clean.substring(0, 150);
 
+        // Reset wake flags when TTS starts
+        _wakeActive = false;
+        _wakeRestartPending = false;
+
         // If user hasn't interacted yet, show text and skip audio (autoplay policy)
         if (!_userInteracted) {
             document.getElementById('response').textContent = clean.substring(0, 150);
@@ -3278,24 +3278,39 @@
         u.rate = vp.rate;
         const pickVoice = () => {
             const all = synth.getVoices();
-            // Priority 1: Neural/Natural Spanish voices (modern browsers)
-            const neural = all.filter(v => v.lang.startsWith('es') &&
+            // Priority 1: es-MX voices (Monterrey/LatAm)
+            const mxVoices = all.filter(v => v.lang === 'es-MX');
+            if (mxVoices.length) return mxVoices[currentIdx % mxVoices.length];
+            // Priority 2: Neural/Natural Latin American Spanish voices
+            const neural = all.filter(v => (v.lang.startsWith('es-MX') || v.lang.startsWith('es-419')) &&
                 (v.name.includes('Neural') || v.name.includes('Natural') ||
                  v.name.includes('Dalia') || v.name.includes('Marina') ||
-                 v.name.includes('Elvira') || v.name.includes('Paulina') ||
-                 v.name.includes('Abril') || v.name.includes('Ximena')));
+                 v.name.includes('Paulina') || v.name.includes('Ximena')));
             if (neural.length) return neural[currentIdx % neural.length];
-            // Priority 2: any online Spanish voice (online = better quality)
+            // Priority 3: any online es-MX or es-419 voice
+            const latAmOnline = all.filter(v => (v.lang === 'es-MX' || v.lang === 'es-419') && !v.localService);
+            if (latAmOnline.length) return latAmOnline[currentIdx % latAmOnline.length];
+            // Priority 4: any online Spanish voice
             const esOnline = all.filter(v => v.lang.startsWith('es') && !v.localService);
             if (esOnline.length) return esOnline[currentIdx % esOnline.length];
-            // Priority 3: any Spanish voice
+            // Priority 5: any Spanish voice
             const es = all.filter(v => v.lang.startsWith('es'));
             if (es.length) return es[currentIdx % es.length];
             return null;
         };
         const v = pickVoice();
-        if (v) { u.voice = v; console.log('Browser TTS voice:', v.name); }
-        const done = () => { ttsAnalyser = null; ttsFreq = null; setState('IDLE'); updateStatus('LISTA'); document.getElementById('response').textContent = ''; };
+        if (v) { u.voice = v; console.log('Browser TTS voice:', v.name, v.lang); }
+        const done = () => { 
+            ttsAnalyser = null; ttsFreq = null; 
+            voiceConversationActive = false;
+            setState('IDLE'); 
+            updateStatus(cfg.wakeWord ? 'LISTA — di «AVA»' : 'LISTA'); 
+            document.getElementById('response').textContent = ''; 
+            if (cfg.wakeWord) {
+                console.log('%c🔄 Wake', 'color:#00ff9d');
+                scheduleWakeRestart();
+            }
+        };
         u.onend = done;
         u.onerror = done;
         synth.speak(u);
