@@ -365,8 +365,6 @@
     let recognition = null;
     let wakeRec = null;
     let wakeRestartTimer = null;
-    let _wakeRestartPending = false;
-    let _wakeActive = false;
     const synth = window.speechSynthesis;
 
     let visionVideo = null;
@@ -2341,22 +2339,20 @@
             for (let i = 0; i < e.results.length; i++) line += e.results[i][0].transcript;
             const low = line.trim();
             if (!hasWakePhrase(low)) return;
+            console.log('%c✅ WAKE PHRASE DETECTADO', 'color:#00ff9d;font-weight:bold', low);
             voiceConversationActive = true;
             const rest = stripWakePhrases(low);
             stopWakeWord();
             _userInteracted = true;
             if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (ttsCtx.state === 'suspended') ttsCtx.resume().catch(() => {});
-            const afterWakeFast = { silenceStopMs: 1550, minBeforeEnd: 380, rmsSpeech: 0.012 };
             const primeVision = () => { if (cfg.useVision) ensureVisionCamera(); };
             if (rest.length > 2) {
                 document.getElementById('transcript').textContent = rest;
                 primeVision();
                 processMessage(rest);
-            } else if (window.MediaRecorder && navigator.mediaDevices) {
-                primeVision();
-                startListeningDeepgram(afterWakeFast);
             } else {
+                // After wake word, use Web Speech for conversation too (fast, local)
                 primeVision();
                 startListening({ fastSilence: true });
             }
@@ -2364,55 +2360,37 @@
         wakeRec.onerror = (e) => {
             if (e.error === 'aborted') return;
             console.warn('Wake STT:', e.error);
-            if (e.error === 'no-speech' || e.error === 'audio-capture' || e.error === 'not-allowed') {
-                // Most common causes: no mic data, permission, device switch, or Chrome's internal timeout.
-                // Restart gently so wake word keeps working.
-                try { wakeRec && wakeRec.stop(); } catch (_) {}
-                wakeRec = null;
-                if (!voiceConversationActive && cfg.wakeWord && state === 'IDLE' && cfg.userName) {
-                    clearTimeout(wakeRestartTimer);
-                    wakeRestartTimer = setTimeout(() => startWakeWord(), 900);
-                }
+            try { wakeRec && wakeRec.stop(); } catch (_) {}
+            wakeRec = null;
+            // Auto-restart on common errors
+            if (!voiceConversationActive && cfg.wakeWord && cfg.userName) {
+                clearTimeout(wakeRestartTimer);
+                wakeRestartTimer = setTimeout(startWakeWord, 500);
             }
         };
         wakeRec.onend = () => {
             wakeRec = null;
-            if (voiceConversationActive) return;
-            if (cfg.wakeWord && state === 'IDLE' && cfg.userName) {
+            // ALWAYS restart wake word when it ends (unless in conversation)
+            if (!voiceConversationActive && cfg.wakeWord && cfg.userName) {
                 clearTimeout(wakeRestartTimer);
-                wakeRestartTimer = setTimeout(() => startWakeWord(), 220);
+                wakeRestartTimer = setTimeout(startWakeWord, 200);
             }
         };
-        try { wakeRec.start(); } catch (e) { console.warn('Wake start:', e.message); }
+        try {
+            wakeRec.start();
+            console.log('%c🎙️ Wake word escuchando...', 'color:#00ff9d');
+        } catch (e) { console.warn('Wake start:', e.message); }
     }
 
     function scheduleWakeRestart() {
-        // Always clear any pending timer first
         clearTimeout(wakeRestartTimer);
-        
-        wakeRestartTimer = setTimeout(() => {
-            _wakeRestartPending = false;
-            
-            if (!cfg.userName) return;
-            const overlay = document.getElementById('config-overlay');
-            if (overlay && !overlay.classList.contains('hidden')) return;
-            
-            // Restart wake word if not in conversation
-            if (!voiceConversationActive && cfg.wakeWord) {
-                console.log('%c🔄 Wake word restart', 'color:#00ff9d');
-                
-                if (window.MediaRecorder && navigator.mediaDevices) {
-                    startListeningDeepgram({
-                        wakeMode: true,
-                        silenceStopMs: 5500,
-                        minBeforeEnd: 800,
-                        rmsSpeech: 0.011
-                    });
-                } else if (_SRClass) {
-                    startWakeWord();
-                }
-            }
-        }, 150);
+        if (!cfg.wakeWord || voiceConversationActive || !cfg.userName) return;
+        const overlay = document.getElementById('config-overlay');
+        if (overlay && !overlay.classList.contains('hidden')) return;
+        // Always use Web Speech API for wake word — it's local, fast, reliable
+        if (_SRClass) {
+            wakeRestartTimer = setTimeout(startWakeWord, 200);
+        }
     }
 
     async function ensureVisionCamera() {
@@ -2849,8 +2827,6 @@
     }
 
     function stopActiveListen() {
-        _wakeActive = false;
-        _wakeRestartPending = false;
         if (typeof _activeListenCleanup === 'function') {
             try { _activeListenCleanup(); } catch (e) {}
             _activeListenCleanup = null;
@@ -2867,7 +2843,6 @@
         const RMS_SPEECH = opts.rmsSpeech != null ? opts.rmsSpeech : 0.015;
         stopActiveListen();
         stopWakeWord();
-        _wakeActive = true;  // Mark wake word as active
         let stream;
         try {
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -2922,7 +2897,6 @@
             _activeListenCleanup = null;
             endSilenceMonitor();
             stream.getTracks().forEach(t => t.stop());
-            _wakeActive = false;  // Mark wake word as inactive
             if (state !== 'LISTENING') return;
             if (chunks.length === 0) {
                 setState('IDLE');
@@ -3121,16 +3095,15 @@
             return;
         }
 
-        // Try Deepgram first (server-side, best accuracy)
-        // If mic/MediaRecorder not available, fall through to Web Speech
-        if (window.MediaRecorder && navigator.mediaDevices) {
-            startListeningDeepgram();
+        // Use Web Speech API (local, fast) for mic button conversation
+        if (_SRClass) {
+            startListening();
             return;
         }
 
-        // Fallback: Web Speech API
-        if (_SRClass) {
-            setTimeout(startListening, 80);
+        // Fallback: Deepgram (server-side)
+        if (window.MediaRecorder && navigator.mediaDevices) {
+            startListeningDeepgram();
             return;
         }
 
@@ -3170,10 +3143,6 @@
         updateStatus('HABLANDO...');
         document.getElementById('response').textContent = clean.substring(0, 150);
 
-        // Reset wake flags when TTS starts
-        _wakeActive = false;
-        _wakeRestartPending = false;
-
         // If user hasn't interacted yet, show text and skip audio (autoplay policy)
         if (!_userInteracted) {
             document.getElementById('response').textContent = clean.substring(0, 150);
@@ -3185,13 +3154,10 @@
         // Desbloquear contexto antes del fetch a APIs TTS (Chrome exige contexto ya activado)
         await ensureTtsContextRunning();
 
-        // TTS chain — Latin Spanish voices first
+        // TTS chain — Latin Spanish voices first (ElevenLabs disabled — always 401)
         const ttsProviders = [
-            // Put ElevenLabs first only if it is usable; otherwise skip to avoid repeated 401 noise.
-            ...(!_ttsProviderDisabled.elevenlabs ? [{ url: '/api/tts-elevenlabs', label: 'ElevenLabs' }] : []),
-            { url: '/api/tts-openai',     label: 'OpenAI TTS'      }, // es-MX Paloma
+            { url: '/api/tts-openai',     label: 'OpenAI TTS'      }, // es-MX nova
             { url: '/api/tts-edge',       label: 'Edge Dalia/MX'   }, // es-MX-DaliaNeural FREE
-            { url: '/api/tts-deepgram',   label: 'Deepgram Aura'   }, // en voice fallback
         ];
         for (const p of ttsProviders) {
             try {
@@ -3200,9 +3166,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: clean.substring(0, 1200), avatarIndex: currentIdx })
                 });
-                if (!r.ok && p.url === '/api/tts-elevenlabs' && (r.status === 401 || r.status === 403)) {
-                    _ttsProviderDisabled.elevenlabs = true;
-                }
                 if (r.ok) {
                     const d = await r.json();
                     if (d.audioContent) {
