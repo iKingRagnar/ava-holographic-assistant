@@ -2341,38 +2341,35 @@
         rec.maxAlternatives = 3;
 
         rec.onaudiostart = () => {
-            console.log('%c🎙️ Wake: micrófono activo, escuchando...', 'color:#00ff9d;font-weight:bold');
-            updateStatus('LISTA — di «AVA»');
-        };
-        rec.onspeechstart = () => {
-            console.log('%c🗣️ Wake: detectó voz...', 'color:#ffaa00');
+            console.log('%c🎙️ Wake: micrófono activo', 'color:#00ff9d;font-weight:bold');
+            updateStatus('LISTA — habla y te escucho');
         };
 
         rec.onresult = (e) => {
-            // Only process new results
             for (let i = e.resultIndex; i < e.results.length; i++) {
                 const transcript = e.results[i][0].transcript.trim();
                 if (!transcript) continue;
-                console.log('%c👂 Wake oye:', 'color:#88ccff', transcript, '(final:', e.results[i].isFinal, ')');
+                const isFinal = e.results[i].isFinal;
 
+                // Show live transcript on page
+                document.getElementById('transcript').textContent = transcript;
+
+                // If wake phrase detected, strip it and process
                 if (hasWakePhrase(transcript)) {
-                    console.log('%c✅ ¡AVA DETECTADA!', 'color:#00ff9d;font-weight:bold;font-size:14px', transcript);
-                    voiceConversationActive = true;
-                    const rest = stripWakePhrases(transcript);
-                    stopWakeWord();
-                    _userInteracted = true;
-                    if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    if (ttsCtx.state === 'suspended') ttsCtx.resume().catch(() => {});
-                    const primeVision = () => { if (cfg.useVision) ensureVisionCamera(); };
-                    if (rest.length > 2) {
-                        document.getElementById('transcript').textContent = rest;
-                        primeVision();
-                        processMessage(rest);
-                    } else {
-                        primeVision();
-                        startListening({ fastSilence: true });
-                    }
+                    const rest = stripWakePhrases(transcript).trim();
+                    console.log('%c✅ ¡AVA DETECTADA!', 'color:#00ff9d;font-weight:bold', transcript);
+                    _activateConversation(rest.length > 2 ? rest : null);
                     return;
+                }
+
+                // ANY final sentence with 3+ words → process as message (no wake word needed)
+                if (isFinal) {
+                    const words = transcript.split(/\s+/).filter(w => w.length > 0);
+                    if (words.length >= 2) {
+                        console.log('%c💬 Procesando frase directa:', 'color:#ffaa00;font-weight:bold', transcript);
+                        _activateConversation(transcript);
+                        return;
+                    }
                 }
             }
         };
@@ -2389,7 +2386,6 @@
         };
 
         rec.onend = () => {
-            console.log('%c🔄 Wake terminó, reiniciando...', 'color:#888');
             wakeRec = null;
             if (!voiceConversationActive && cfg.wakeWord && cfg.userName && state === 'IDLE') {
                 clearTimeout(wakeRestartTimer);
@@ -2400,12 +2396,27 @@
         try {
             rec.start();
             wakeRec = rec;
-            console.log('%c🎙️ Wake word iniciado', 'color:#00ff9d');
+            console.log('%c🎙️ Escuchando — habla y AVA responde', 'color:#00ff9d');
         } catch (e) {
             console.warn('Wake start error:', e.message);
             wakeRec = null;
             clearTimeout(wakeRestartTimer);
             wakeRestartTimer = setTimeout(startWakeWord, 1000);
+        }
+    }
+
+    function _activateConversation(text) {
+        voiceConversationActive = true;
+        stopWakeWord();
+        _userInteracted = true;
+        if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ttsCtx.state === 'suspended') ttsCtx.resume().catch(() => {});
+        if (cfg.useVision) ensureVisionCamera();
+        if (text) {
+            document.getElementById('transcript').textContent = text;
+            processMessage(text);
+        } else {
+            startListening({ fastSilence: true });
         }
     }
 
