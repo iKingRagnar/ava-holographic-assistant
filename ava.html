@@ -2386,29 +2386,31 @@
 
     function scheduleWakeRestart() {
         clearTimeout(wakeRestartTimer);
+        // ULTRA-FAST restart - minimal delay
         wakeRestartTimer = setTimeout(() => {
-            if (state !== 'IDLE' || !cfg.userName) return;
+            if (!cfg.userName) return;
             const overlay = document.getElementById('config-overlay');
             if (overlay && !overlay.classList.contains('hidden')) return;
-            if (voiceConversationActive) {
+            
+            // ALWAYS restart wake word if enabled and not in conversation
+            if (!voiceConversationActive && cfg.wakeWord) {
+                console.log('%c Wake word restart', 'color:#00ff9d');
+                // Force IDLE state
+                if (state !== 'IDLE') setState('IDLE');
+                
                 if (window.MediaRecorder && navigator.mediaDevices) {
-                    startListeningDeepgram({ silenceStopMs: 2650, minBeforeEnd: 580, rmsSpeech: 0.014 });
-                } else if (_SRClass) {
-                    startListening({});
-                }
-            } else if (cfg.wakeWord) {
-                if (_SRClass) {
-                    startWakeWord();
-                } else if (window.MediaRecorder && navigator.mediaDevices && window._deepgramAvailable !== false) {
+                    // AGGRESSIVE: Shorter silence, faster response
                     startListeningDeepgram({
                         wakeMode: true,
-                        silenceStopMs: 3200,
-                        minBeforeEnd: 700,
-                        rmsSpeech: 0.015
+                        silenceStopMs: 4500,   // 4.5s - faster response
+                        minBeforeEnd: 600,     // 600ms - quicker detection
+                        rmsSpeech: 0.012       // Slightly higher but responsive
                     });
+                } else if (_SRClass) {
+                    startWakeWord();
                 }
             }
-        }, 340);
+        }, 25); // Ultra-minimal delay
     }
 
     async function ensureVisionCamera() {
@@ -2782,7 +2784,68 @@
         }
     }
 
-    /** Detiene grabación Deepgram o Web Speech (p. ej. al pulsar mic o cambiar modo). */
+    function _shouldProactive() {
+        if (!cfg.proactive) return false;
+        if (!cfg.useVision) return false;
+        if (!_userInteracted) return false;
+        if (voiceConversationActive) return false;
+        if (state !== 'IDLE') return false;
+        if (_proactiveBusy) return false;
+        if (!cfg.userName) return false;
+        const now = Date.now();
+        const everyMs = Math.max(8000, Math.min(180000, (cfg.proactiveEverySec || 18) * 1000));
+        const idleMs = Math.max(6000, Math.min(600000, (cfg.proactiveIdleSec || 22) * 1000));
+        const extra = (_face.furrowHold > 25) ? Math.min(idleMs * 0.65, 14000) : 0;
+        if (now - _lastUserActionAt < (idleMs - extra)) return false;
+        if (now - _lastProactiveAt < everyMs) return false;
+        return true;
+    }
+
+    async function maybeProactiveVision() {
+        if (!_shouldProactive()) return;
+        _proactiveBusy = true;
+        _lastProactiveAt = Date.now();
+        try {
+            try { await ensureVisionCamera(); } catch (_) {}
+            const vis = captureVisionForChat();
+            if (!vis) { _proactiveBusy = false; return; }
+
+            const sys =
+                `Eres AVA. Modo proactivo: el usuario no preguntó nada. ` +
+                `Con base en la imagen reciente de su cámara, escribe 1-2 frases MAX (muy cortas) ` +
+                `con una observación útil o empática sobre su presencia/actividad. ` +
+                `Si no hay nada claro, no inventes: haz una pregunta breve de confirmación. ` +
+                `Si detectas contexto de trabajo (pantalla, laptop, postura de concentración), ` +
+                `ofrece ayuda concreta en SQL/Microsip/BI/Cursor AI sin asumir detalles. ` +
+                `No menciones "cámara", "vision" o "modelo". No saludes. No te extiendas.`;
+
+            const payload = {
+                system: sys,
+                avatarName: NAMES[currentIdx],
+                messages: [{ role: 'user', content: 'Observa y ayuda.' }],
+                vision: vis,
+                memoryContext: (cfg.memory || '').trim(),
+            };
+
+            const res = await fetch(cfg.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) { _proactiveBusy = false; return; }
+            const data = await res.json().catch(() => null);
+            const reply = data?.message || data?.response || data?.choices?.[0]?.message?.content || data?.text || '';
+            const clean = String(reply || '').trim();
+            if (clean && clean.length >= 6) {
+                document.getElementById('response').textContent = clean.substring(0, 150);
+                speak(clean);
+            }
+        } catch (_) {
+        } finally {
+            _proactiveBusy = false;
+        }
+    }
+
     function stopActiveListen() {
         if (typeof _activeListenCleanup === 'function') {
             try { _activeListenCleanup(); } catch (e) {}
@@ -3151,11 +3214,17 @@
             audio.setAttribute('playsinline', '');
             audio.preload = 'auto';
             _curAudio = audio;
-            const finish = () => {
-                ttsAnalyser = null; ttsFreq = null;
-                setState('IDLE'); updateStatus('LISTA');
+            const finish = () => { 
+                ttsAnalyser = null; ttsFreq = null; 
+                voiceConversationActive = false;
+                setState('IDLE'); 
+                updateStatus(cfg.wakeWord ? 'LISTA — di «AVA»' : 'LISTA'); 
                 document.getElementById('response').textContent = '';
-                done();
+                // ULTRA-FAST: Restart wake word immediately
+                if (cfg.wakeWord) {
+                    console.log('%c Wake', 'color:#00ff9d');
+                    scheduleWakeRestart();
+                }
             };
             audio.onended = finish;
             audio.onerror = () => { console.warn('Audio error'); finish(); };
@@ -3499,8 +3568,8 @@
         updateStatus('LISTA');
         console.log('AVA v2.0 initialized with Claude AI');
 
-        // Show first autonomous phrase quickly (text-only until user interacts)
-        setTimeout(startAutonomousSpeech, 4000);
+        // Autonomous speech disabled - user wants manual control via wake word only
+        // setTimeout(startAutonomousSpeech, 4000);
     }
 
     // ================================================================
