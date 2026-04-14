@@ -2302,22 +2302,23 @@
     }
 
     function stopWakeWord() {
+        clearTimeout(wakeRestartTimer);
         if (wakeRec) {
-            try { wakeRec.stop(); } catch (e) {}
+            try { wakeRec.abort(); } catch (_) {}
+            try { wakeRec.stop(); } catch (_) {}
             wakeRec = null;
         }
     }
 
     function hasWakePhrase(text) {
         const n = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        // "aba" = error común de reconocimiento; inicio de frase o tras pausa
-        return /\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|escuchame|oye\s*ava)\b/i.test(n)
-            || /(?:^|[\s,;])(ava|aba)(?:[\s,;]|$)/i.test(n);
+        return /\b(ava|aba|eva|hey\s*ava|hola\s*ava|hola\s*eva|buenas\s*ava|ok\s*ava|despierta|empieza|escuchame|oye\s*ava|oye\s*eva)\b/i.test(n)
+            || /(?:^|[\s,;.!?])(ava|aba|eva)(?:[\s,;.!?]|$)/i.test(n);
     }
 
     function stripWakePhrases(text) {
         return text
-            .replace(/\b(ava|aba|hey\s*ava|hola\s*ava|buenas\s*ava|ok\s*ava|despierta|empieza|esc[uú]chame|oye\s*ava)\b/gi, ' ')
+            .replace(/\b(ava|aba|eva|hey\s*ava|hola\s*ava|hola\s*eva|buenas\s*ava|ok\s*ava|despierta|empieza|esc[uú]chame|oye\s*ava|oye\s*eva)\b/gi, ' ')
             .replace(/\s+/g, ' ')
             .trim();
     }
@@ -2329,68 +2330,94 @@
         const overlay = document.getElementById('config-overlay');
         if (overlay && !overlay.classList.contains('hidden')) return;
         if (!cfg.userName) return;
-        stopWakeWord();
-        wakeRec = new _SRClass();
-        wakeRec.lang = 'es-MX';
-        wakeRec.continuous = true;
-        wakeRec.interimResults = true;
-        wakeRec.onresult = (e) => {
-            let line = '';
-            for (let i = 0; i < e.results.length; i++) line += e.results[i][0].transcript;
-            const low = line.trim();
-            if (!hasWakePhrase(low)) return;
-            console.log('%c✅ WAKE PHRASE DETECTADO', 'color:#00ff9d;font-weight:bold', low);
-            voiceConversationActive = true;
-            const rest = stripWakePhrases(low);
-            stopWakeWord();
-            _userInteracted = true;
-            if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (ttsCtx.state === 'suspended') ttsCtx.resume().catch(() => {});
-            const primeVision = () => { if (cfg.useVision) ensureVisionCamera(); };
-            if (rest.length > 2) {
-                document.getElementById('transcript').textContent = rest;
-                primeVision();
-                processMessage(rest);
-            } else {
-                // After wake word, use Web Speech for conversation too (fast, local)
-                primeVision();
-                startListening({ fastSilence: true });
+
+        // Don't restart if already running
+        if (wakeRec) return;
+
+        const rec = new _SRClass();
+        rec.lang = 'es-MX';
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.maxAlternatives = 3;
+
+        rec.onaudiostart = () => {
+            console.log('%c🎙️ Wake: micrófono activo, escuchando...', 'color:#00ff9d;font-weight:bold');
+            updateStatus('LISTA — di «AVA»');
+        };
+        rec.onspeechstart = () => {
+            console.log('%c🗣️ Wake: detectó voz...', 'color:#ffaa00');
+        };
+
+        rec.onresult = (e) => {
+            // Only process new results
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                const transcript = e.results[i][0].transcript.trim();
+                if (!transcript) continue;
+                console.log('%c👂 Wake oye:', 'color:#88ccff', transcript, '(final:', e.results[i].isFinal, ')');
+
+                if (hasWakePhrase(transcript)) {
+                    console.log('%c✅ ¡AVA DETECTADA!', 'color:#00ff9d;font-weight:bold;font-size:14px', transcript);
+                    voiceConversationActive = true;
+                    const rest = stripWakePhrases(transcript);
+                    stopWakeWord();
+                    _userInteracted = true;
+                    if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    if (ttsCtx.state === 'suspended') ttsCtx.resume().catch(() => {});
+                    const primeVision = () => { if (cfg.useVision) ensureVisionCamera(); };
+                    if (rest.length > 2) {
+                        document.getElementById('transcript').textContent = rest;
+                        primeVision();
+                        processMessage(rest);
+                    } else {
+                        primeVision();
+                        startListening({ fastSilence: true });
+                    }
+                    return;
+                }
             }
         };
-        wakeRec.onerror = (e) => {
+
+        rec.onerror = (e) => {
             if (e.error === 'aborted') return;
-            console.warn('Wake STT:', e.error);
-            try { wakeRec && wakeRec.stop(); } catch (_) {}
+            console.warn('Wake error:', e.error);
             wakeRec = null;
-            // Auto-restart on common errors
             if (!voiceConversationActive && cfg.wakeWord && cfg.userName) {
                 clearTimeout(wakeRestartTimer);
-                wakeRestartTimer = setTimeout(startWakeWord, 500);
+                const delay = (e.error === 'not-allowed') ? 3000 : 600;
+                wakeRestartTimer = setTimeout(startWakeWord, delay);
             }
         };
-        wakeRec.onend = () => {
+
+        rec.onend = () => {
+            console.log('%c🔄 Wake terminó, reiniciando...', 'color:#888');
             wakeRec = null;
-            // ALWAYS restart wake word when it ends (unless in conversation)
-            if (!voiceConversationActive && cfg.wakeWord && cfg.userName) {
+            if (!voiceConversationActive && cfg.wakeWord && cfg.userName && state === 'IDLE') {
                 clearTimeout(wakeRestartTimer);
-                wakeRestartTimer = setTimeout(startWakeWord, 200);
+                wakeRestartTimer = setTimeout(startWakeWord, 300);
             }
         };
+
         try {
-            wakeRec.start();
-            console.log('%c🎙️ Wake word escuchando...', 'color:#00ff9d');
-        } catch (e) { console.warn('Wake start:', e.message); }
+            rec.start();
+            wakeRec = rec;
+            console.log('%c🎙️ Wake word iniciado', 'color:#00ff9d');
+        } catch (e) {
+            console.warn('Wake start error:', e.message);
+            wakeRec = null;
+            clearTimeout(wakeRestartTimer);
+            wakeRestartTimer = setTimeout(startWakeWord, 1000);
+        }
     }
 
     function scheduleWakeRestart() {
-        clearTimeout(wakeRestartTimer);
-        if (!cfg.wakeWord || voiceConversationActive || !cfg.userName) return;
+        // Don't restart if already running or in conversation
+        if (wakeRec || voiceConversationActive) return;
+        if (!cfg.wakeWord || !cfg.userName) return;
+        if (!_SRClass) return;
         const overlay = document.getElementById('config-overlay');
         if (overlay && !overlay.classList.contains('hidden')) return;
-        // Always use Web Speech API for wake word — it's local, fast, reliable
-        if (_SRClass) {
-            wakeRestartTimer = setTimeout(startWakeWord, 200);
-        }
+        clearTimeout(wakeRestartTimer);
+        wakeRestartTimer = setTimeout(startWakeWord, 300);
     }
 
     async function ensureVisionCamera() {
