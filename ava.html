@@ -365,6 +365,8 @@
     let recognition = null;
     let wakeRec = null;
     let wakeRestartTimer = null;
+    let _wakeRestartPending = false;
+    let _wakeActive = false;
     const synth = window.speechSynthesis;
 
     let visionVideo = null;
