@@ -2385,32 +2385,38 @@
     }
 
     function scheduleWakeRestart() {
+        // Prevent multiple simultaneous restarts
+        if (_wakeRestartPending || _wakeActive) {
+            console.log('%c⏭️ Wake restart already pending/active', 'color:#888');
+            return;
+        }
+        
         clearTimeout(wakeRestartTimer);
-        // ULTRA-FAST restart - minimal delay
+        _wakeRestartPending = true;
+        
         wakeRestartTimer = setTimeout(() => {
+            _wakeRestartPending = false;
+            
             if (!cfg.userName) return;
             const overlay = document.getElementById('config-overlay');
             if (overlay && !overlay.classList.contains('hidden')) return;
             
-            // ALWAYS restart wake word if enabled and not in conversation
-            if (!voiceConversationActive && cfg.wakeWord) {
-                console.log('%c Wake word restart', 'color:#00ff9d');
-                // Force IDLE state
-                if (state !== 'IDLE') setState('IDLE');
+            // Only restart if not in conversation and not already active
+            if (!voiceConversationActive && cfg.wakeWord && !_wakeActive) {
+                console.log('%c🔄 Wake word restart', 'color:#00ff9d');
                 
                 if (window.MediaRecorder && navigator.mediaDevices) {
-                    // AGGRESSIVE: Shorter silence, faster response
                     startListeningDeepgram({
                         wakeMode: true,
-                        silenceStopMs: 4500,   // 4.5s - faster response
-                        minBeforeEnd: 600,     // 600ms - quicker detection
-                        rmsSpeech: 0.012       // Slightly higher but responsive
+                        silenceStopMs: 5500,   // 5.5s - balanced
+                        minBeforeEnd: 800,     // 800ms - stable detection
+                        rmsSpeech: 0.011       // Balanced threshold
                     });
                 } else if (_SRClass) {
                     startWakeWord();
                 }
             }
-        }, 25); // Ultra-minimal delay
+        }, 100); // Small delay for stability
     }
 
     async function ensureVisionCamera() {
@@ -2863,6 +2869,7 @@
         const RMS_SPEECH = opts.rmsSpeech != null ? opts.rmsSpeech : 0.015;
         stopActiveListen();
         stopWakeWord();
+        _wakeActive = true;  // Mark wake word as active
         let stream;
         try {
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -2917,6 +2924,7 @@
             _activeListenCleanup = null;
             endSilenceMonitor();
             stream.getTracks().forEach(t => t.stop());
+            _wakeActive = false;  // Mark wake word as inactive
             if (state !== 'LISTENING') return;
             if (chunks.length === 0) {
                 setState('IDLE');
