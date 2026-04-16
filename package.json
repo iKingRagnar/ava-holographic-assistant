@@ -2,10 +2,12 @@
   "name": "ava-holographic-assistant",
   "version": "1.0.0",
   "private": true,
-  "description": "AVA holográfico — proyecto raíz: Holograma_AI (esta carpeta).",
+  "type": "module",
+  "description": "AVA holografico - proyecto raiz: Holograma_AI.",
   "scripts": {
     "dev": "vercel dev",
     "dev:static": "npx --yes serve . -l 3333",
+    "dev:local": "node server.js",
     "deploy": "vercel --prod"
   },
   "dependencies": {

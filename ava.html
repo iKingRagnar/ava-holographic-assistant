@@ -19,7 +19,7 @@
 
         /* === Scanlines === */
         .scanlines{position:fixed;inset:0;pointer-events:none;z-index:100;
-            background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,157,.015) 2px,rgba(0,255,157,.015) 4px);
+            background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,157,.009) 2px,rgba(0,255,157,.009) 4px);
         }
 
         /* === Three.js canvas === */
@@ -60,11 +60,11 @@
             width:178px;height:42px;border:1px solid rgba(0,255,157,.35);border-radius:50%}
         .base-ring.idle{animation:pulse-slow 3s ease-in-out infinite}
         .base-ring.listening{border-color:#00aaff;box-shadow:0 0 30px rgba(0,170,255,.5);animation:pulse-fast .8s ease-in-out infinite}
-        .base-ring.thinking{border-color:#ffaa00;box-shadow:0 0 25px rgba(255,170,0,.4);animation:blink-ring .5s ease-in-out infinite}
+        .base-ring.thinking{border-color:#ffaa00;box-shadow:0 0 25px rgba(255,170,0,.4);animation:blink-ring 1.35s ease-in-out infinite}
         .base-ring.talking{border-color:#00ff9d;box-shadow:0 0 40px rgba(0,255,157,.7);animation:pulse-talk .3s ease-in-out infinite}
         @keyframes pulse-slow{0%,100%{opacity:.55;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.02)}}
         @keyframes pulse-fast{0%,100%{opacity:.7;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.05)}}
-        @keyframes blink-ring{0%,100%{opacity:1}50%{opacity:.25}}
+        @keyframes blink-ring{0%,100%{opacity:.72;box-shadow:0 0 18px rgba(255,170,0,.3),inset 0 0 10px rgba(255,170,0,.08)}50%{opacity:1;box-shadow:0 0 52px rgba(255,170,0,.95),0 0 90px rgba(255,170,0,.28),inset 0 0 22px rgba(255,170,0,.18)}}
         @keyframes pulse-talk{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.07)}}
 
         /* === Status & response === */
@@ -309,16 +309,16 @@
     const COLORS  = [0x00ff9d,0xff69b4,0xff3333,0x00aaff,0xaa66ff,0xffaa00,0x00ffff,0xff0066,0x6600ff,0x66ff00];
     // Voice profiles per avatar: [pitch, rate, lang preference]
     const VOICES = {
-        0: {pitch:1.05, rate:1.0,  pref:'female'},   // AVA - profesional, serena
-        1: {pitch:1.35, rate:1.15, pref:'female'},   // KIRA - enérgica, joven
-        2: {pitch:0.85, rate:0.92, pref:'female'},   // ZANE - firme, grave
-        3: {pitch:0.95, rate:1.05, pref:'female'},   // FAKER - coach, precisa
-        4: {pitch:1.15, rate:0.95, pref:'female'},   // SAO - elegante, pausada
-        5: {pitch:1.25, rate:1.1,  pref:'female'},   // NEON - rápida, tech
-        6: {pitch:1.4,  rate:1.0,  pref:'female'},   // YUKI - suave, creativa
-        7: {pitch:0.9,  rate:1.08, pref:'female'},   // REI - directa, técnica
-        8: {pitch:1.2,  rate:0.88, pref:'female'},   // MIRA - tranquila, empática
-        9: {pitch:1.1,  rate:1.12, pref:'female'},   // KAI - carismática, social
+        0: {pitch:1.28, rate:1.08, pref:'female'},   // AVA  — joven ~19, profesional MX
+        1: {pitch:1.38, rate:1.18, pref:'female'},   // KIRA — joven enérgica
+        2: {pitch:1.20, rate:0.98, pref:'female'},   // ZANE — firme pero joven
+        3: {pitch:1.25, rate:1.10, pref:'female'},   // FAKER — precisa joven
+        4: {pitch:1.30, rate:0.96, pref:'female'},   // SAO  — elegante joven
+        5: {pitch:1.32, rate:1.16, pref:'female'},   // NEON — rápida joven
+        6: {pitch:1.40, rate:1.05, pref:'female'},   // YUKI — suave joven
+        7: {pitch:1.22, rate:1.12, pref:'female'},   // REI  — directa joven
+        8: {pitch:1.26, rate:0.92, pref:'female'},   // MIRA — tranquila joven
+        9: {pitch:1.32, rate:1.14, pref:'female'},   // KAI  — carismática joven
     };
     const CAPS = {
         0:{t:'ASISTENTE HOLOGRÁFICA',s:['BI & Datos','Gestión de agenda','Asistente personal','Apoyo emocional']},
@@ -801,21 +801,35 @@
     // AUTONOMOUS MOVEMENT FSM (Wandering)
     // ================================================================
     const AMOVE = {
-        state: 'IDLE',   // IDLE | WALK | GREET | STOP | POINT | SHRUG | STRETCH | DANCE
-        timer: 0.25 + Math.random() * 0.45,
-        targetX: 0,
-        targetRY: 0,
-        greetArm: false,
+        // States: expressive poses with personality + locomotion
+        state: 'HAND_HIP', // default: confident hand-on-hip pose
+        timer: 0.5 + Math.random() * 0.8,
+        targetX: 0, targetRY: 0,
+        greetArm: false, leanDir: 1, nodPhase: 0,
+        posePhase: 0, // phase within current pose for micro-animations
         nextState(t) {
+            this.posePhase = t;
             const r = Math.random();
-            // Más gestos sociales y menos “quieto” pasivo
-            if      (r < 0.22) { this.state = 'WALK';    this.timer = 1.2 + Math.random() * 2.2;   this.targetX = (Math.random()-0.5)*1.5; this.targetRY = (Math.random()-0.5)*0.95; }
-            else if (r < 0.42) { this.state = 'GREET';   this.timer = 1.35 + Math.random() * 1.0;  this.greetArm = Math.random() > 0.5; }
-            else if (r < 0.58) { this.state = 'POINT';   this.timer = 1.15 + Math.random() * 1.0;  this.greetArm = Math.random() > 0.5; }
-            else if (r < 0.68) { this.state = 'SHRUG';   this.timer = 0.9 + Math.random() * 0.85; }
-            else if (r < 0.76) { this.state = 'STRETCH'; this.timer = 1.25 + Math.random() * 0.95; }
-            else if (r < 0.86) { this.state = 'DANCE';   this.timer = 1.85 + Math.random() * 2.4;   }
-            else               { this.state = 'STOP';    this.timer = 0.65 + Math.random() * 1.1; }
+            // Locomotion (25%)
+            if      (r < 0.12) { this.state = 'CATWALK';    this.timer = 2.0 + Math.random()*2.5; this.targetX=(Math.random()-0.5)*1.2; this.targetRY=(Math.random()-0.5)*0.6; }
+            else if (r < 0.22) { this.state = 'WALK';       this.timer = 1.5 + Math.random()*1.8; this.targetX=(Math.random()-0.5)*1.0; this.targetRY=(Math.random()-0.5)*0.5; }
+            // Confident/seductive poses (40%)
+            else if (r < 0.32) { this.state = 'HAND_HIP';   this.timer = 1.2 + Math.random()*1.4; this.greetArm = Math.random()>0.5; }
+            else if (r < 0.40) { this.state = 'FLIP_HAIR';  this.timer = 1.0 + Math.random()*0.8; this.greetArm = Math.random()>0.5; }
+            else if (r < 0.47) { this.state = 'SASSY_LEAN'; this.timer = 1.0 + Math.random()*1.0; this.leanDir = Math.random()>0.5?1:-1; }
+            else if (r < 0.54) { this.state = 'LOOK_SIDE';  this.timer = 0.8 + Math.random()*0.8; this.leanDir = Math.random()>0.5?1:-1; }
+            else if (r < 0.60) { this.state = 'GREET';      this.timer = 1.2 + Math.random()*0.9; this.greetArm = Math.random()>0.5; }
+            // Expressive gestures (20%)
+            else if (r < 0.65) { this.state = 'POINT';      this.timer = 1.0 + Math.random()*0.8; this.greetArm = Math.random()>0.5; }
+            else if (r < 0.70) { this.state = 'SHRUG';      this.timer = 0.8 + Math.random()*0.6; }
+            else if (r < 0.75) { this.state = 'HAIR_TOUCH'; this.timer = 0.9 + Math.random()*0.7; this.greetArm = Math.random()>0.5; }
+            else if (r < 0.80) { this.state = 'THINK_POSE'; this.timer = 1.2 + Math.random()*1.0; this.greetArm = Math.random()>0.5; }
+            // Energy bursts (10%)
+            else if (r < 0.85) { this.state = 'DANCE';      this.timer = 1.5 + Math.random()*2.0; }
+            else if (r < 0.89) { this.state = 'NOD';        this.timer = 0.8 + Math.random()*0.6; this.nodPhase=t; }
+            else if (r < 0.93) { this.state = 'STRETCH';    this.timer = 1.0 + Math.random()*0.8; }
+            else if (r < 0.96) { this.state = 'ARMS_CROSS'; this.timer = 0.9 + Math.random()*0.7; }
+            else               { this.state = 'BOW';        this.timer = 0.8 + Math.random()*0.4; }
         }
     };
 
@@ -850,11 +864,13 @@
     }
 
     function _scheduleNextBlink(t) {
-        const base = (state === 'TALKING') ? 2.3 : (state === 'LISTENING') ? 3.2 : 3.8;
-        const jitter = (state === 'TALKING') ? 1.7 : 2.8;
+        const base = (state === 'TALKING') ? 1.9 : (state === 'LISTENING') ? 2.8 : 3.4;
+        const jitter = (state === 'TALKING') ? 1.5 : 2.5;
         const bpmMul = cfg.bioSync ? Math.max(0.7, Math.min(1.35, 75 / Math.max(45, _bioBpm))) : 1;
-        _eye.nextBlinkT = t + (base + Math.random() * jitter) * bpmMul;
-        _eye.pendingDouble = Math.random() < 0.08;
+        // Emotion modulates blink rate
+        const emoMul = (_emotion === 'excited') ? 0.72 : (_emotion === 'calm') ? 1.28 : 1.0;
+        _eye.nextBlinkT = t + (base + Math.random() * jitter) * bpmMul * emoMul;
+        _eye.pendingDouble = Math.random() < 0.10;
     }
 
     function _startBlink(t) {
@@ -912,15 +928,20 @@
 
     function _updateSaccades(t, delta) {
         if (t >= _eye.nextSaccadeT) {
-            const rate = (state === 'LISTENING' || state === 'TALKING') ? 0.24 : 0.36;
-            _eye.nextSaccadeT = t + rate + Math.random() * (rate * 1.8);
-            const amp = (state === 'LISTENING') ? 0.035 : (state === 'TALKING') ? 0.03 : 0.05;
-            _eye.saccVX = (Math.random() - 0.5) * amp * 10;
-            _eye.saccVY = (Math.random() - 0.5) * amp * 10;
+            // Ballistic micro-saccade model: fast jump then drift
+            const rate = (state === 'LISTENING' || state === 'TALKING') ? 0.18 : 0.28;
+            _eye.nextSaccadeT = t + rate + Math.random() * (rate * 2.0);
+            const amp = (state === 'LISTENING') ? 0.038 : (state === 'TALKING') ? 0.032 : 0.055;
+            // Slight center-attraction weighting (natural gaze returns to center)
+            _eye.saccVX = (Math.random() - 0.5) * amp * 11 - _eye.saccX * 0.35;
+            _eye.saccVY = (Math.random() - 0.5) * amp * 9  - _eye.saccY * 0.35;
         }
         const d = Math.min(0.05, Math.max(0.001, delta || 0.016));
-        _eye.saccX += (_eye.saccVX - _eye.saccX * 12) * d;
-        _eye.saccY += (_eye.saccVY - _eye.saccY * 12) * d;
+        _eye.saccX += (_eye.saccVX - _eye.saccX * 26) * d;
+        _eye.saccY += (_eye.saccVY - _eye.saccY * 26) * d;
+        // Drift noise for extra realism
+        _eye.saccX += Math.sin(t * 31.7) * 0.0008 + Math.sin(t * 47.3) * 0.0005;
+        _eye.saccY += Math.sin(t * 29.1 + 1.0) * 0.0007 + Math.sin(t * 53.1) * 0.0004;
     }
 
     function _updateLookAtTarget(t, delta) {
@@ -933,26 +954,29 @@
         const baseX = mx * 3;
         const baseY = my * 2 + 1.2;
 
-        const driftX = (Math.sin(t * 0.22) * 0.35 + Math.sin(t * 0.53 + 1.3) * 0.18);
-        const driftY = (Math.sin(t * 0.19 + 2.1) * 0.22 + Math.sin(t * 0.44) * 0.12);
+        const driftX = Math.sin(t * 0.21) * 0.38 + Math.sin(t * 0.54 + 1.3) * 0.2
+                     + Math.sin(t * 0.09 + 0.8) * 0.12 + Math.cos(t * 0.37) * 0.07;
+        const driftY = Math.sin(t * 0.18 + 2.1) * 0.24 + Math.sin(t * 0.45) * 0.14
+                     + Math.sin(t * 0.07 + 1.7) * 0.08;
+        const eGazeY = (_emotion === 'curious') ? 0.15 : (_emotion === 'calm') ? -0.05 : 0;
 
         const tgtX = baseX * userW + driftX * autoW + _eye.saccX;
-        const tgtY = baseY * userW + (1.2 + driftY) * autoW + _eye.saccY;
+        const tgtY = baseY * userW + (1.2 + driftY + eGazeY) * autoW + _eye.saccY;
 
         const lerp = THREE.MathUtils.lerp;
-        const sp = (state === 'LISTENING' || state === 'TALKING') ? 0.38 : 0.25;
-        lookAtTarget.position.x = lerp(lookAtTarget.position.x, tgtX, sp);
-        lookAtTarget.position.y = lerp(lookAtTarget.position.y, tgtY, sp);
+        const spd = (state === 'LISTENING') ? 0.42 : (state === 'TALKING') ? 0.36 : 0.22;
+        lookAtTarget.position.x = lerp(lookAtTarget.position.x, tgtX, spd);
+        lookAtTarget.position.y = lerp(lookAtTarget.position.y, tgtY, spd);
         lookAtTarget.position.z = 3;
     }
 
     function detectEmotion(text) {
         const t = text.toLowerCase();
-        if (/genial|excelente|perfecto|éxito|logr|fantas|maravill|emocion|alegr|¡+|jaja|haha|claro que sí|por supuesto/.test(t)) return 'happy';
-        if (/urgente|rápido|ahora|inmediat|critic|alerta|cuidado|error|ojo con|atención/.test(t)) return 'excited';
-        if (/tranquil|calma|relax|respira|paz|suave|descans|despacio|sin prisa/.test(t)) return 'calm';
-        if (/analiz|process|calcul|revis|consider|evalu|estudi|paso a paso|en resumen|por tanto/.test(t)) return 'focused';
-        if (/¿qué|¿cómo|¿cuál|¿por qué|¿cuando|interesante|curioso|pregunt|podemos|opciones|alternativ/.test(t)) return 'curious';
+        if (/genial|excelente|perfecto|éxito|logr|fantas|maravill|emocion|alegr|¡+|jaja|haha|claro que sí|por supuesto|increíble|asombroso|felicit|celebr/.test(t)) return 'happy';
+        if (/urgente|rápido|ahora|inmediat|critic|alerta|cuidado|error|ojo con|atención|¡cuidado|¡espera|importante|emergencia/.test(t)) return 'excited';
+        if (/tranquil|calma|relax|respira|paz|suave|descans|despacio|sin prisa|séreno|equilibrio/.test(t)) return 'calm';
+        if (/analiz|process|calcul|revis|consider|evalu|estudi|paso a paso|en resumen|por tanto|sistemátic|metod|precis/.test(t)) return 'focused';
+        if (/¿qué|¿cómo|¿cuál|¿por qué|¿cuando|interesante|curioso|pregunt|podemos|opciones|alternativ|descubr|explor|fascinante/.test(t)) return 'curious';
         return 'neutral';
     }
 
@@ -1429,6 +1453,10 @@
                 loadedModel = model;
                 try { cacheBlendShapes(vrm); } catch(e) { console.warn('BlendShape cache skipped:', e.message); }
 
+                // Build bone cache FIRST — all subsequent bone lookups depend on this
+                buildVRMBoneCache(vrm);
+                _vrmLoadFrame = 0; // reset warmup counter
+
                 // Set up VRM lookAt to follow mouse target
                 if (vrm.lookAt && lookAtTarget) {
                     vrm.lookAt.target = lookAtTarget;
@@ -1440,6 +1468,11 @@
 
                 // Apply natural rest pose immediately (avoid T-pose on load)
                 applyRestPose(vrm);
+                // Triple-fire: first render tick + one frame later to guarantee GPU flush
+                requestAnimationFrame(() => {
+                    applyRestPose(vrm);
+                    requestAnimationFrame(() => applyRestPose(vrm));
+                });
                 if (typeof vrm.update === 'function') vrm.update(0);
 
                 avatarGroup.add(model);
@@ -1649,25 +1682,46 @@
     }
 
     // ---- VRM animation (autonomous + reactive) ----
+    let _vrmLoadFrame = 0; // frame counter post-load for warmup snap
     function animateVRM(t, delta) {
         const vrm = currentVRM;
         const humanoid = vrm.humanoid;
         if (!humanoid) return;
 
-        const B = (name) => humanoid.getBoneNode ? humanoid.getBoneNode(name) : null;
+        // Ensure bone cache exists (safety net if called before buildVRMBoneCache)
+        if (!vrm._boneCache) buildVRMBoneCache(vrm);
+
+        const B = (name) => vrmBoneNode(vrm, name);
         const lerp = THREE.MathUtils.lerp;
+
+        // Warmup: snap bones fast for the first 90 frames post-load
+        _vrmLoadFrame++;
+        const _warmup = _vrmLoadFrame < 90 ? Math.max(0.55, 1 - _vrmLoadFrame / 90) : 0;
 
         if (!avatarGroup.userData.phys) {
             avatarGroup.userData.phys = {
                 handL: { x: 0, y: 0, z: 0 }, handR: { x: 0, y: 0, z: 0 },
                 foreL: { x: 0, y: 0, z: 0 }, foreR: { x: 0, y: 0, z: 0 },
-                neckY: 0, neckX: 0, spineTw: 0, headY: 0, headX: 0
+                neckY: 0, neckX: 0, spineTw: 0, headY: 0, headX: 0,
+                // Spring velocities per bone axis — give momentum/overshoot to arm movement
+                vLA_z: 0, vLA_x: 0, vRA_z: 0, vRA_x: 0,
+                vLF_y: 0, vRF_y: 0, vLH_z: 0, vRH_z: 0,
+                vHip_z: 0, vHip_y: 0, vSpine_z: 0
             };
         }
         const P = avatarGroup.userData.phys;
+        const dt = Math.min(delta, 0.05);
         const organic = (tt, s) =>
             Math.sin(tt * 0.73 + s) * 0.5 + Math.sin(tt * 1.19 + s * 1.7) * 0.28 + Math.sin(tt * 2.07 + s * 0.3) * 0.14;
-        const damp = (c, t, rate) => lerp(c, t, 1 - Math.exp(-rate * Math.min(delta, 0.05)));
+        const damp = (c, t, rate) => lerp(c, t, 1 - Math.exp(-rate * dt));
+        // Spring integrator: natural overshoot + momentum (eliminates "soldadito" rigidity)
+        // stiffness~100-400, damping~8-20 for organic feel
+        const sprStep = (cur, vel, target, stiff, damp2) => {
+            const f = stiff * (target - cur) - damp2 * vel;
+            const nv = vel + f * dt;
+            const np = cur + nv * dt;
+            return [np, nv];
+        };
 
         // Afinación por estado: calma vs expresividad vs “peso” en extremidades
         const phys = {
@@ -1681,8 +1735,15 @@
         // Update lookAt target (context-aware + saccades)
         _updateLookAtTarget(t, delta);
 
-        // Subtle float
-        avatarGroup.position.y = Math.sin(t * 1.8) * 0.012;
+        // Multi-frequency organic float — eliminates mechanical single-sine periodicity
+        const _floatY = Math.sin(t * 1.35) * 0.038
+                      + Math.sin(t * 2.19 + 0.73) * 0.014
+                      + Math.sin(t * 0.58 + 2.1)  * 0.009
+                      + Math.sin(t * 3.87 + 1.4)  * 0.003;
+        const _floatX = Math.sin(t * 0.71 + 1.1)  * 0.006
+                      + Math.sin(t * 1.51 + 0.5)  * 0.003;
+        const _emotionLift = (_emotion === 'excited' || _emotion === 'happy') ? Math.abs(Math.sin(t * 4.5)) * 0.007 : 0;
+        if (AMOVE.state !== 'DANCE') avatarGroup.position.y = _floatY + _emotionLift;
 
         // --- WANDERING FSM (only when not talking/listening) ---
         if (state === 'IDLE') {
@@ -1690,14 +1751,22 @@
             if (AMOVE.timer <= 0) AMOVE.nextState(t);
 
             if (AMOVE.state === 'WALK') {
-                avatarGroup.position.x = lerp(avatarGroup.position.x, AMOVE.targetX, 0.025);
+                avatarGroup.position.x = lerp(avatarGroup.position.x, AMOVE.targetX + _floatX * 0.3, 0.025);
                 avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, AMOVE.targetRY, 0.04);
             } else if (AMOVE.state === 'STOP' || AMOVE.state === 'GREET') {
-                avatarGroup.position.x = lerp(avatarGroup.position.x, 0, 0.02);
-                // Face camera when stopped
+                avatarGroup.position.x = lerp(avatarGroup.position.x, _floatX, 0.02);
                 avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.18) * 0.12, 0.04);
+            } else if (AMOVE.state === 'BOW') {
+                avatarGroup.position.x = lerp(avatarGroup.position.x, _floatX, 0.02);
+                avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, 0, 0.05);
+            } else if (AMOVE.state === 'LEAN') {
+                avatarGroup.position.x = lerp(avatarGroup.position.x, AMOVE.leanDir * 0.09 + _floatX, 0.018);
+                avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.25) * 0.14 + Math.sin(t * 0.42) * 0.06, 0.035);
+            } else if (AMOVE.state === 'LOOK_SIDE') {
+                avatarGroup.position.x = lerp(avatarGroup.position.x, _floatX, 0.02);
+                avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, AMOVE.leanDir * 0.35 + Math.sin(t * 0.2) * 0.08, 0.05);
             } else {
-                // IDLE sway
+                avatarGroup.position.x = lerp(avatarGroup.position.x, _floatX, 0.018);
                 const swayY = Math.sin(t * 0.25) * 0.18 + Math.sin(t * 0.42) * 0.08;
                 avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, swayY, 0.04);
             }
@@ -1718,70 +1787,100 @@
         if (hips) {
             const h = ph.hipOsc;
             if (state === 'IDLE') {
-                hips.rotation.z = (Math.sin(t * 0.55) * 0.065 + Math.sin(t * 0.18) * 0.03 + organic(t, 0.2) * 0.035) * h;
-                hips.rotation.y = (Math.sin(t * 0.35) * 0.055 + organic(t, 1.4) * 0.025) * h;
-                hipLeanX = (Math.sin(t * 0.42) * 0.024 + organic(t, 0.9) * 0.014) * h;
+                hips.rotation.z = (Math.sin(t * 0.52) * 0.13 + Math.sin(t * 0.19) * 0.05 + organic(t, 0.2) * 0.06) * h;
+                hips.rotation.y = (Math.sin(t * 0.33) * 0.10 + organic(t, 1.4) * 0.04) * h;
+                hipLeanX = (Math.sin(t * 0.40) * 0.045 + organic(t, 0.9) * 0.025) * h;
                 hips.rotation.x = hipLeanX;
             } else if (state === 'TALKING') {
-                hips.rotation.z = (Math.sin(t * 1.85) * 0.075 + Math.sin(t * 0.85) * 0.025) * h;
-                hips.rotation.y = Math.sin(t * 1.4) * 0.065 * h;
-                hipLeanX = Math.sin(t * 2.05) * 0.032 * h;
+                hips.rotation.z = (Math.sin(t * 1.85) * 0.14 + Math.sin(t * 0.85) * 0.05) * h;
+                hips.rotation.y = Math.sin(t * 1.4) * 0.12 * h;
+                hipLeanX = Math.sin(t * 2.05) * 0.06 * h;
                 hips.rotation.x = hipLeanX;
             } else if (state === 'LISTENING') {
-                hips.rotation.z = Math.sin(t * 0.72) * 0.04 * h;
-                hips.rotation.y = mx * 0.055 + Math.sin(t * 0.5) * 0.028 * h;
-                hipLeanX = -0.028 * h;
+                hips.rotation.z = Math.sin(t * 0.72) * 0.08 * h;
+                hips.rotation.y = mx * 0.09 + Math.sin(t * 0.5) * 0.05 * h;
+                hipLeanX = -0.05 * h;
                 hips.rotation.x = hipLeanX;
             } else {
-                hips.rotation.z = Math.sin(t * 0.9) * 0.055 * h;
-                hips.rotation.y = Math.sin(t * 0.7) * 0.04 * h;
-                hipLeanX = Math.sin(t * 0.95) * 0.022 * h;
+                hips.rotation.z = Math.sin(t * 0.9) * 0.10 * h;
+                hips.rotation.y = Math.sin(t * 0.7) * 0.08 * h;
+                hipLeanX = Math.sin(t * 0.95) * 0.04 * h;
                 hips.rotation.x = hipLeanX;
             }
         }
 
         // --- SPINE / PECHO: respiración + contrarrotación respecto a cadera (cadena natural) ---
         const bpmMul = cfg.bioSync ? Math.max(0.72, Math.min(1.6, (_bioBpm / 60) * 0.9)) : 1;
-        const breathRate = (state === 'TALKING' ? 1.78 : 0.92) * bpmMul;
+        const breathRate = (state === 'TALKING' ? 1.78 : state === 'LISTENING' ? 1.02 : 0.86) * bpmMul;
         const bMul = ph.breath;
-        const br = Math.sin(t * breathRate);
-        const br2 = Math.sin(t * breathRate + 0.55);
-        const tw = organic(t, 1.1) * 0.048 * ph.tw;
-        P.spineTw = damp(P.spineTw, tw, 5);
+        // Multi-harmonic breathing: diaphragmatic + intercostal + clavicular
+        const br  = Math.sin(t * breathRate) * 0.82 + Math.sin(t * breathRate * 2.05 + 0.4) * 0.13 + Math.sin(t * breathRate * 0.5 + 1.1) * 0.05;
+        const br2 = Math.sin(t * breathRate + 0.55) * 0.78 + Math.sin(t * breathRate * 1.98 + 0.9) * 0.16;
+        const brClav = Math.sin(t * breathRate + 0.82) * 0.55; // clavicular (shoulder rise)
+        const tw = organic(t, 1.1) * 0.048 * ph.tw + Math.sin(t * 0.16 + 0.7) * 0.01;
+        P.spineTw = damp(P.spineTw, tw, 5.2);
 
+        // Emotion-driven posture: open chest = happy/excited, subtle hunch = calm/focused
+        const ePostX = (_emotion === 'happy' || _emotion === 'excited') ? -0.022 : (_emotion === 'calm' || _emotion === 'focused') ? 0.018 : 0;
+        const ePostZ = (_emotion === 'curious') ? 0.014 : 0;
         if (spine) {
-            spine.rotation.x = (br * 0.072 + Math.sin(t * 0.28) * 0.022) * bMul - hipLeanX * 0.35;
-            spine.rotation.y = P.spineTw + Math.sin(t * 0.21) * 0.032 * bMul;
-            spine.rotation.z = (br2 * 0.038 + Math.sin(t * 0.51) * 0.026 + organic(t, 0.6) * 0.018) * bMul;
+            spine.rotation.x = (br * 0.075 + Math.sin(t * 0.27) * 0.024) * bMul - hipLeanX * 0.35 + ePostX * 0.5;
+            spine.rotation.y = P.spineTw + Math.sin(t * 0.20) * 0.034 * bMul;
+            spine.rotation.z = (br2 * 0.040 + Math.sin(t * 0.50) * 0.028 + organic(t, 0.6) * 0.020) * bMul + ePostZ;
         }
         if (chest) {
-            chest.rotation.x = br2 * 0.058 * bMul - hipLeanX * 0.45;
-            chest.rotation.y = (Math.sin(t * 0.29) * 0.042 + organic(t, 4) * 0.022) * bMul;
-            chest.rotation.z = (Math.sin(t * 0.36 + 0.8) * 0.032 + Math.sin(t * 0.61) * 0.015) * bMul;
+            chest.rotation.x = br2 * 0.062 * bMul - hipLeanX * 0.45 + ePostX;
+            chest.rotation.y = (Math.sin(t * 0.28) * 0.044 + organic(t, 4) * 0.024) * bMul;
+            chest.rotation.z = (Math.sin(t * 0.35 + 0.8) * 0.034 + Math.sin(t * 0.60) * 0.016) * bMul + ePostZ;
         }
         if (upperChest) {
-            upperChest.rotation.x = Math.sin(t * breathRate + 0.22) * 0.045 * bMul;
-            upperChest.rotation.y = (Math.sin(t * 0.33) * 0.028 + organic(t, 2.2) * 0.015) * bMul;
-            upperChest.rotation.z = organic(t, 5) * 0.02 * bMul;
+            upperChest.rotation.x = Math.sin(t * breathRate + 0.22) * 0.048 * bMul + ePostX * 1.2;
+            upperChest.rotation.y = (Math.sin(t * 0.32) * 0.030 + organic(t, 2.2) * 0.017) * bMul;
+            upperChest.rotation.z = organic(t, 5) * 0.022 * bMul + ePostZ * 0.8;
         }
 
         // --- CABEZA: objetivo suavizado; CUELLO con inercia (no bloque sólido) ---
         const head = B('head');
         const neck = B('neck');
         if (head) {
-            const mouseW = state === 'IDLE' ? 0.55 : 0.7;
+            const mouseW = state === 'IDLE' ? 0.46 : state === 'LISTENING' ? 0.76 : 0.66;
             const autoW = 1 - mouseW;
-            const autoY = Math.sin(t * 0.18) * 0.22 + Math.sin(t * 0.4) * 0.13 + Math.cos(t * 0.09) * 0.09;
-            const autoX = Math.sin(t * 0.22) * 0.11 + Math.cos(t * 0.32) * 0.07;
-            let tgtY = mx * 0.52 * mouseW + autoY * autoW;
-            let tgtX = my * 0.32 * mouseW + autoX * autoW - 0.03;
-            if (state === 'THINKING') { tgtY += Math.sin(t * 0.8) * 0.2; tgtX += 0.11; }
-            if (state === 'TALKING')  { tgtY += Math.sin(t * 3) * 0.09; tgtX += Math.sin(t * 5) * 0.045; }
+            // Multi-frequency layered autonomous head drift
+            const autoY = Math.sin(t * 0.17) * 0.25 + Math.sin(t * 0.38 + 0.7) * 0.15
+                        + Math.sin(t * 0.07 + 1.3) * 0.1 + Math.cos(t * 0.63) * 0.04;
+            const autoX = Math.sin(t * 0.20) * 0.13 + Math.cos(t * 0.30 + 0.5) * 0.08
+                        + Math.sin(t * 0.55) * 0.03;
+            let tgtY = mx * 0.56 * mouseW + autoY * autoW;
+            let tgtX = my * 0.35 * mouseW + autoX * autoW - 0.025;
+            if (state === 'THINKING') {
+                tgtY += Math.sin(t * 0.70) * 0.26 + Math.sin(t * 0.37) * 0.09;
+                tgtX += 0.14 + Math.sin(t * 0.53) * 0.05;
+            }
+            if (state === 'TALKING') {
+                tgtY += Math.sin(t * 2.7) * 0.11 + Math.sin(t * 5.2) * 0.04;
+                tgtX += Math.sin(t * 4.7) * 0.055 + Math.sin(t * 2.2) * 0.028;
+            }
+            if (state === 'LISTENING') {
+                tgtX -= 0.035 + Math.sin(t * 0.38) * 0.018; // lean in attentively
+            }
+            // AMOVE state head overrides
+            if (AMOVE.state === 'NOD')        tgtX += Math.sin((t - AMOVE.nodPhase) * 7.8) * 0.22;
+            if (AMOVE.state === 'LOOK_SIDE')  tgtY += AMOVE.leanDir * 0.55;
+            if (AMOVE.state === 'THINK_POSE') { tgtY += 0.2; tgtX += 0.12; }
+            if (AMOVE.state === 'HAIR_TOUCH') tgtY += (AMOVE.greetArm ? -1 : 1) * 0.18;
+            if (AMOVE.state === 'BOW')        tgtX += 0.38;
+            if (AMOVE.state === 'LEAN')       tgtY -= AMOVE.leanDir * 0.12;
+            // Sub-perceptual micro-tremors — cumulative life-likeness
+            const microY = Math.sin(t * 11.9) * 0.0016 + Math.sin(t * 17.4 + 0.5) * 0.001;
+            const microX = Math.sin(t * 13.2 + 1.2) * 0.0013 + Math.sin(t * 19.8) * 0.0009;
             P.headY = damp(P.headY, tgtY, ph.headDamp);
             P.headX = damp(P.headX, tgtX, ph.headDamp);
-            head.rotation.y = P.headY;
-            head.rotation.x = P.headX;
-            head.rotation.z = organic(t, 0.45) * 0.035 + Math.sin(t * 0.67) * 0.02;
+            head.rotation.y = P.headY + microY;
+            head.rotation.x = P.headX + microX;
+            // Emotional head tilt (z-axis)
+            const eTilt = (_emotion === 'curious') ? 0.09 : (_emotion === 'calm') ? 0.055
+                        : (_emotion === 'happy') ? -0.04 : 0;
+            head.rotation.z = organic(t, 0.45) * 0.038 + Math.sin(t * 0.64) * 0.022 + eTilt;
         }
         if (neck) {
             const hy = head ? P.headY : 0;
@@ -1795,113 +1894,257 @@
 
         // --- HOMBROS: acoplamiento suave con tórax (no hombro rígido) ---
         const lSh = B('leftShoulder'), rSh = B('rightShoulder');
-        const shBre = Math.sin(t * breathRate) * 0.018;
-        if (lSh) { lSh.rotation.x = shBre + organic(t, 3) * 0.025; lSh.rotation.z = Math.sin(t * 0.48) * 0.03; }
-        if (rSh) { rSh.rotation.x = shBre + organic(t, 3.7) * 0.025; rSh.rotation.z = -Math.sin(t * 0.48) * 0.03; }
+        const shBre = brClav * 0.024 + Math.sin(t * breathRate) * 0.01;
+        if (lSh) { lSh.rotation.x = shBre + organic(t, 3) * 0.028; lSh.rotation.z = Math.sin(t * 0.47 + 0.3) * 0.032 + organic(t, 5.1) * 0.012; }
+        if (rSh) { rSh.rotation.x = shBre + organic(t, 3.7) * 0.028; rSh.rotation.z = -Math.sin(t * 0.47) * 0.032 - organic(t, 5.8) * 0.012; }
 
         // --- ARMS: natural poses per state (never T-pose) ---
         const la = B('leftUpperArm'), ra = B('rightUpperArm');
         const lf = B('leftLowerArm'), rf = B('rightLowerArm');
         const lh = B('leftHand'),     rh = B('rightHand');
-        const sp = 0.06;
+        const sp = 0.14 + _warmup * 0.86; // 1.0 (instant snap) during warmup → 0.14 at steady state
 
         // Breathing-linked shoulder micro-movement
         const breathShoulder = Math.sin(t * (state === 'TALKING' ? 1.6 : 0.95)) * 0.015;
 
+        // Critically-damped spring helper (k=55, d=14 → ζ≈0.94 — no bouncing, organic settle)
+        const S = (cur, vel, target) => sprStep(cur, vel, target, 55, 14);
+        // Fast spring for snappy gestures
+        const SF = (cur, vel, target) => sprStep(cur, vel, target, 90, 18);
+
+        // Arm spring applicator — updates bone + stores velocity
+        const apA = (bone, vz, vx, tz, tx) => {
+            if (!bone) return;
+            const [nz,nvz] = S(bone.rotation.z, P[vz], tz);
+            const [nx,nvx] = S(bone.rotation.x, P[vx], tx);
+            bone.rotation.z = nz; P[vz] = nvz;
+            bone.rotation.x = nx; P[vx] = nvx;
+        };
+
+        // Micro breathing sway — TINY, so it doesn't dominate
+        const mb = Math.sin(t * 0.22) * 0.018 + Math.sin(t * 0.57) * 0.008;
+
         if (state === 'IDLE') {
-            if (AMOVE.state === 'GREET') {
-                // Wave gesture — one arm raised
-                const wave = Math.sin(t * 5.5) * 0.3;
-                if (AMOVE.greetArm) {
-                    if (la) { la.rotation.z = lerp(la.rotation.z, -0.95 + wave, 0.14); la.rotation.x = lerp(la.rotation.x, 0.25, 0.1); }
-                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, -(1.25 + breathShoulder + Math.sin(t*0.8)*0.06), sp); ra.rotation.x = lerp(ra.rotation.x, 0.04 + Math.sin(t*0.5)*0.03, sp); }
-                    if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.15 + wave*0.4, 0.1); lf.rotation.x = lerp(lf.rotation.x, -0.1, 0.08); }
-                    if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.12, sp); }
+            // ==============================================================
+            // POSE-BASED SYSTEM — each AMOVE state = expressive held pose
+            // Springs smoothly transition between poses (no oscillating arms)
+            // ==============================================================
+            if (AMOVE.state === 'HAND_HIP') {
+                // Confident pose: dominant hand on hip, other arm relaxed
+                const hip = AMOVE.greetArm;
+                const pulse = Math.sin(t * 0.6) * 0.018 + Math.sin(t * 1.1) * 0.008;
+                if (hip) {
+                    // Left hand on hip: elbow out
+                    apA(la, 'vLA_z','vLA_x',  0.52 + pulse, -0.45);
+                    if (lf) { lf.rotation.y=lerp(lf.rotation.y, 0.62+pulse*0.5,0.06); lf.rotation.x=lerp(lf.rotation.x,-0.08,0.06); }
+                    if (lh) { lh.rotation.z=lerp(lh.rotation.z, 0.22,0.05); lh.rotation.x=lerp(lh.rotation.x,-0.12,0.05); }
+                    // Right arm: relaxed at side, natural hang
+                    apA(ra, 'vRA_z','vRA_x', -1.32 + mb, 0.06 + Math.sin(t*0.38+2.1)*0.04);
+                    if (rf) { rf.rotation.y=lerp(rf.rotation.y,-0.14,0.06); }
+                    if (rh) { rh.rotation.z=lerp(rh.rotation.z,-0.08,0.05); }
                 } else {
-                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, 0.95 - wave, 0.14); ra.rotation.x = lerp(ra.rotation.x, 0.25, 0.1); }
-                    if (la) { la.rotation.z = lerp(la.rotation.z,  1.25 + breathShoulder + Math.sin(t*0.8+1)*0.06, sp); la.rotation.x = lerp(la.rotation.x, 0.04 + Math.sin(t*0.5)*0.03, sp); }
-                    if (rf) { rf.rotation.y = lerp(rf.rotation.y, -(0.15 + wave*0.4), 0.1); rf.rotation.x = lerp(rf.rotation.x, -0.1, 0.08); }
-                    if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.12, sp); }
+                    // Right hand on hip
+                    apA(ra, 'vRA_z','vRA_x', -0.52 - pulse, -0.45);
+                    if (rf) { rf.rotation.y=lerp(rf.rotation.y,-0.62-pulse*0.5,0.06); rf.rotation.x=lerp(rf.rotation.x,-0.08,0.06); }
+                    if (rh) { rh.rotation.z=lerp(rh.rotation.z,-0.22,0.05); rh.rotation.x=lerp(rh.rotation.x,-0.12,0.05); }
+                    apA(la, 'vLA_z','vLA_x',  1.32 + mb, 0.06 + Math.sin(t*0.38)*0.04);
+                    if (lf) { lf.rotation.y=lerp(lf.rotation.y, 0.14,0.06); }
+                    if (lh) { lh.rotation.z=lerp(lh.rotation.z, 0.08,0.05); }
                 }
+            } else if (AMOVE.state === 'CATWALK') {
+                // Runway walk: weight shifts side-to-side, arms swing oppositely
+                const step = Math.sin(t * 2.2); // step rhythm
+                const armSwing = step * 0.28;
+                const wrist = Math.sin(t * 2.2 + 0.5) * 0.12;
+                apA(la, 'vLA_z','vLA_x', 1.28 + mb, armSwing + 0.05);
+                apA(ra, 'vRA_z','vRA_x',-1.28 + mb,-armSwing + 0.05);
+                if (lf) { lf.rotation.y=lerp(lf.rotation.y, 0.15+step*0.08,0.10); }
+                if (rf) { rf.rotation.y=lerp(rf.rotation.y,-0.15-step*0.08,0.10); }
+                if (lh) { lh.rotation.z=lerp(lh.rotation.z, wrist,0.09); lh.rotation.x=lerp(lh.rotation.x, wrist*0.3,0.08); }
+                if (rh) { rh.rotation.z=lerp(rh.rotation.z,-wrist,0.09); rh.rotation.x=lerp(rh.rotation.x,-wrist*0.3,0.08); }
+                // Catwalk hip sway — handled in hip section override
+                if (hips) { hips.rotation.z=lerp(hips.rotation.z, step*0.22,0.10); hips.rotation.y=lerp(hips.rotation.y, Math.sin(t*2.2+0.3)*0.18,0.08); }
             } else if (AMOVE.state === 'WALK') {
-                const swing = Math.sin(t * 1.8) * 0.18;
-                if (la) { la.rotation.z = lerp(la.rotation.z,  1.2 + breathShoulder, sp); la.rotation.x = lerp(la.rotation.x,  swing + 0.04, sp); }
-                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.2 + breathShoulder, sp); ra.rotation.x = lerp(ra.rotation.x, -swing + 0.04, sp); }
-                if (lf) { lf.rotation.y = lerp(lf.rotation.y,  0.1 + Math.sin(t*1.8)*0.05, sp); }
-                if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.1 - Math.sin(t*1.8)*0.05, sp); }
-                if (lh) { lh.rotation.z = lerp(lh.rotation.z,  0.04, sp); }
-                if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.04, sp); }
-            } else if (AMOVE.state === 'POINT') {
-                const pointPhase = Math.sin(t * 1.5) * 0.06;
-                if (AMOVE.greetArm) {
-                    if (la) { la.rotation.z = lerp(la.rotation.z, -0.3, 0.1); la.rotation.x = lerp(la.rotation.x, -0.7 + pointPhase, 0.1); }
-                    if (lf) { lf.rotation.y = lerp(lf.rotation.y, -0.3, 0.1); lf.rotation.x = lerp(lf.rotation.x, 0.2, 0.1); }
-                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.25, sp); ra.rotation.x = lerp(ra.rotation.x, 0.04, sp); }
+                // Normal walk: natural arm swing, counter to hip
+                const swing = Math.sin(t * 1.9) * 0.22;
+                apA(la, 'vLA_z','vLA_x', 1.25 + mb,  swing + 0.04);
+                apA(ra, 'vRA_z','vRA_x',-1.25 + mb, -swing + 0.04);
+                if (lf) { lf.rotation.y=lerp(lf.rotation.y, 0.12+Math.sin(t*1.9)*0.07,0.09); }
+                if (rf) { rf.rotation.y=lerp(rf.rotation.y,-0.12-Math.sin(t*1.9)*0.07,0.09); }
+                if (lh) { lh.rotation.z=lerp(lh.rotation.z, swing*0.15,0.08); }
+                if (rh) { rh.rotation.z=lerp(rh.rotation.z,-swing*0.15,0.08); }
+            } else if (AMOVE.state === 'SASSY_LEAN') {
+                // One hip out, arm on that hip, other arm slightly raised
+                const dir = AMOVE.leanDir;
+                const sassyPulse = Math.sin(t * 0.5) * 0.02;
+                if (dir > 0) {
+                    apA(la, 'vLA_z','vLA_x', 0.58+sassyPulse, -0.5); // left hand on hip
+                    if (lf) { lf.rotation.y=lerp(lf.rotation.y, 0.72,0.06); }
+                    apA(ra, 'vRA_z','vRA_x',-1.1+mb, 0.08); // right arm relaxed
                 } else {
-                    if (ra) { ra.rotation.z = lerp(ra.rotation.z, 0.3, 0.1); ra.rotation.x = lerp(ra.rotation.x, -0.7 + pointPhase, 0.1); }
-                    if (rf) { rf.rotation.y = lerp(rf.rotation.y, 0.3, 0.1); rf.rotation.x = lerp(rf.rotation.x, 0.2, 0.1); }
-                    if (la) { la.rotation.z = lerp(la.rotation.z, 1.25, sp); la.rotation.x = lerp(la.rotation.x, 0.04, sp); }
+                    apA(ra, 'vRA_z','vRA_x',-0.58-sassyPulse,-0.5); // right hand on hip
+                    if (rf) { rf.rotation.y=lerp(rf.rotation.y,-0.72,0.06); }
+                    apA(la, 'vLA_z','vLA_x', 1.1+mb, 0.08); // left arm relaxed
+                }
+            } else if (AMOVE.state === 'FLIP_HAIR') {
+                // Arm arcs up and sweeps hair — full arc motion
+                const arc = t - AMOVE.posePhase;
+                const prog = Math.min(1, arc / 0.9); // 0→1 over 0.9s
+                const flip = Math.sin(prog * Math.PI); // bell curve — goes up then comes back
+                if (AMOVE.greetArm) {
+                    // Left arm sweeps up
+                    const tLA_z = lerp(1.28, -0.3, flip);
+                    const tLA_x = flip * 0.42;
+                    apA(la,'vLA_z','vLA_x', tLA_z, tLA_x);
+                    if (lf) { lf.rotation.y=lerp(lf.rotation.y, flip*(-0.45),0.10); lf.rotation.x=lerp(lf.rotation.x, flip*0.25,0.10); }
+                    if (lh) { lh.rotation.z=lerp(lh.rotation.z, flip*(-0.18),0.09); lh.rotation.x=lerp(lh.rotation.x, flip*0.12,0.09); }
+                    apA(ra,'vRA_z','vRA_x',-1.28+mb, 0.05);
+                } else {
+                    const tRA_z = lerp(-1.28, 0.3, flip);
+                    const tRA_x = flip * 0.42;
+                    apA(ra,'vRA_z','vRA_x', tRA_z, tRA_x);
+                    if (rf) { rf.rotation.y=lerp(rf.rotation.y, flip*0.45,0.10); rf.rotation.x=lerp(rf.rotation.x, flip*0.25,0.10); }
+                    if (rh) { rh.rotation.z=lerp(rh.rotation.z, flip*0.18,0.09); rh.rotation.x=lerp(rh.rotation.x, flip*0.12,0.09); }
+                    apA(la,'vLA_z','vLA_x', 1.28+mb, 0.05);
+                }
+            } else if (AMOVE.state === 'HAIR_TOUCH') {
+                // Hand drifts to side of head, fingers touching hair
+                const htPulse = Math.sin(t * 1.5) * 0.03;
+                if (AMOVE.greetArm) {
+                    apA(la,'vLA_z','vLA_x', -0.52+htPulse, 0.38); // arm up & forward
+                    if (lf) { lf.rotation.y=lerp(lf.rotation.y,-0.4,0.07); lf.rotation.x=lerp(lf.rotation.x,-0.1,0.07); }
+                    if (lh) { lh.rotation.z=lerp(lh.rotation.z,-0.15,0.06); lh.rotation.x=lerp(lh.rotation.x, 0.08,0.06); }
+                    apA(ra,'vRA_z','vRA_x',-1.28+mb, 0.06);
+                } else {
+                    apA(ra,'vRA_z','vRA_x',  0.52-htPulse, 0.38);
+                    if (rf) { rf.rotation.y=lerp(rf.rotation.y, 0.4,0.07); rf.rotation.x=lerp(rf.rotation.x,-0.1,0.07); }
+                    if (rh) { rh.rotation.z=lerp(rh.rotation.z, 0.15,0.06); rh.rotation.x=lerp(rh.rotation.x, 0.08,0.06); }
+                    apA(la,'vLA_z','vLA_x', 1.28+mb, 0.06);
+                }
+            } else if (AMOVE.state === 'GREET') {
+                // Wave hello — arm up, wrist wiggle
+                const wave = Math.sin(t * 5.8) * 0.28;
+                if (AMOVE.greetArm) {
+                    apA(la,'vLA_z','vLA_x', -0.82+wave*0.6, 0.28);
+                    if (lf) { lf.rotation.y=lerp(lf.rotation.y, 0.18+wave*0.5,0.10); lf.rotation.x=lerp(lf.rotation.x,-0.08,0.08); }
+                    if (lh) { lh.rotation.z=lerp(lh.rotation.z, wave*0.6,0.12); }
+                    apA(ra,'vRA_z','vRA_x',-1.28+mb, 0.06);
+                } else {
+                    apA(ra,'vRA_z','vRA_x',  0.82-wave*0.6, 0.28);
+                    if (rf) { rf.rotation.y=lerp(rf.rotation.y,-0.18-wave*0.5,0.10); rf.rotation.x=lerp(rf.rotation.x,-0.08,0.08); }
+                    if (rh) { rh.rotation.z=lerp(rh.rotation.z,-wave*0.6,0.12); }
+                    apA(la,'vLA_z','vLA_x', 1.28+mb, 0.06);
+                }
+            } else if (AMOVE.state === 'POINT') {
+                // One arm extends forward confidently
+                const pp = Math.sin(t * 1.6) * 0.05;
+                if (AMOVE.greetArm) {
+                    apA(la,'vLA_z','vLA_x',-0.25, -0.72+pp);
+                    if (lf) { lf.rotation.y=lerp(lf.rotation.y,-0.28,0.09); lf.rotation.x=lerp(lf.rotation.x, 0.18,0.09); }
+                    if (lh) { lh.rotation.z=lerp(lh.rotation.z,-0.06,0.07); }
+                    apA(ra,'vRA_z','vRA_x',-1.28+mb, 0.06);
+                } else {
+                    apA(ra,'vRA_z','vRA_x', 0.25,-0.72+pp);
+                    if (rf) { rf.rotation.y=lerp(rf.rotation.y, 0.28,0.09); rf.rotation.x=lerp(rf.rotation.x, 0.18,0.09); }
+                    if (rh) { rh.rotation.z=lerp(rh.rotation.z, 0.06,0.07); }
+                    apA(la,'vLA_z','vLA_x', 1.28+mb, 0.06);
                 }
             } else if (AMOVE.state === 'SHRUG') {
-                const shrugPulse = Math.sin(t * 2.5) * 0.04;
-                if (la) { la.rotation.z = lerp(la.rotation.z,  0.75 + shrugPulse, 0.1); la.rotation.x = lerp(la.rotation.x, -0.2, 0.1); }
-                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -0.75 - shrugPulse, 0.1); ra.rotation.x = lerp(ra.rotation.x, -0.2, 0.1); }
-                if (lf) { lf.rotation.y = lerp(lf.rotation.y,  0.4, 0.1); lf.rotation.x = lerp(lf.rotation.x, -0.3, 0.1); }
-                if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.4, 0.1); rf.rotation.x = lerp(rf.rotation.x, -0.3, 0.1); }
+                // Both shoulders up, arms spread — "I dunno" gesture
+                const shP = Math.sin(t * 2.8) * 0.04;
+                apA(la,'vLA_z','vLA_x', 0.82+shP,-0.28);
+                apA(ra,'vRA_z','vRA_x',-0.82-shP,-0.28);
+                if (lf) { lf.rotation.y=lerp(lf.rotation.y, 0.42,0.09); lf.rotation.x=lerp(lf.rotation.x,-0.32,0.09); }
+                if (rf) { rf.rotation.y=lerp(rf.rotation.y,-0.42,0.09); rf.rotation.x=lerp(rf.rotation.x,-0.32,0.09); }
+            } else if (AMOVE.state === 'THINK_POSE') {
+                // One hand near chin — thoughtful
+                const tp = Math.sin(t * 1.3) * 0.04;
+                if (AMOVE.greetArm) {
+                    apA(la,'vLA_z','vLA_x',-0.42, -0.48+tp);
+                    if (lf) { lf.rotation.y=lerp(lf.rotation.y,-0.5,0.07); lf.rotation.x=lerp(lf.rotation.x, 0.2,0.07); }
+                    if (lh) { lh.rotation.z=lerp(lh.rotation.z,-0.1+tp,0.06); lh.rotation.x=lerp(lh.rotation.x, 0.1,0.06); }
+                    apA(ra,'vRA_z','vRA_x',-1.22+mb, 0.06);
+                } else {
+                    apA(ra,'vRA_z','vRA_x', 0.42,-0.48+tp);
+                    if (rf) { rf.rotation.y=lerp(rf.rotation.y, 0.5,0.07); rf.rotation.x=lerp(rf.rotation.x, 0.2,0.07); }
+                    if (rh) { rh.rotation.z=lerp(rh.rotation.z, 0.1-tp,0.06); rh.rotation.x=lerp(rh.rotation.x, 0.1,0.06); }
+                    apA(la,'vLA_z','vLA_x', 1.22+mb, 0.06);
+                }
+            } else if (AMOVE.state === 'LOOK_SIDE') {
+                // Body turns, one arm slightly raised — looking at something
+                apA(la,'vLA_z','vLA_x', 1.18+mb*AMOVE.leanDir, 0.04);
+                apA(ra,'vRA_z','vRA_x',-1.18+mb*AMOVE.leanDir, 0.04);
+            } else if (AMOVE.state === 'ARMS_CROSS') {
+                // Confident arms crossed
+                apA(la,'vLA_z','vLA_x',-0.18,-0.52);
+                apA(ra,'vRA_z','vRA_x', 0.18,-0.52);
+                if (lf) { lf.rotation.y=lerp(lf.rotation.y, 0.68,0.07); lf.rotation.x=lerp(lf.rotation.x,-0.08,0.07); }
+                if (rf) { rf.rotation.y=lerp(rf.rotation.y,-0.68,0.07); rf.rotation.x=lerp(rf.rotation.x,-0.08,0.07); }
             } else if (AMOVE.state === 'STRETCH') {
-                const stretchProg = Math.min(1, AMOVE.timer > 0.5 ? 1 : AMOVE.timer * 2);
-                if (la) { la.rotation.z = lerp(la.rotation.z,  lerp(1.28, 0.2, stretchProg), 0.05); la.rotation.x = lerp(la.rotation.x, -0.3 * stretchProg, 0.05); }
-                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -lerp(1.28, 0.2, stretchProg), 0.05); ra.rotation.x = lerp(ra.rotation.x, -0.3 * stretchProg, 0.05); }
+                // Arms stretch up — yawning/waking
+                const strProg = Math.min(1, (t-AMOVE.posePhase)/0.8);
+                const strAngle = Math.sin(strProg * Math.PI) * 0.9;
+                apA(la,'vLA_z','vLA_x', 1.28 - strAngle, -strAngle * 0.3);
+                apA(ra,'vRA_z','vRA_x',-1.28 + strAngle, -strAngle * 0.3);
             } else if (AMOVE.state === 'DANCE') {
-                const dBeat = Math.sin(t * 3.5) * 0.25;
-                const dBeat2 = Math.cos(t * 3.5) * 0.2;
-                avatarGroup.position.y = Math.sin(t * 3.5) * 0.04;
-                if (la) { la.rotation.z = lerp(la.rotation.z,  0.9 + dBeat, 0.12); la.rotation.x = lerp(la.rotation.x, dBeat2 * 0.5, 0.12); }
-                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -0.9 - dBeat2, 0.12); ra.rotation.x = lerp(ra.rotation.x, dBeat * 0.5, 0.12); }
-                if (lf) { lf.rotation.y = lerp(lf.rotation.y,  dBeat * 0.3, 0.1); }
-                if (rf) { rf.rotation.y = lerp(rf.rotation.y, -dBeat2 * 0.3, 0.1); }
+                // Dance: rhythmic arm movements, body bounce
+                const beat = Math.sin(t * 3.6);
+                const beat2 = Math.cos(t * 3.6 + 0.4);
+                avatarGroup.position.y = Math.sin(t * 3.6) * 0.06;
+                apA(la,'vLA_z','vLA_x', 0.85 + beat*0.28, beat2*0.42);
+                apA(ra,'vRA_z','vRA_x',-0.85 - beat2*0.28, beat*0.42);
+                if (lf) { lf.rotation.y=lerp(lf.rotation.y, beat*0.32,0.12); }
+                if (rf) { rf.rotation.y=lerp(rf.rotation.y,-beat2*0.32,0.12); }
+                if (lh) { lh.rotation.z=lerp(lh.rotation.z, Math.sin(t*4.4)*0.24,0.10); }
+                if (rh) { rh.rotation.z=lerp(rh.rotation.z, Math.cos(t*4.4)*0.24,0.10); }
+            } else if (AMOVE.state === 'NOD') {
+                // Subtle nod — arms stay in neutral relaxed pose
+                apA(la,'vLA_z','vLA_x', 1.28+mb, 0.06);
+                apA(ra,'vRA_z','vRA_x',-1.28+mb, 0.06);
+            } else if (AMOVE.state === 'BOW') {
+                // Bow: arms slightly back
+                apA(la,'vLA_z','vLA_x', 1.38+breathShoulder, 0.18);
+                apA(ra,'vRA_z','vRA_x',-1.38+breathShoulder, 0.18);
             } else {
-                // Natural relaxed idle pose — arms at sides, gentle sway
-                const swayL = Math.sin(t*0.6+1.0)*0.06 + Math.sin(t*0.22)*0.03;
-                const swayR = Math.sin(t*0.6+0.0)*0.06 + Math.sin(t*0.22+1)*0.03;
-                if (la) { la.rotation.z = lerp(la.rotation.z,  1.28 + breathShoulder + swayL, sp); la.rotation.x = lerp(la.rotation.x,  0.05 + Math.sin(t*0.4)*0.03, sp); }
-                if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.28 + breathShoulder - swayR, sp); ra.rotation.x = lerp(ra.rotation.x,  0.05 + Math.sin(t*0.4+0.6)*0.03, sp); }
-                if (lf) { lf.rotation.y = lerp(lf.rotation.y,  0.10 + Math.sin(t*0.55)*0.05, sp); lf.rotation.x = lerp(lf.rotation.x,  0.04, sp); }
-                if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.10 - Math.sin(t*0.55+0.5)*0.05, sp); rf.rotation.x = lerp(rf.rotation.x,  0.04, sp); }
-                if (lh) { lh.rotation.z = lerp(lh.rotation.z,  0.06 + Math.sin(t*0.3)*0.04, sp); lh.rotation.x = lerp(lh.rotation.x, Math.sin(t*0.45)*0.06, sp); }
-                if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.06 - Math.sin(t*0.3+1)*0.04, sp); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*0.45+0.5)*0.06, sp); }
+                // STOP / default — relax: one hand hip, other hanging (signature pose)
+                apA(la,'vLA_z','vLA_x', 0.58+mb, -0.42);
+                if (lf) { lf.rotation.y=lerp(lf.rotation.y, 0.60,0.05); lf.rotation.x=lerp(lf.rotation.x,-0.06,0.05); }
+                apA(ra,'vRA_z','vRA_x',-1.30+mb, 0.07 + Math.sin(t*0.35+2.1)*0.04);
+                if (rf) { rf.rotation.y=lerp(rf.rotation.y,-0.15,0.05); }
             }
         } else if (state === 'LISTENING') {
-            // Attentive: arms slightly forward, slight lean
-            if (la) { la.rotation.z = lerp(la.rotation.z,  1.1 + breathShoulder + Math.sin(t*1.1)*0.05, 0.05); la.rotation.x = lerp(la.rotation.x, -0.1 + Math.sin(t*0.7)*0.04, 0.05); }
-            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.1 + breathShoulder + Math.sin(t*1.1+0.4)*0.05, 0.05); ra.rotation.x = lerp(ra.rotation.x, -0.1 + Math.sin(t*0.7+0.3)*0.04, 0.05); }
-            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  0.14 + Math.sin(t*1.4)*0.06, sp); lf.rotation.x = lerp(lf.rotation.x, 0.06, sp); }
-            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.14 - Math.sin(t*1.4+0.5)*0.06, sp); rf.rotation.x = lerp(rf.rotation.x, 0.06, sp); }
-            if (lh) { lh.rotation.z = lerp(lh.rotation.z,  0.08, sp); }
-            if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.08, sp); }
+            // Attentive: arms slightly forward and open — clearly engaged, spring-driven
+            const tLA_z =  1.02 + breathShoulder + Math.sin(t*0.85+0.2)*0.12;
+            const tRA_z = -1.02 + breathShoulder + Math.sin(t*0.79+2.4)*0.12;
+            if (la) { const [nz,nvz]=sprStep(la.rotation.z,P.vLA_z,tLA_z,180,14); la.rotation.z=nz; P.vLA_z=nvz; la.rotation.x=lerp(la.rotation.x,-0.14+Math.sin(t*0.7)*0.08,0.09); }
+            if (ra) { const [nz,nvz]=sprStep(ra.rotation.z,P.vRA_z,tRA_z,180,14); ra.rotation.z=nz; P.vRA_z=nvz; ra.rotation.x=lerp(ra.rotation.x,-0.14+Math.sin(t*0.66+1.5)*0.08,0.09); }
+            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  0.20 + Math.sin(t*1.3)*0.10, 0.10); lf.rotation.x = lerp(lf.rotation.x, 0.09, 0.09); }
+            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.20 - Math.sin(t*1.2+1.7)*0.10, 0.10); rf.rotation.x = lerp(rf.rotation.x, 0.09, 0.09); }
+            if (lh) { lh.rotation.z = lerp(lh.rotation.z,  0.13 + Math.sin(t*0.5)*0.06, 0.09); }
+            if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.13 - Math.sin(t*0.48+2.1)*0.06, 0.09); }
         } else if (state === 'THINKING') {
-            // Right hand near chin, left relaxed at side
-            if (la) { la.rotation.z = lerp(la.rotation.z,  1.2 + breathShoulder, 0.04); la.rotation.x = lerp(la.rotation.x,  0.04, 0.04); }
-            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -0.55, 0.04); ra.rotation.x = lerp(ra.rotation.x, -0.35 + Math.sin(t*1.3)*0.08, 0.04); }
-            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.5 + Math.sin(t*2.5)*0.12, 0.04); rf.rotation.x = lerp(rf.rotation.x, 0.1, 0.04); }
-            if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.1 + Math.sin(t*1.0)*0.08, 0.04); }
-            if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.12, sp); }
-            if (lh) { lh.rotation.z = lerp(lh.rotation.z, 0.05, sp); }
+            // Right hand near chin, left relaxed — spring on right for subtle tremor
+            if (la) { const [nz,nvz]=sprStep(la.rotation.z,P.vLA_z, 1.18+breathShoulder,140,14); la.rotation.z=nz; P.vLA_z=nvz; la.rotation.x=lerp(la.rotation.x,0.04,0.05); }
+            if (ra) { const [nz,nvz]=sprStep(ra.rotation.z,P.vRA_z,-0.52+Math.sin(t*1.1)*0.05,180,15); ra.rotation.z=nz; P.vRA_z=nvz; ra.rotation.x=lerp(ra.rotation.x,-0.38+Math.sin(t*1.3)*0.09,0.05); }
+            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -0.5 + Math.sin(t*2.5)*0.13, 0.05); rf.rotation.x = lerp(rf.rotation.x, 0.1, 0.05); }
+            if (rh) { rh.rotation.z = lerp(rh.rotation.z, -0.1 + Math.sin(t*1.0)*0.09, 0.05); }
+            if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.13, sp); }
+            if (lh) { lh.rotation.z = lerp(lh.rotation.z, 0.06, sp); }
         } else if (state === 'TALKING') {
             // Gesticulación más orgánica: varias frecuencias + emoción + “énfasis” alternado
             const emoAmp = (_emotion === 'happy' || _emotion === 'excited') ? 1.38
                 : (_emotion === 'calm') ? 0.82
                 : (_emotion === 'focused' || _emotion === 'curious') ? 1.12 : 1.05;
             const beat = Math.sin(t * 4.2);
-            const gL = (Math.sin(t * 2.65) * 0.24 + Math.sin(t * 1.45) * 0.1 + organic(t, 2.3) * 0.14 + beat * 0.06) * emoAmp;
-            const gR = (Math.sin(t * 2.65 + 1.15) * 0.24 + Math.cos(t * 1.55) * 0.1 + organic(t, 3.05) * 0.14 - beat * 0.05) * emoAmp;
-            const talkSp = 0.125;
-            if (la) { la.rotation.z = lerp(la.rotation.z,  1.0 + gL + breathShoulder, talkSp); la.rotation.x = lerp(la.rotation.x, Math.sin(t*2.95)*0.18 + organic(t,1.2)*0.06, talkSp); }
-            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -1.0 + gR + breathShoulder, talkSp); ra.rotation.x = lerp(ra.rotation.x, Math.sin(t*2.95+0.55)*0.18 + organic(t,1.9)*0.06, talkSp); }
-            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  Math.sin(t*3.15)*0.24 + Math.sin(t*5.1)*0.05, 0.095); lf.rotation.x = lerp(lf.rotation.x, Math.sin(t*2.65)*0.12, 0.095); }
-            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -Math.sin(t*3.15+0.45)*0.24 - Math.sin(t*5.1)*0.05, 0.095); rf.rotation.x = lerp(rf.rotation.x, Math.sin(t*2.65+0.3)*0.12, 0.095); }
-            if (lh) { lh.rotation.z = lerp(lh.rotation.z, Math.sin(t*3.9)*0.16 + organic(t,4)*0.04, talkSp); lh.rotation.x = lerp(lh.rotation.x, Math.sin(t*4.6)*0.11, talkSp); }
-            if (rh) { rh.rotation.z = lerp(rh.rotation.z, Math.sin(t*3.9+1.1)*0.16 + organic(t,4.7)*0.04, talkSp); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*4.6+0.4)*0.11, talkSp); }
+            const gL = (Math.sin(t * 2.65) * 0.34 + Math.sin(t * 1.45) * 0.16 + organic(t, 2.3) * 0.18 + beat * 0.10) * emoAmp;
+            const gR = (Math.sin(t * 2.65 + 1.15) * 0.34 + Math.cos(t * 1.55) * 0.16 + organic(t, 3.05) * 0.18 - beat * 0.09) * emoAmp;
+            const talkSp = 0.18; // faster response to speech rhythm
+            if (la) { la.rotation.z = lerp(la.rotation.z,  0.88 + gL + breathShoulder, talkSp); la.rotation.x = lerp(la.rotation.x, Math.sin(t*2.95)*0.24 + organic(t,1.2)*0.10, talkSp); }
+            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -0.88 + gR + breathShoulder, talkSp); ra.rotation.x = lerp(ra.rotation.x, Math.sin(t*2.95+0.55)*0.24 + organic(t,1.9)*0.10, talkSp); }
+            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  Math.sin(t*3.15)*0.32 + Math.sin(t*5.1)*0.08, 0.14); lf.rotation.x = lerp(lf.rotation.x, Math.sin(t*2.65)*0.16, 0.14); }
+            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -Math.sin(t*3.15+0.45)*0.32 - Math.sin(t*5.1)*0.08, 0.14); rf.rotation.x = lerp(rf.rotation.x, Math.sin(t*2.65+0.3)*0.16, 0.14); }
+            if (lh) { lh.rotation.z = lerp(lh.rotation.z, Math.sin(t*3.9)*0.22 + organic(t,4)*0.07, talkSp); lh.rotation.x = lerp(lh.rotation.x, Math.sin(t*4.6)*0.15, talkSp); }
+            if (rh) { rh.rotation.z = lerp(rh.rotation.z, Math.sin(t*3.9+1.1)*0.22 + organic(t,4.7)*0.07, talkSp); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*4.6+0.4)*0.15, talkSp); }
         }
 
         // --- Antebrazos y manos: inercia (hablar = más rápido; idle/pensar = más “peso”) ---
@@ -1976,12 +2219,29 @@
             if (emo === 'curious' && JOY)  setBlend(proxy, JOY,  eStrength * 0.3);
 
             if (state === 'TALKING') {
-                let mOpen = Math.abs(Math.sin(t * 8)) * 0.75;
+                // Organic multi-freq fallback lip-sync (no analyser) — less robotic
+                let mOpen = Math.abs(Math.sin(t * 7.8)) * 0.55
+                          + Math.abs(Math.sin(t * 14.3 + 0.7)) * 0.18
+                          + Math.abs(Math.sin(t * 3.2 + 1.1)) * 0.12;
+                mOpen = Math.min(1, mOpen);
                 if (ttsAnalyser && ttsFreq) {
                     ttsAnalyser.getByteFrequencyData(ttsFreq);
-                    let sum = 0;
-                    for (let i = 0; i < ttsFreq.length; i++) sum += ttsFreq[i];
-                    mOpen = Math.min(1, (sum / ttsFreq.length / 255) * 2.8);
+                    // Weighted bands: speech fundamentals 80-800Hz carry most lip motion
+                    const binHz = (ttsCtx ? ttsCtx.sampleRate : 44100) / (ttsAnalyser.fftSize || 256);
+                    let sumLow = 0, sumMid = 0, nLow = 0, nMid = 0;
+                    for (let i = 1; i < ttsFreq.length; i++) {
+                        const hz = i * binHz;
+                        if (hz < 800)       { sumLow += ttsFreq[i]; nLow++; }
+                        else if (hz < 2400) { sumMid += ttsFreq[i]; nMid++; }
+                    }
+                    const vLow = nLow ? sumLow / nLow / 255 : 0;
+                    const vMid = nMid ? sumMid / nMid / 255 : 0;
+                    const raw = vLow * 2.2 + vMid * 0.8;
+                    const prevM = mOpen;
+                    const target = Math.min(1, raw * 3.4);
+                    // Fast attack, slow decay for natural mouth movement
+                    if (target > prevM) mOpen = prevM + (target - prevM) * 0.72;
+                    else mOpen = prevM * 0.80 + target * 0.20;
                 }
                 setBlend(proxy, vrmBlend.mouth, mOpen);
                 // Keep micro-blinks even while talking; avoid hard forcing eyes open.
@@ -2008,8 +2268,8 @@
         const lleg = B('leftUpperLeg'), rleg = B('rightUpperLeg');
         const llleg = B('leftLowerLeg'), rlleg = B('rightLowerLeg');
         const lfoot = B('leftFoot'), rfoot = B('rightFoot');
-        const ws = (state === 'TALKING' ? 2.35 : state === 'LISTENING' ? 1.15 : 1.72) * ph.legWS;
-        const wa = (state === 'TALKING' ? 0.24 : state === 'LISTENING' ? 0.11 : 0.2) * ph.legWA;
+        const ws = (state === 'TALKING' ? 2.55 : state === 'LISTENING' ? 1.35 : 1.95) * ph.legWS;
+        const wa = (state === 'TALKING' ? 0.30 : state === 'LISTENING' ? 0.16 : 0.26) * ph.legWA;
         const phL = t * ws;
         const phR = phL + Math.PI * 0.98;
         const sL = Math.sin(phL);
@@ -2097,20 +2357,123 @@
         }
     }
 
-    // Huesos VRM 0.x/1.x — three-vrm usa getBoneNode('leftUpperArm'); humanBones es opcional
+    // ================================================================
+    // VRM BONE CACHE — bulletproof 4-method lookup (three-vrm 0.6.x safe)
+    // humanBones[name].node in 0.6.x is a glTF node INDEX not Object3D.
+    // Scene traversal is the definitive fallback.
+    // ================================================================
+    const _VRM_BONE_NAMES = [
+        'hips','spine','chest','upperChest','neck','head',
+        'leftShoulder','rightShoulder',
+        'leftUpperArm','rightUpperArm','leftLowerArm','rightLowerArm',
+        'leftHand','rightHand',
+        'leftUpperLeg','rightUpperLeg','leftLowerLeg','rightLowerLeg',
+        'leftFoot','rightFoot','leftToes','rightToes'
+    ];
+    const _VRM2GLTF = {
+        hips:          ['Hips','J_Bip_C_Hips','mixamorig:Hips','hip','pelvis'],
+        spine:         ['Spine','J_Bip_C_Spine','mixamorig:Spine','spine_01'],
+        chest:         ['Chest','J_Bip_C_Chest','mixamorig:Spine1','spine_02'],
+        upperChest:    ['UpperChest','J_Bip_C_UpperChest','mixamorig:Spine2','spine_03'],
+        neck:          ['Neck','J_Bip_C_Neck','mixamorig:Neck'],
+        head:          ['Head','J_Bip_C_Head','mixamorig:Head'],
+        leftShoulder:  ['LeftShoulder','J_Bip_L_Shoulder','mixamorig:LeftShoulder'],
+        rightShoulder: ['RightShoulder','J_Bip_R_Shoulder','mixamorig:RightShoulder'],
+        leftUpperArm:  ['LeftUpperArm','J_Bip_L_UpperArm','mixamorig:LeftArm','UpperArm_L'],
+        rightUpperArm: ['RightUpperArm','J_Bip_R_UpperArm','mixamorig:RightArm','UpperArm_R'],
+        leftLowerArm:  ['LeftLowerArm','J_Bip_L_LowerArm','mixamorig:LeftForeArm','LowerArm_L'],
+        rightLowerArm: ['RightLowerArm','J_Bip_R_LowerArm','mixamorig:RightForeArm','LowerArm_R'],
+        leftHand:      ['LeftHand','J_Bip_L_Hand','mixamorig:LeftHand','Hand_L'],
+        rightHand:     ['RightHand','J_Bip_R_Hand','mixamorig:RightHand','Hand_R'],
+        leftUpperLeg:  ['LeftUpperLeg','J_Bip_L_UpperLeg','mixamorig:LeftUpLeg','UpperLeg_L','LeftThigh'],
+        rightUpperLeg: ['RightUpperLeg','J_Bip_R_UpperLeg','mixamorig:RightUpLeg','UpperLeg_R','RightThigh'],
+        leftLowerLeg:  ['LeftLowerLeg','J_Bip_L_LowerLeg','mixamorig:LeftLeg','LowerLeg_L'],
+        rightLowerLeg: ['RightLowerLeg','J_Bip_R_LowerLeg','mixamorig:RightLeg','LowerLeg_R'],
+        leftFoot:      ['LeftFoot','J_Bip_L_Foot','mixamorig:LeftFoot','Foot_L'],
+        rightFoot:     ['RightFoot','J_Bip_R_Foot','mixamorig:RightFoot','Foot_R'],
+    };
+
+    function buildVRMBoneCache(vrm) {
+        if (!vrm) return;
+        vrm._boneCache = {};
+        const h = vrm.humanoid;
+
+        // Method 1: Official getBoneNode API
+        if (h && typeof h.getBoneNode === 'function') {
+            for (const name of _VRM_BONE_NAMES) {
+                try {
+                    const n = h.getBoneNode(name);
+                    if (n && n.isObject3D) vrm._boneCache[name] = n;
+                } catch(e) {}
+            }
+        }
+
+        // Method 2: _boneProxies internal Map (three-vrm 0.6.x)
+        if (h && h._boneProxies instanceof Map) {
+            for (const name of _VRM_BONE_NAMES) {
+                if (vrm._boneCache[name]) continue;
+                try {
+                    const proxy = h._boneProxies.get(name);
+                    if (proxy) {
+                        const node = proxy.node || proxy;
+                        if (node && node.isObject3D) vrm._boneCache[name] = node;
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // Method 3: humanBones — only trust if .node is actually an Object3D (VRM 1.x)
+        if (h && h.humanBones) {
+            const hb = h.humanBones;
+            for (const name of _VRM_BONE_NAMES) {
+                if (vrm._boneCache[name]) continue;
+                try {
+                    const e = typeof hb.get === 'function' ? hb.get(name) : hb[name];
+                    if (e) {
+                        const node = e.node || e;
+                        if (node && node.isObject3D) vrm._boneCache[name] = node;
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // Method 4: Full scene traversal — collect every bone from every SkinnedMesh
+        const allBones = {};
+        if (vrm.scene) {
+            vrm.scene.traverse(obj => {
+                if (obj.isSkinnedMesh && obj.skeleton) {
+                    obj.skeleton.bones.forEach(b => { if (b && b.name) allBones[b.name] = b; });
+                }
+                if ((obj.isBone || obj.type === 'Bone') && obj.name) allBones[obj.name] = obj;
+            });
+        }
+
+        const missing = _VRM_BONE_NAMES.filter(n => !vrm._boneCache[n]);
+        for (const vrmName of missing) {
+            const candidates = _VRM2GLTF[vrmName] || [];
+            let hit = false;
+            for (const c of candidates) {
+                if (allBones[c]) { vrm._boneCache[vrmName] = allBones[c]; hit = true; break; }
+            }
+            if (!hit) {
+                // Fuzzy: ends with _vrmName or .vrmName (case-insensitive)
+                const lv = vrmName.toLowerCase();
+                for (const [bName, bone] of Object.entries(allBones)) {
+                    const lb = bName.toLowerCase().replace(/[^a-z]/g,'');
+                    if (lb === lv.replace(/[^a-z]/g,'')) { vrm._boneCache[vrmName] = bone; break; }
+                }
+            }
+        }
+
+        const cnt = Object.keys(vrm._boneCache).length;
+        console.log(`[AVA] Bone cache: ${cnt}/${_VRM_BONE_NAMES.length} — [${Object.keys(vrm._boneCache).join(', ')}]`);
+        if (cnt < 6) console.warn('[AVA] Bone cache critically low. All scene bones:', Object.keys(allBones));
+    }
+
     function vrmBoneNode(vrm, name) {
-        const h = vrm && vrm.humanoid;
-        if (!h) return null;
-        if (typeof h.getBoneNode === 'function') {
-            const n = h.getBoneNode(name);
-            if (n) return n;
-        }
-        const hb = h.humanBones;
-        if (hb) {
-            const e = typeof hb.get === 'function' ? hb.get(name) : hb[name];
-            if (e && e.node) return e.node;
-        }
-        return null;
+        if (!vrm) return null;
+        if (!vrm._boneCache) buildVRMBoneCache(vrm);
+        return vrm._boneCache[name] || null;
     }
 
     // ================================================================
@@ -2272,8 +2635,17 @@
             speak(reply);
         } catch (err) {
             console.error('Chat error:', err);
-            const fallback = 'Lo siento, no pude conectar con el servidor. Verifica tu ANTHROPIC_API_KEY.';
-            updateStatus('ERROR DE CONEXIÓN');
+            // Diagnose the actual problem
+            let fallback = 'Error de conexión.';
+            if (err.message && err.message.includes('Failed to fetch')) {
+                fallback = 'El servidor no está corriendo. Abre una terminal en la carpeta del proyecto y ejecuta: npm run dev:local';
+            } else if (err.message && err.message.includes('404')) {
+                fallback = 'Servidor estático detectado. Debes usar npm run dev:local en lugar de dev:static para activar el chat.';
+            } else if (err.message && err.message.includes('503')) {
+                fallback = 'Ningun proveedor de IA respondió. Verifica tu ANTHROPIC_API_KEY en el archivo .env.local.';
+            }
+            updateStatus('ERROR — corre: npm run dev:local');
+            document.getElementById('response').textContent = '⚠ ' + (err.message || 'Error') + ' → npm run dev:local';
             speak(fallback);
         }
     }
@@ -3225,16 +3597,25 @@
             audio.setAttribute('playsinline', '');
             audio.preload = 'auto';
             _curAudio = audio;
-            const finish = () => { 
-                ttsAnalyser = null; ttsFreq = null; 
-                voiceConversationActive = false;
-                setState('IDLE'); 
-                updateStatus(cfg.wakeWord ? 'LISTA — di «AVA»' : 'LISTA'); 
+            const _wasVoiceConvPA = voiceConversationActive;
+            const finish = () => {
+                ttsAnalyser = null; ttsFreq = null;
+                setState('IDLE');
                 document.getElementById('response').textContent = '';
-                // ULTRA-FAST: Restart wake word immediately
-                if (cfg.wakeWord) {
-                    console.log('%c Wake', 'color:#00ff9d');
-                    scheduleWakeRestart();
+                if (_wasVoiceConvPA && voiceConversationActive) {
+                    updateStatus('TE ESCUCHO…');
+                    setTimeout(() => {
+                        if (voiceConversationActive && state === 'IDLE') {
+                            startListening({ fastSilence: true });
+                        }
+                    }, 310);
+                } else {
+                    voiceConversationActive = false;
+                    updateStatus(cfg.wakeWord ? 'LISTA — di «AVA»' : 'LISTA');
+                    if (cfg.wakeWord) {
+                        console.log('%c Wake', 'color:#00ff9d');
+                        scheduleWakeRestart();
+                    }
                 }
             };
             audio.onended = finish;
@@ -3273,43 +3654,52 @@
 
     function speakBrowser(text) {
         const u = new SpeechSynthesisUtterance(text);
-        const vp = VOICES[currentIdx] || VOICES[0];
         u.lang = 'es-MX';
-        u.pitch = vp.pitch;
-        u.rate = vp.rate;
+        // Young Latina ~19 años: pitch alto, ritmo natural
+        u.pitch = 1.28;
+        u.rate  = 1.08;
         const pickVoice = () => {
             const all = synth.getVoices();
-            // Priority 1: es-MX voices (Monterrey/LatAm)
-            const mxVoices = all.filter(v => v.lang === 'es-MX');
-            if (mxVoices.length) return mxVoices[currentIdx % mxVoices.length];
-            // Priority 2: Neural/Natural Latin American Spanish voices
-            const neural = all.filter(v => (v.lang.startsWith('es-MX') || v.lang.startsWith('es-419')) &&
-                (v.name.includes('Neural') || v.name.includes('Natural') ||
-                 v.name.includes('Dalia') || v.name.includes('Marina') ||
-                 v.name.includes('Paulina') || v.name.includes('Ximena')));
-            if (neural.length) return neural[currentIdx % neural.length];
-            // Priority 3: any online es-MX or es-419 voice
-            const latAmOnline = all.filter(v => (v.lang === 'es-MX' || v.lang === 'es-419') && !v.localService);
-            if (latAmOnline.length) return latAmOnline[currentIdx % latAmOnline.length];
-            // Priority 4: any online Spanish voice
-            const esOnline = all.filter(v => v.lang.startsWith('es') && !v.localService);
-            if (esOnline.length) return esOnline[currentIdx % esOnline.length];
-            // Priority 5: any Spanish voice
+            // P1: voces con nombre de mujer joven mexicana/latina conocidas
+            const youngNames = ['Dalia','Paulina','Sabina','Marina','Ximena','Renata','Camila','Valentina','Salome','Elena','Catalina','Abril'];
+            const byName = all.find(v => v.lang.startsWith('es') && youngNames.some(n => v.name.includes(n)));
+            if (byName) return byName;
+            // P2: es-MX femeninas online (Neural/Natural)
+            const mxNeural = all.filter(v => v.lang === 'es-MX' && !v.localService &&
+                (v.name.includes('Neural') || v.name.includes('Natural') || v.name.includes('female') || v.name.toLowerCase().includes('fem')));
+            if (mxNeural.length) return mxNeural[0];
+            // P3: cualquier es-MX
+            const mx = all.filter(v => v.lang === 'es-MX');
+            if (mx.length) return mx[0];
+            // P4: es-419 / es-AR / es-CO / es-CL
+            const latam = all.filter(v => /^es-(419|AR|CO|CL|PE|UY|VE)/.test(v.lang));
+            if (latam.length) return latam[0];
+            // P5: cualquier español
             const es = all.filter(v => v.lang.startsWith('es'));
-            if (es.length) return es[currentIdx % es.length];
+            if (es.length) return es[0];
             return null;
         };
         const v = pickVoice();
         if (v) { u.voice = v; console.log('Browser TTS voice:', v.name, v.lang); }
-        const done = () => { 
-            ttsAnalyser = null; ttsFreq = null; 
-            voiceConversationActive = false;
-            setState('IDLE'); 
-            updateStatus(cfg.wakeWord ? 'LISTA — di «AVA»' : 'LISTA'); 
-            document.getElementById('response').textContent = ''; 
-            if (cfg.wakeWord) {
-                console.log('%c🔄 Wake', 'color:#00ff9d');
-                scheduleWakeRestart();
+        const _wasVoiceConvBr = voiceConversationActive;
+        const done = () => {
+            ttsAnalyser = null; ttsFreq = null;
+            setState('IDLE');
+            document.getElementById('response').textContent = '';
+            if (_wasVoiceConvBr && voiceConversationActive) {
+                updateStatus('TE ESCUCHO…');
+                setTimeout(() => {
+                    if (voiceConversationActive && state === 'IDLE') {
+                        startListening({ fastSilence: true });
+                    }
+                }, 310);
+            } else {
+                voiceConversationActive = false;
+                updateStatus(cfg.wakeWord ? 'LISTA — di «AVA»' : 'LISTA');
+                if (cfg.wakeWord) {
+                    console.log('%c🔄 Wake', 'color:#00ff9d');
+                    scheduleWakeRestart();
+                }
             }
         };
         u.onend = done;

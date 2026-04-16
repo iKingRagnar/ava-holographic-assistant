@@ -2,17 +2,19 @@
 // Uses the same WebSocket protocol as the edge-tts Python package
 import { createHash } from 'crypto';
 
-// 10 avatares femeninos — solo voces Neural F (es-* … Neural femeninas)
+// 10 avatares femeninos — voces jóvenes ~19 años, español latinoamericano
+// pitch +8%..+14% = voz femenina joven; rate +5%..+12% = ritmo natural de chica joven
 const AVATAR_VOICES = [
-  { name: 'es-MX-DaliaNeural',    rate: '+0%',  pitch: '+0%',  style: 'cheerful'  }, // AVA   — cálida MX
-  { name: 'es-CO-SalomeNeural',   rate: '+8%',  pitch: '+4%',  style: null        }, // KIRA  — enérgica CO
-  { name: 'es-MX-BeatrizNeural',  rate: '-2%',  pitch: '+2%',  style: null        }, // ZANE  — firme, tono bajo femenino
-  { name: 'es-AR-ElenaNeural',    rate: '+4%',  pitch: '+3%',  style: null        }, // FAKER — precisa AR
-  { name: 'es-PE-CamilaNeural',   rate: '-5%',  pitch: '+4%',  style: null        }, // SAO   — elegante PE
-  { name: 'es-CL-CatalinaNeural', rate: '+10%', pitch: '+1%',  style: null        }, // NEON  — rápida CL
-  { name: 'es-MX-MarinaNeural',   rate: '+2%',  pitch: '+6%',  style: null        }, // YUKI  — suave MX
-  { name: 'es-ES-ElviraNeural',   rate: '+4%',  pitch: '-2%',  style: null        }, // REI   — directa ES
-  { name: 'es-ES-AbrilNeural',    rate: '-6%',  pitch: '+5%',  style: null        }, // MIRA  — calmada ES
+  { name: 'es-MX-DaliaNeural',    rate: '+8%',  pitch: '+10%', style: 'cheerful'  }, // AVA   — joven MX cálida
+  { name: 'es-CO-SalomeNeural',   rate: '+12%', pitch: '+12%', style: null        }, // KIRA  — enérgica CO joven
+  { name: 'es-MX-BeatrizNeural',  rate: '+4%',  pitch: '+8%',  style: null        }, // ZANE  — firme pero joven
+  { name: 'es-AR-ElenaNeural',    rate: '+8%',  pitch: '+10%', style: null        }, // FAKER — precisa AR joven
+  { name: 'es-PE-CamilaNeural',   rate: '+2%',  pitch: '+12%', style: null        }, // SAO   — elegante PE joven
+  { name: 'es-CL-CatalinaNeural', rate: '+14%', pitch: '+10%', style: null        }, // NEON  — rápida CL joven
+  { name: 'es-MX-MarinaNeural',   rate: '+6%',  pitch: '+14%', style: null        }, // YUKI  — suave MX joven
+  { name: 'es-MX-DaliaNeural',    rate: '+10%', pitch: '+8%',  style: null        }, // REI   — directa MX joven
+  { name: 'es-CO-SalomeNeural',   rate: '+0%',  pitch: '+12%', style: null        }, // MIRA  — tranquila CO joven
+  { name: 'es-AR-ElenaNeural',    rate: '+10%', pitch: '+11%', style: null        }, // KAI   — carismática AR joven
   { name: 'es-UY-ValentinaNeural', rate: '+6%', pitch: '+3%',  style: null        }, // KAI   — carismática UY
 ];
 
