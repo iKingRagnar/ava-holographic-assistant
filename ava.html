@@ -9,36 +9,108 @@
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI','Roboto',sans-serif;touch-action:none;background:#000}
 
-        /* === Atmosphere background === */
+        /* === Atmosphere background — animated aurora === */
         .atmosphere{position:fixed;inset:0;z-index:0;
-            background:radial-gradient(ellipse 120% 100% at 50% 110%, #0a0e2a 0%, #050818 40%, #000 70%);
+            background:radial-gradient(ellipse 140% 110% at 50% 115%, #080d22 0%, #040610 45%, #000 70%);
+            animation:atm-shift 18s ease-in-out infinite alternate;
+        }
+        @keyframes atm-shift{
+            0%  {filter:hue-rotate(0deg) brightness(1)}
+            50% {filter:hue-rotate(8deg) brightness(1.04)}
+            100%{filter:hue-rotate(-5deg) brightness(.97)}
+        }
+        .atmosphere::before{content:'';position:absolute;inset:0;
+            background:radial-gradient(ellipse 80% 60% at 30% 70%, rgba(0,80,255,.025) 0%, transparent 55%),
+                       radial-gradient(ellipse 60% 45% at 70% 80%, rgba(0,255,157,.03) 0%, transparent 50%);
+            animation:aurora 22s ease-in-out infinite alternate;
+        }
+        @keyframes aurora{
+            0%  {opacity:.6;transform:scale(1)}
+            50% {opacity:1;transform:scale(1.05) translateX(2%)}
+            100%{opacity:.7;transform:scale(.97) translateX(-2%)}
         }
         .atmosphere::after{content:'';position:absolute;inset:0;
-            background:radial-gradient(ellipse 60% 50% at 50% 80%, rgba(0,255,157,.04) 0%, transparent 60%);
+            background:radial-gradient(ellipse 50% 40% at 50% 75%, rgba(0,255,157,.05) 0%, transparent 55%);
         }
 
-        /* === Scanlines === */
+        /* === Scanlines — animated sweep === */
         .scanlines{position:fixed;inset:0;pointer-events:none;z-index:100;
-            background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,157,.009) 2px,rgba(0,255,157,.009) 4px);
+            background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,157,.007) 2px,rgba(0,255,157,.007) 4px);
         }
+        .scanlines::after{content:'';position:absolute;left:0;right:0;height:3px;
+            background:linear-gradient(transparent,rgba(0,255,157,.06),transparent);
+            animation:scan-sweep 6s linear infinite;
+        }
+        @keyframes scan-sweep{0%{top:-4px}100%{top:100%}}
 
         /* === Three.js canvas === */
-        #avatar-canvas{position:fixed;inset:0;z-index:10}
+        #avatar-canvas{position:fixed;inset:0;z-index:10;transition:filter 0.6s ease}
+        /* HOLO MODE: THINKING / LISTENING — scanline + tint overlay */
+        #avatar-canvas.holo-thinking{
+            filter: hue-rotate(200deg) brightness(0.92) saturate(1.6) contrast(1.08);
+        }
+        #avatar-canvas.holo-listening{
+            filter: hue-rotate(120deg) brightness(0.96) saturate(1.4);
+        }
+        /* Scanline overlay rendered on top of canvas when in holo mode */
+        #holo-scanlines{
+            position:fixed;inset:0;z-index:12;pointer-events:none;
+            background:repeating-linear-gradient(
+                to bottom,
+                transparent 0px,
+                transparent 3px,
+                rgba(0,255,157,0.025) 3px,
+                rgba(0,255,157,0.025) 4px
+            );
+            opacity:0;transition:opacity 0.5s ease;
+        }
+        #holo-scanlines.active{ opacity:1; }
+        #holo-scanlines.thinking{ background:repeating-linear-gradient(
+            to bottom,
+            transparent 0px, transparent 3px,
+            rgba(255,170,0,0.030) 3px, rgba(255,170,0,0.030) 4px
+        ); }
+        #holo-scanlines.listening{ background:repeating-linear-gradient(
+            to bottom,
+            transparent 0px, transparent 3px,
+            rgba(0,170,255,0.028) 3px, rgba(0,170,255,0.028) 4px
+        ); }
 
         /* === Particles overlay === */
         #particles{position:fixed;inset:0;pointer-events:none;z-index:50}
 
-        /* === Holo glow === */
-        .holo-glow{position:fixed;inset:0;pointer-events:none;z-index:11;
-            background:radial-gradient(ellipse 50% 70% at 50% 55%, rgba(0,255,157,.035) 0%, transparent 65%);
+        /* === Holo glow — state-reactive via class === */
+        .holo-glow{position:fixed;inset:0;pointer-events:none;z-index:11;transition:opacity 1.2s;
+            background:radial-gradient(ellipse 55% 75% at 50% 55%, rgba(0,255,157,.045) 0%, transparent 65%);
         }
+        .holo-glow.listening{background:radial-gradient(ellipse 55% 75% at 50% 55%, rgba(0,170,255,.055) 0%, transparent 65%)}
+        .holo-glow.thinking {background:radial-gradient(ellipse 55% 75% at 50% 55%, rgba(255,170,0,.04) 0%, transparent 65%)}
+        .holo-glow.talking  {background:radial-gradient(ellipse 60% 80% at 50% 55%, rgba(0,255,157,.07) 0%, transparent 65%);animation:glow-pulse .6s ease-in-out infinite alternate}
+        @keyframes glow-pulse{0%{opacity:.8}100%{opacity:1}}
 
-        /* === Branding === */
-        .branding{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:60;
-            font-size:30px;font-weight:200;letter-spacing:14px;color:#00ff9d;
-            text-shadow:0 0 20px rgba(0,255,157,.7),0 0 40px rgba(0,255,157,.3);
-            pointer-events:none;user-select:none;
+        /* === HUD corner decorations === */
+        .hud-corner{position:fixed;z-index:55;pointer-events:none;width:36px;height:36px;opacity:.45}
+        .hud-corner svg{width:100%;height:100%}
+        .hud-tl{top:10px;left:10px}
+        .hud-tr{top:10px;right:10px;transform:scaleX(-1)}
+        .hud-bl{bottom:10px;left:10px;transform:scaleY(-1)}
+        .hud-br{bottom:10px;right:10px;transform:scale(-1,-1)}
+
+        /* === Audio waveform visualizer === */
+        #waveform{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);
+            width:120px;height:22px;z-index:62;pointer-events:none;opacity:0;transition:opacity .4s}
+        #waveform.active{opacity:1}
+
+        /* === Branding — enhanced with subtitle === */
+        .branding{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:60;
+            text-align:center;pointer-events:none;user-select:none;
         }
+        .brand-name{font-size:30px;font-weight:200;letter-spacing:16px;color:#00ff9d;
+            text-shadow:0 0 24px rgba(0,255,157,.8),0 0 50px rgba(0,255,157,.3),0 0 100px rgba(0,255,157,.1);
+            animation:brand-breathe 4s ease-in-out infinite;
+        }
+        @keyframes brand-breathe{0%,100%{text-shadow:0 0 24px rgba(0,255,157,.7),0 0 50px rgba(0,255,157,.25)}50%{text-shadow:0 0 32px rgba(0,255,157,1),0 0 70px rgba(0,255,157,.45),0 0 130px rgba(0,255,157,.15)}}
+        .brand-sub{font-size:7.5px;letter-spacing:5px;color:rgba(0,255,157,.4);text-transform:uppercase;margin-top:2px;animation:fade-pulse 4s ease-in-out infinite}
 
         /* === Avatar selector === */
         .avatar-selector{position:fixed;top:62px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:60}
@@ -52,20 +124,8 @@
         .cap-skills{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
         .skill-tag{background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.25);padding:2px 8px;border-radius:12px;font-size:9px}
 
-        /* === Base ring (3D decoration behind avatar, behind everything) === */
-        .base-ring{position:fixed;bottom:4px;left:50%;transform:translateX(-50%);
-            width:200px;height:52px;border:2px solid #00ff9d;border-radius:50%;z-index:15;transition:.3s;
-            box-shadow:0 0 20px rgba(0,255,157,.4),inset 0 0 15px rgba(0,255,157,.15);pointer-events:none}
-        .base-ring::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-            width:178px;height:42px;border:1px solid rgba(0,255,157,.35);border-radius:50%}
-        .base-ring.idle{animation:pulse-slow 3s ease-in-out infinite}
-        .base-ring.listening{border-color:#00aaff;box-shadow:0 0 30px rgba(0,170,255,.5);animation:pulse-fast .8s ease-in-out infinite}
-        .base-ring.thinking{border-color:#ffaa00;box-shadow:0 0 25px rgba(255,170,0,.4);animation:blink-ring 1.35s ease-in-out infinite}
-        .base-ring.talking{border-color:#00ff9d;box-shadow:0 0 40px rgba(0,255,157,.7);animation:pulse-talk .3s ease-in-out infinite}
-        @keyframes pulse-slow{0%,100%{opacity:.55;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.02)}}
-        @keyframes pulse-fast{0%,100%{opacity:.7;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.05)}}
-        @keyframes blink-ring{0%,100%{opacity:.72;box-shadow:0 0 18px rgba(255,170,0,.3),inset 0 0 10px rgba(255,170,0,.08)}50%{opacity:1;box-shadow:0 0 52px rgba(255,170,0,.95),0 0 90px rgba(255,170,0,.28),inset 0 0 22px rgba(255,170,0,.18)}}
-        @keyframes pulse-talk{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.07)}}
+        /* === Base ring — hidden (removed per UX request) === */
+        .base-ring{display:none!important}
 
         /* === Status & response === */
         .status-area{position:fixed;bottom:270px;left:50%;transform:translateX(-50%);
@@ -183,16 +243,69 @@
         .hint{position:fixed;bottom:8px;font-size:9px;color:rgba(0,255,157,.25);z-index:50}
         .hint-l{left:10px}
         .hint-r{right:10px}
+
+        /* === RAG Knowledge Base Panel === */
+        #rag-btn{position:fixed;top:16px;right:16px;z-index:120;background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.35);color:#00ff9d;font-family:inherit;font-size:10px;letter-spacing:2px;padding:6px 10px;cursor:pointer;border-radius:4px;transition:all .3s}
+        #rag-btn:hover{background:rgba(0,255,157,.18);border-color:#00ff9d}
+        #rag-btn.active{background:rgba(0,255,157,.22);border-color:#00ff9d;box-shadow:0 0 12px rgba(0,255,157,.4)}
+        /* ── WORKFLOW AGENT BAR ───────────────────────────────────────── */
+        #workflow-bar{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:120;display:flex;gap:6px;align-items:center}
+        .wf-btn{background:rgba(0,255,157,.06);border:1px solid rgba(0,255,157,.25);color:rgba(0,255,157,.7);font-family:inherit;font-size:9px;letter-spacing:2px;padding:5px 9px;cursor:pointer;border-radius:3px;transition:all .25s;text-transform:uppercase}
+        .wf-btn:hover{background:rgba(0,255,157,.14);border-color:rgba(0,255,157,.6);color:#00ff9d}
+        .wf-btn.active{background:rgba(0,255,157,.2);border-color:#00ff9d;color:#00ff9d;box-shadow:0 0 10px rgba(0,255,157,.35)}
+        #wf-label{font-family:inherit;font-size:8px;letter-spacing:1.5px;color:rgba(0,255,157,.45);padding:0 4px;transition:opacity .3s}
+        #wf-label.hidden{opacity:0}
+        #rag-panel{position:fixed;top:0;right:0;width:340px;height:100vh;background:rgba(0,8,4,.97);border-left:1px solid rgba(0,255,157,.2);z-index:130;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);padding:0}
+        #rag-panel.open{transform:translateX(0)}
+        .rag-header{padding:18px 16px 12px;border-bottom:1px solid rgba(0,255,157,.15);display:flex;align-items:center;justify-content:space-between}
+        .rag-header h3{color:#00ff9d;font-size:11px;letter-spacing:3px;margin:0}
+        .rag-close{background:none;border:none;color:rgba(0,255,157,.5);cursor:pointer;font-size:18px;padding:0 4px;line-height:1}
+        .rag-close:hover{color:#00ff9d}
+        .rag-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+        .rag-body::-webkit-scrollbar{width:4px}
+        .rag-body::-webkit-scrollbar-thumb{background:rgba(0,255,157,.2);border-radius:2px}
+        .rag-section{display:flex;flex-direction:column;gap:6px}
+        .rag-label{color:rgba(0,255,157,.5);font-size:9px;letter-spacing:2px;text-transform:uppercase}
+        .rag-textarea{width:100%;background:rgba(0,255,157,.04);border:1px solid rgba(0,255,157,.2);color:#e0ffe8;font-size:11px;padding:8px;resize:vertical;min-height:90px;max-height:200px;border-radius:3px;font-family:inherit;outline:none;box-sizing:border-box}
+        .rag-textarea:focus{border-color:rgba(0,255,157,.5)}
+        .rag-input{width:100%;background:rgba(0,255,157,.04);border:1px solid rgba(0,255,157,.2);color:#e0ffe8;font-size:11px;padding:6px 8px;border-radius:3px;font-family:inherit;outline:none;box-sizing:border-box}
+        .rag-input:focus{border-color:rgba(0,255,157,.5)}
+        .rag-btn-row{display:flex;gap:8px}
+        .rag-action{flex:1;background:rgba(0,255,157,.10);border:1px solid rgba(0,255,157,.3);color:#00ff9d;font-size:10px;letter-spacing:1.5px;padding:7px 6px;cursor:pointer;border-radius:3px;font-family:inherit;transition:all .2s}
+        .rag-action:hover{background:rgba(0,255,157,.22)}
+        .rag-action:disabled{opacity:.35;cursor:not-allowed}
+        .rag-action.danger{border-color:rgba(255,80,80,.4);color:#ff5050;background:rgba(255,80,80,.06)}
+        .rag-action.danger:hover{background:rgba(255,80,80,.16)}
+        .rag-stats{background:rgba(0,255,157,.04);border:1px solid rgba(0,255,157,.12);border-radius:3px;padding:10px 12px;font-size:10px;color:rgba(0,255,157,.7);line-height:1.8}
+        .rag-chunk-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto}
+        .rag-chunk{background:rgba(0,255,157,.04);border:1px solid rgba(0,255,157,.1);border-radius:3px;padding:8px 10px;font-size:10px;color:rgba(200,255,220,.7);line-height:1.5;cursor:default}
+        .rag-chunk .rag-chunk-src{color:rgba(0,255,157,.4);font-size:9px;margin-bottom:2px}
+        .rag-chunk .rag-chunk-text{overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+        .rag-indicator{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(0,255,157,.12);border:1px solid rgba(0,255,157,.3);color:#00ff9d;font-size:9px;letter-spacing:2px;padding:4px 10px;border-radius:10px;z-index:110;pointer-events:none;opacity:0;transition:opacity .4s}
+        .rag-indicator.visible{opacity:1}
     </style>
 </head>
 <body>
     <div class="atmosphere"></div>
     <div class="scanlines"></div>
     <canvas id="avatar-canvas"></canvas>
+    <div id="holo-scanlines"></div>
     <canvas id="particles"></canvas>
-    <div class="holo-glow"></div>
+    <div class="holo-glow" id="holo-glow"></div>
 
-    <div class="branding" id="branding">A V A</div>
+    <!-- HUD corners -->
+    <div class="hud-corner hud-tl"><svg viewBox="0 0 36 36" fill="none"><path d="M2 18V2h16" stroke="#00ff9d" stroke-width="1.5"/></svg></div>
+    <div class="hud-corner hud-tr"><svg viewBox="0 0 36 36" fill="none"><path d="M2 18V2h16" stroke="#00ff9d" stroke-width="1.5"/></svg></div>
+    <div class="hud-corner hud-bl"><svg viewBox="0 0 36 36" fill="none"><path d="M2 18V2h16" stroke="#00ff9d" stroke-width="1.5"/></svg></div>
+    <div class="hud-corner hud-br"><svg viewBox="0 0 36 36" fill="none"><path d="M2 18V2h16" stroke="#00ff9d" stroke-width="1.5"/></svg></div>
+
+    <!-- Audio waveform -->
+    <canvas id="waveform"></canvas>
+
+    <div class="branding" id="branding">
+        <div class="brand-name">A V A</div>
+        <div class="brand-sub">holographic intelligence</div>
+    </div>
 
     <div class="avatar-selector" id="avatar-selector">
         <div class="avatar-dot active" data-i="0" style="background:#00ff9d" title="AVA"></div>
@@ -290,6 +403,58 @@
     <div class="hint hint-l" id="version-hint">AVA v2.0 — Claude AI</div>
     <div class="hint hint-r">T:texto | Space:voz | 1-0:avatar | N:next</div>
 
+    <!-- RAG KB button -->
+    <button id="rag-btn" onclick="toggleRagPanel()" title="Knowledge Base">KB</button>
+    <div id="rag-indicator" class="rag-indicator">KB ACTIVA</div>
+
+    <!-- WORKFLOW AGENT BAR -->
+    <div id="workflow-bar">
+      <button class="wf-btn" data-mode="BI"   onclick="toggleWorkflow('BI')">BI</button>
+      <button class="wf-btn" data-mode="SQL"  onclick="toggleWorkflow('SQL')">SQL</button>
+      <button class="wf-btn" data-mode="DATA" onclick="toggleWorkflow('DATA')">DATA</button>
+      <button class="wf-btn" data-mode="AUTO" onclick="toggleWorkflow('AUTO')">AUTO</button>
+      <button class="wf-btn" data-mode="CODE" onclick="toggleWorkflow('CODE')">CODE</button>
+      <span id="wf-label" class="hidden">AUTO</span>
+    </div>
+
+    <!-- RAG Panel -->
+    <div id="rag-panel">
+      <div class="rag-header">
+        <h3>⬡ KNOWLEDGE BASE</h3>
+        <button class="rag-close" onclick="toggleRagPanel()">✕</button>
+      </div>
+      <div class="rag-body">
+
+        <div class="rag-section">
+          <div class="rag-label">Fuente de texto</div>
+          <input class="rag-input" id="rag-source" placeholder="nombre del documento (ej: Manual Power BI)" value="documento">
+          <textarea class="rag-textarea" id="rag-text" placeholder="Pega aquí el contenido: manual, política, KPI, fórmulas DAX, SQL, etc.&#10;&#10;AVA usará este conocimiento para responder con precisión."></textarea>
+          <div class="rag-btn-row">
+            <button class="rag-action" id="rag-ingest-btn" onclick="ragIngest()">+ INGESTAR</button>
+            <button class="rag-action danger" onclick="ragClear()">LIMPIAR KB</button>
+          </div>
+        </div>
+
+        <div class="rag-section">
+          <div class="rag-label">Estado</div>
+          <div class="rag-stats" id="rag-stats">KB vacía — ingesta un documento para empezar.</div>
+        </div>
+
+        <div class="rag-section" id="rag-chunks-section" style="display:none">
+          <div class="rag-label">Fragmentos cargados</div>
+          <div class="rag-chunk-list" id="rag-chunk-list"></div>
+        </div>
+
+        <div class="rag-section">
+          <div class="rag-label">Probar búsqueda</div>
+          <input class="rag-input" id="rag-test-q" placeholder="¿qué pregunta quieres probar?" onkeydown="if(event.key==='Enter')ragTest()">
+          <button class="rag-action" onclick="ragTest()">BUSCAR</button>
+          <div id="rag-test-result" style="font-size:10px;color:rgba(0,255,157,.6);margin-top:6px;line-height:1.6"></div>
+        </div>
+
+      </div>
+    </div>
+
     <!-- Three.js r134 + GLTFLoader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -345,7 +510,7 @@
         userName: localStorage.getItem('ava_user') || '',
         vrmBase: localStorage.getItem('ava_vrm_base') || '',
         wakeWord: localStorage.getItem('ava_wake') !== '0',
-        useVision: localStorage.getItem('ava_vision') !== '0',
+        useVision: localStorage.getItem('ava_vision') === '1', // OFF by default — avoids camera abort errors
         /** Notas largo plazo (localStorage); se envían al modelo en cada chat. */
         memory: localStorage.getItem('ava_memory') || '',
         bioSync: localStorage.getItem('ava_biosync') === '1',
@@ -1051,12 +1216,34 @@
         roomLightPt.position.set(0, -0.5, 1.5);
         scene.add(roomLightPt);
 
-        // Holographic grid floor
-        const grid = new THREE.GridHelper(8, 30, 0x002a10, 0x001408);
-        grid.position.y = -0.98;
-        grid.material.opacity = 0.4;
-        grid.material.transparent = true;
-        scene.add(grid);
+        // ── HOLOGRAPHIC FLOOR — multi-layer animated grid ─────────────
+        // Layer 1: fine inner grid
+        const grid1 = new THREE.GridHelper(6, 40, 0x004422, 0x002211);
+        grid1.position.y = -0.98;
+        grid1.material.opacity = 0.55; grid1.material.transparent = true;
+        scene.add(grid1);
+        // Layer 2: coarse outer grid — slightly larger
+        const grid2 = new THREE.GridHelper(10, 14, 0x006633, 0x001a0d);
+        grid2.position.y = -0.98;
+        grid2.material.opacity = 0.28; grid2.material.transparent = true;
+        scene.add(grid2);
+        // Layer 3: horizon perspective grid tilted
+        const grid3 = new THREE.GridHelper(16, 8, 0x003322, 0x000d08);
+        grid3.position.y = -0.98;
+        grid3.material.opacity = 0.14; grid3.material.transparent = true;
+        scene.add(grid3);
+        // Glow disc on floor
+        const glowGeo = new THREE.CircleGeometry(2.2, 64);
+        const glowMat = new THREE.MeshBasicMaterial({
+            color: 0x00ff9d, transparent: true, opacity: 0.04, side: THREE.DoubleSide
+        });
+        const glowDisc = new THREE.Mesh(glowGeo, glowMat);
+        glowDisc.rotation.x = -Math.PI / 2;
+        glowDisc.position.y = -0.979;
+        scene.add(glowDisc);
+        // Store references for animation
+        window._holoGrid = { g1: grid1, g2: grid2, g3: grid3, disc: glowDisc, discMat: glowMat };
+        // ─────────────────────────────────────────────────────────────
 
         // LookAt target for VRM eye tracking
         lookAtTarget = new THREE.Object3D();
@@ -1677,6 +1864,47 @@
             p.material.opacity = 0.3 + Math.sin(t * 1.5 + i) * 0.25;
         });
 
+        // ── Holographic grid animation + state-reactive color ─────────────
+        if (window._holoGrid) {
+            const hg = window._holoGrid;
+            // State colors for grid: IDLE=green, LISTENING=blue, THINKING=gold, TALKING=bright-green
+            const GC = { IDLE:[0x004422,0x001a0d], LISTENING:[0x002244,0x000d1a], THINKING:[0x332200,0x180f00], TALKING:[0x006633,0x002211] };
+            const gc = GC[state] || GC.IDLE;
+            // Slow pulse on fine grid opacity
+            const pulse = 0.45 + Math.sin(t * (state === 'TALKING' ? 2.8 : 0.9)) * 0.15;
+            hg.g1.material.opacity = pulse;
+            hg.g2.material.opacity = 0.18 + Math.sin(t * 0.6) * 0.06;
+            // Rotate layer 2 slowly for depth illusion
+            hg.g2.rotation.y = t * 0.04;
+            hg.g3.rotation.y = -t * 0.02;
+            // Disc glow reacts to state
+            const discOp = state === 'TALKING' ? 0.09 + Math.sin(t * 3) * 0.04
+                : state === 'LISTENING' ? 0.06 + Math.sin(t * 1.5) * 0.03
+                : state === 'THINKING'  ? 0.05 + Math.sin(t * 0.8) * 0.02
+                : 0.035 + Math.sin(t * 0.5) * 0.015;
+            hg.discMat.opacity = discOp;
+            // State color on disc
+            const dc = state === 'LISTENING' ? 0x00aaff : state === 'THINKING' ? 0xffaa00 : 0x00ff9d;
+            hg.discMat.color.setHex(dc);
+        }
+
+        // ── State-reactive point light color ──────────────────────────────
+        if (roomLightPt && !cfg.useVision) {
+            const lc = state === 'LISTENING' ? [0.0, 0.5, 1.0]
+                : state === 'THINKING'  ? [1.0, 0.6, 0.0]
+                : state === 'TALKING'   ? [0.0, 1.0, 0.6]
+                : [0.0, 0.85, 0.52]; // IDLE
+            const lr = THREE.MathUtils.lerp;
+            const cv = roomLightPt.color;
+            cv.r = lr(cv.r, lc[0], 0.04);
+            cv.g = lr(cv.g, lc[1], 0.04);
+            cv.b = lr(cv.b, lc[2], 0.04);
+            roomLightPt.intensity = state === 'TALKING' ? 0.28 + Math.sin(t * 3.5) * 0.08
+                : state === 'THINKING' ? 0.18 + Math.sin(t * 0.8) * 0.05
+                : 0.15;
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         if (composer && typeof composer.render === 'function') composer.render();
         else renderer.render(scene, camera);
     }
@@ -1809,34 +2037,47 @@
             }
         }
 
-        // --- SPINE / PECHO: respiración + contrarrotación respecto a cadera (cadena natural) ---
+        // --- SPINE / PECHO: respiración + contrarrotación respecto a cadera ---
         const bpmMul = cfg.bioSync ? Math.max(0.72, Math.min(1.6, (_bioBpm / 60) * 0.9)) : 1;
-        const breathRate = (state === 'TALKING' ? 1.78 : state === 'LISTENING' ? 1.02 : 0.86) * bpmMul;
+        const breathRate = (state === 'TALKING' ? 1.95 : state === 'LISTENING' ? 1.05 : 0.88) * bpmMul;
         const bMul = ph.breath;
         // Multi-harmonic breathing: diaphragmatic + intercostal + clavicular
         const br  = Math.sin(t * breathRate) * 0.82 + Math.sin(t * breathRate * 2.05 + 0.4) * 0.13 + Math.sin(t * breathRate * 0.5 + 1.1) * 0.05;
         const br2 = Math.sin(t * breathRate + 0.55) * 0.78 + Math.sin(t * breathRate * 1.98 + 0.9) * 0.16;
-        const brClav = Math.sin(t * breathRate + 0.82) * 0.55; // clavicular (shoulder rise)
-        const tw = organic(t, 1.1) * 0.048 * ph.tw + Math.sin(t * 0.16 + 0.7) * 0.01;
+
+        // AMOVE-aware spine twist — catwalk and dance sync with stride
+        let tw = organic(t, 1.1) * 0.048 * ph.tw + Math.sin(t * 0.16 + 0.7) * 0.01;
+        if (state === 'IDLE') {
+            if (AMOVE.state === 'CATWALK') tw += Math.sin(t * 2.2) * 0.10;  // runway counter-twist
+            else if (AMOVE.state === 'WALK')   tw += Math.sin(t * 1.9) * 0.07;
+            else if (AMOVE.state === 'DANCE')  tw += Math.sin(t * 3.6) * 0.12;
+            else if (AMOVE.state === 'SASSY_LEAN') tw += AMOVE.leanDir * 0.06;
+        }
+        if (state === 'TALKING') tw += organic(t, 6) * 0.05 + Math.sin(t * 2.1) * 0.03; // more torso during speech
         P.spineTw = damp(P.spineTw, tw, 5.2);
 
-        // Emotion-driven posture: open chest = happy/excited, subtle hunch = calm/focused
-        const ePostX = (_emotion === 'happy' || _emotion === 'excited') ? -0.022 : (_emotion === 'calm' || _emotion === 'focused') ? 0.018 : 0;
-        const ePostZ = (_emotion === 'curious') ? 0.014 : 0;
+        // Emotion-driven posture: open chest = happy/excited, subtle lean = calm/focused
+        const ePostX = (_emotion === 'happy' || _emotion === 'excited') ? -0.028
+            : (_emotion === 'calm' || _emotion === 'focused') ? 0.018 : 0;
+        const ePostZ = (_emotion === 'curious') ? 0.016 : 0;
+
+        // Talking amplitude boost — chest involved in speech rhythm
+        const talkMod = state === 'TALKING' ? 1.45 : 1.0;
+
         if (spine) {
-            spine.rotation.x = (br * 0.075 + Math.sin(t * 0.27) * 0.024) * bMul - hipLeanX * 0.35 + ePostX * 0.5;
+            spine.rotation.x = (br * 0.078 + Math.sin(t * 0.27) * 0.024) * bMul * talkMod - hipLeanX * 0.35 + ePostX * 0.5;
             spine.rotation.y = P.spineTw + Math.sin(t * 0.20) * 0.034 * bMul;
-            spine.rotation.z = (br2 * 0.040 + Math.sin(t * 0.50) * 0.028 + organic(t, 0.6) * 0.020) * bMul + ePostZ;
+            spine.rotation.z = (br2 * 0.042 + Math.sin(t * 0.50) * 0.028 + organic(t, 0.6) * 0.020) * bMul + ePostZ;
         }
         if (chest) {
-            chest.rotation.x = br2 * 0.062 * bMul - hipLeanX * 0.45 + ePostX;
-            chest.rotation.y = (Math.sin(t * 0.28) * 0.044 + organic(t, 4) * 0.024) * bMul;
+            chest.rotation.x = br2 * 0.065 * bMul * talkMod - hipLeanX * 0.45 + ePostX;
+            chest.rotation.y = (Math.sin(t * 0.28) * 0.044 + organic(t, 4) * 0.024) * bMul + P.spineTw * 0.4;
             chest.rotation.z = (Math.sin(t * 0.35 + 0.8) * 0.034 + Math.sin(t * 0.60) * 0.016) * bMul + ePostZ;
         }
         if (upperChest) {
-            upperChest.rotation.x = Math.sin(t * breathRate + 0.22) * 0.048 * bMul + ePostX * 1.2;
-            upperChest.rotation.y = (Math.sin(t * 0.32) * 0.030 + organic(t, 2.2) * 0.017) * bMul;
-            upperChest.rotation.z = organic(t, 5) * 0.022 * bMul + ePostZ * 0.8;
+            upperChest.rotation.x = Math.sin(t * breathRate + 0.22) * 0.052 * bMul * talkMod + ePostX * 1.2;
+            upperChest.rotation.y = (Math.sin(t * 0.32) * 0.030 + organic(t, 2.2) * 0.017) * bMul + P.spineTw * 0.25;
+            upperChest.rotation.z = organic(t, 5) * 0.024 * bMul + ePostZ * 0.8;
         }
 
         // --- CABEZA: objetivo suavizado; CUELLO con inercia (no bloque sólido) ---
@@ -2131,20 +2372,50 @@
             if (lf) { lf.rotation.y = lerp(lf.rotation.y, 0.13, sp); }
             if (lh) { lh.rotation.z = lerp(lh.rotation.z, 0.06, sp); }
         } else if (state === 'TALKING') {
-            // Gesticulación más orgánica: varias frecuencias + emoción + “énfasis” alternado
-            const emoAmp = (_emotion === 'happy' || _emotion === 'excited') ? 1.38
-                : (_emotion === 'calm') ? 0.82
-                : (_emotion === 'focused' || _emotion === 'curious') ? 1.12 : 1.05;
-            const beat = Math.sin(t * 4.2);
-            const gL = (Math.sin(t * 2.65) * 0.34 + Math.sin(t * 1.45) * 0.16 + organic(t, 2.3) * 0.18 + beat * 0.10) * emoAmp;
-            const gR = (Math.sin(t * 2.65 + 1.15) * 0.34 + Math.cos(t * 1.55) * 0.16 + organic(t, 3.05) * 0.18 - beat * 0.09) * emoAmp;
-            const talkSp = 0.18; // faster response to speech rhythm
-            if (la) { la.rotation.z = lerp(la.rotation.z,  0.88 + gL + breathShoulder, talkSp); la.rotation.x = lerp(la.rotation.x, Math.sin(t*2.95)*0.24 + organic(t,1.2)*0.10, talkSp); }
-            if (ra) { ra.rotation.z = lerp(ra.rotation.z, -0.88 + gR + breathShoulder, talkSp); ra.rotation.x = lerp(ra.rotation.x, Math.sin(t*2.95+0.55)*0.24 + organic(t,1.9)*0.10, talkSp); }
-            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  Math.sin(t*3.15)*0.32 + Math.sin(t*5.1)*0.08, 0.14); lf.rotation.x = lerp(lf.rotation.x, Math.sin(t*2.65)*0.16, 0.14); }
-            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -Math.sin(t*3.15+0.45)*0.32 - Math.sin(t*5.1)*0.08, 0.14); rf.rotation.x = lerp(rf.rotation.x, Math.sin(t*2.65+0.3)*0.16, 0.14); }
-            if (lh) { lh.rotation.z = lerp(lh.rotation.z, Math.sin(t*3.9)*0.22 + organic(t,4)*0.07, talkSp); lh.rotation.x = lerp(lh.rotation.x, Math.sin(t*4.6)*0.15, talkSp); }
-            if (rh) { rh.rotation.z = lerp(rh.rotation.z, Math.sin(t*3.9+1.1)*0.22 + organic(t,4.7)*0.07, talkSp); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*4.6+0.4)*0.15, talkSp); }
+            // SPEECH GESTURE SYSTEM — 4 cycling emphasis poses, spring-driven, asymmetric
+            const emoAmp = (_emotion === 'happy' || _emotion === 'excited') ? 1.45
+                : (_emotion === 'calm') ? 0.80
+                : (_emotion === 'focused' || _emotion === 'curious') ? 1.18 : 1.08;
+
+            // Slow gesture phrase cycle (~3.2s) + fast micro-pulse on beat (~1.5s)
+            const phrase = (t * 0.31) % (Math.PI * 2);   // slow gesture phrase
+            const micro  = Math.sin(t * 4.4) * 0.10;      // quick beat accent
+            const wobL   = organic(t, 1.8) * 0.14;        // organic noise per arm
+            const wobR   = organic(t, 3.2) * 0.14;
+
+            // 4-quadrant gesture cycle: open-wide → right-emphasis → both-mid → left-emphasis
+            const quadrant = Math.floor((phrase / (Math.PI * 2)) * 4);
+            let tLz, tLx, tRz, tRx;
+            if (quadrant === 0) {
+                // Open wide — both arms expressive, palms forward
+                tLz =  0.75 + wobL + micro;  tLx = -0.22 + Math.sin(t*2.1)*0.10;
+                tRz = -0.75 + wobR - micro;  tRx = -0.22 + Math.sin(t*2.1+1.0)*0.10;
+            } else if (quadrant === 1) {
+                // Right arm emphasis — point/gesture right, left relaxed
+                tLz =  1.18 + wobL;          tLx = 0.05;
+                tRz = -0.45 + wobR + micro;  tRx = -0.45 + Math.sin(t*3.0)*0.15;
+            } else if (quadrant === 2) {
+                // Both arms mid — conversational, forearms active
+                tLz =  0.88 + wobL + micro;  tLx = -0.12 + Math.sin(t*1.7)*0.12;
+                tRz = -0.88 + wobR - micro;  tRx = -0.12 + Math.sin(t*1.9+0.8)*0.12;
+            } else {
+                // Left arm emphasis — gesture left, right hand near chest
+                tLz =  0.45 + wobL - micro;  tLx = -0.45 + Math.sin(t*2.8)*0.15;
+                tRz = -1.18 + wobR;          tRx = 0.05;
+            }
+            tLz *= emoAmp; tRz *= emoAmp;
+
+            const talkSp = 0.12; // spring toward pose
+            apA(la, 'vLA_z','vLA_x', tLz + breathShoulder, tLx);
+            apA(ra, 'vRA_z','vRA_x', tRz + breathShoulder, tRx);
+
+            // Forearm: bend + wrist twist in sync with speech
+            const bend = Math.sin(t * 3.2) * 0.28 + Math.sin(t * 1.7 + 0.5) * 0.14;
+            if (lf) { lf.rotation.y = lerp(lf.rotation.y,  bend + 0.18, 0.13); lf.rotation.x = lerp(lf.rotation.x, Math.sin(t*2.5)*0.14, 0.13); }
+            if (rf) { rf.rotation.y = lerp(rf.rotation.y, -bend - 0.18, 0.13); rf.rotation.x = lerp(rf.rotation.x, Math.sin(t*2.5+0.7)*0.14, 0.13); }
+            // Hands: expressive wrist rolls
+            if (lh) { lh.rotation.z = lerp(lh.rotation.z,  Math.sin(t*4.1)*0.28 + micro*0.8, talkSp); lh.rotation.x = lerp(lh.rotation.x, Math.sin(t*5.2)*0.18, talkSp); }
+            if (rh) { rh.rotation.z = lerp(rh.rotation.z, -Math.sin(t*4.1+1.3)*0.28 - micro*0.8, talkSp); rh.rotation.x = lerp(rh.rotation.x, Math.sin(t*5.2+0.5)*0.18, talkSp); }
         }
 
         // --- Antebrazos y manos: inercia (hablar = más rápido; idle/pensar = más “peso”) ---
@@ -2181,6 +2452,155 @@
             rh.rotation.x = P.handR.x;
             rh.rotation.y = P.handR.y;
             rh.rotation.z = P.handR.z;
+        }
+
+        // --- FINGER ARTICULATION: state + AMOVE-aware poses ---
+        {
+            const fB = (n) => B(n);
+            const lTP=fB('leftThumbProximal'),  lTI=fB('leftThumbIntermediate'),  lTD=fB('leftThumbDistal');
+            const lIP=fB('leftIndexProximal'),  lII=fB('leftIndexIntermediate'),  lID=fB('leftIndexDistal');
+            const lMP=fB('leftMiddleProximal'), lMI=fB('leftMiddleIntermediate'), lMD=fB('leftMiddleDistal');
+            const lRP=fB('leftRingProximal'),   lRI=fB('leftRingIntermediate'),   lRD=fB('leftRingDistal');
+            const lLP=fB('leftLittleProximal'), lLI=fB('leftLittleIntermediate'), lLD=fB('leftLittleDistal');
+            const rTP=fB('rightThumbProximal'), rTI=fB('rightThumbIntermediate'), rTD=fB('rightThumbDistal');
+            const rIP=fB('rightIndexProximal'), rII=fB('rightIndexIntermediate'), rID=fB('rightIndexDistal');
+            const rMP=fB('rightMiddleProximal'),rMI=fB('rightMiddleIntermediate'),rMD=fB('rightMiddleDistal');
+            const rRP=fB('rightRingProximal'),  rRI=fB('rightRingIntermediate'),  rRD=fB('rightRingDistal');
+            const rLP=fB('rightLittleProximal'),rLI=fB('rightLittleIntermediate'),rLD=fB('rightLittleDistal');
+
+            // If no finger bones found at all, skip (avoids 20 lerp calls on bone-less models)
+            if (lIP || rIP) {
+                const fc = (bone, tgt, spd) => { if (bone) bone.rotation.x = lerp(bone.rotation.x, tgt, spd); };
+                const setFinger = (p,i,d, curl, spd) => { fc(p,curl*0.6,spd); fc(i,curl*0.85,spd); fc(d,curl*0.9,spd); };
+                const setThumb  = (p,i,d, curl, spd) => { fc(p,curl*0.40,spd); fc(i,curl*0.50,spd); fc(d,curl*0.55,spd); };
+                const fSp = 0.08;
+                const fMic  = Math.sin(t*6.2)*0.015;
+                const fMic2 = Math.sin(t*5.7+1.4)*0.015;
+
+                if (state === 'IDLE') {
+                    const am = AMOVE.state;
+                    if (am === 'HAND_HIP') {
+                        const hipL = AMOVE.greetArm;
+                        const hc = 0.55 + Math.sin(t*0.8)*0.04;
+                        if (hipL) {
+                            setFinger(lIP,lII,lID,hc,fSp); setFinger(lMP,lMI,lMD,hc+0.05,fSp);
+                            setFinger(lRP,lRI,lRD,hc+0.08,fSp); setFinger(lLP,lLI,lLD,hc+0.1,fSp); setThumb(lTP,lTI,lTD,0.35,fSp);
+                            setFinger(rIP,rII,rID,0.18+fMic,fSp); setFinger(rMP,rMI,rMD,0.22+fMic2,fSp);
+                            setFinger(rRP,rRI,rRD,0.24+fMic,fSp); setFinger(rLP,rLI,rLD,0.28+fMic2,fSp); setThumb(rTP,rTI,rTD,0.12,fSp);
+                        } else {
+                            setFinger(rIP,rII,rID,hc,fSp); setFinger(rMP,rMI,rMD,hc+0.05,fSp);
+                            setFinger(rRP,rRI,rRD,hc+0.08,fSp); setFinger(rLP,rLI,rLD,hc+0.1,fSp); setThumb(rTP,rTI,rTD,0.35,fSp);
+                            setFinger(lIP,lII,lID,0.18+fMic,fSp); setFinger(lMP,lMI,lMD,0.22+fMic2,fSp);
+                            setFinger(lRP,lRI,lRD,0.24+fMic,fSp); setFinger(lLP,lLI,lLD,0.28+fMic2,fSp); setThumb(lTP,lTI,lTD,0.12,fSp);
+                        }
+                    } else if (am === 'FLIP_HAIR') {
+                        const isL = AMOVE.greetArm;
+                        const hc2 = 0.08 + Math.sin(t*2.1)*0.03;
+                        if (isL) {
+                            setFinger(lIP,lII,lID,hc2,0.10); setFinger(lMP,lMI,lMD,hc2+0.04,0.10);
+                            setFinger(lRP,lRI,lRD,hc2+0.06,0.10); setFinger(lLP,lLI,lLD,hc2+0.09,0.10); setThumb(lTP,lTI,lTD,0.18,0.10);
+                            setFinger(rIP,rII,rID,0.22+fMic,fSp); setFinger(rMP,rMI,rMD,0.26+fMic2,fSp);
+                            setFinger(rRP,rRI,rRD,0.28+fMic,fSp); setFinger(rLP,rLI,rLD,0.30+fMic2,fSp); setThumb(rTP,rTI,rTD,0.14,fSp);
+                        } else {
+                            setFinger(rIP,rII,rID,hc2,0.10); setFinger(rMP,rMI,rMD,hc2+0.04,0.10);
+                            setFinger(rRP,rRI,rRD,hc2+0.06,0.10); setFinger(rLP,rLI,rLD,hc2+0.09,0.10); setThumb(rTP,rTI,rTD,0.18,0.10);
+                            setFinger(lIP,lII,lID,0.22+fMic,fSp); setFinger(lMP,lMI,lMD,0.26+fMic2,fSp);
+                            setFinger(lRP,lRI,lRD,0.28+fMic,fSp); setFinger(lLP,lLI,lLD,0.30+fMic2,fSp); setThumb(lTP,lTI,lTD,0.14,fSp);
+                        }
+                    } else if (am === 'GREET' || am === 'WAVE') {
+                        const wf = Math.sin(t*8.5)*0.06;
+                        const isL = AMOVE.greetArm;
+                        if (isL) {
+                            setFinger(lIP,lII,lID,0.05+wf,0.15); setFinger(lMP,lMI,lMD,0.04+wf,0.15);
+                            setFinger(lRP,lRI,lRD,0.06+wf,0.15); setFinger(lLP,lLI,lLD,0.08+wf,0.15); setThumb(lTP,lTI,lTD,0.22,0.10);
+                            setFinger(rIP,rII,rID,0.25+fMic,fSp); setFinger(rMP,rMI,rMD,0.28+fMic2,fSp);
+                            setFinger(rRP,rRI,rRD,0.30+fMic,fSp); setFinger(rLP,rLI,rLD,0.32+fMic2,fSp); setThumb(rTP,rTI,rTD,0.16,fSp);
+                        } else {
+                            setFinger(rIP,rII,rID,0.05+wf,0.15); setFinger(rMP,rMI,rMD,0.04+wf,0.15);
+                            setFinger(rRP,rRI,rRD,0.06+wf,0.15); setFinger(rLP,rLI,rLD,0.08+wf,0.15); setThumb(rTP,rTI,rTD,0.22,0.10);
+                            setFinger(lIP,lII,lID,0.25+fMic,fSp); setFinger(lMP,lMI,lMD,0.28+fMic2,fSp);
+                            setFinger(lRP,lRI,lRD,0.30+fMic,fSp); setFinger(lLP,lLI,lLD,0.32+fMic2,fSp); setThumb(lTP,lTI,lTD,0.16,fSp);
+                        }
+                    } else if (am === 'POINT') {
+                        const isL = AMOVE.greetArm;
+                        if (isL) {
+                            fc(lIP,0.04,0.10); fc(lII,0.05,0.10); fc(lID,0.04,0.10);
+                            setFinger(lMP,lMI,lMD,0.85,0.10); setFinger(lRP,lRI,lRD,0.85,0.10);
+                            setFinger(lLP,lLI,lLD,0.88,0.10); setThumb(lTP,lTI,lTD,0.28,0.10);
+                            setFinger(rIP,rII,rID,0.25+fMic,fSp); setFinger(rMP,rMI,rMD,0.28+fMic2,fSp);
+                            setFinger(rRP,rRI,rRD,0.28+fMic,fSp); setFinger(rLP,rLI,rLD,0.30+fMic2,fSp); setThumb(rTP,rTI,rTD,0.15,fSp);
+                        } else {
+                            fc(rIP,0.04,0.10); fc(rII,0.05,0.10); fc(rID,0.04,0.10);
+                            setFinger(rMP,rMI,rMD,0.85,0.10); setFinger(rRP,rRI,rRD,0.85,0.10);
+                            setFinger(rLP,rLI,rLD,0.88,0.10); setThumb(rTP,rTI,rTD,0.28,0.10);
+                            setFinger(lIP,lII,lID,0.25+fMic,fSp); setFinger(lMP,lMI,lMD,0.28+fMic2,fSp);
+                            setFinger(lRP,lRI,lRD,0.28+fMic,fSp); setFinger(lLP,lLI,lLD,0.30+fMic2,fSp); setThumb(lTP,lTI,lTD,0.15,fSp);
+                        }
+                    } else if (am === 'DANCE') {
+                        const bt  = Math.sin(t*5.6)*0.5+0.5;
+                        const bt2 = Math.sin(t*5.6+Math.PI)*0.5+0.5;
+                        setFinger(lIP,lII,lID,0.15+bt*0.55,0.18); setFinger(lMP,lMI,lMD,0.18+bt*0.55,0.18);
+                        setFinger(lRP,lRI,lRD,0.20+bt*0.55,0.18); setFinger(lLP,lLI,lLD,0.24+bt*0.55,0.18); setThumb(lTP,lTI,lTD,0.18+bt*0.12,0.18);
+                        setFinger(rIP,rII,rID,0.15+bt2*0.55,0.18); setFinger(rMP,rMI,rMD,0.18+bt2*0.55,0.18);
+                        setFinger(rRP,rRI,rRD,0.20+bt2*0.55,0.18); setFinger(rLP,rLI,rLD,0.24+bt2*0.55,0.18); setThumb(rTP,rTI,rTD,0.18+bt2*0.12,0.18);
+                    } else {
+                        // Default: gentle relaxed drape
+                        const rc = 0.20+fMic;
+                        setFinger(lIP,lII,lID,rc,fSp); setFinger(lMP,lMI,lMD,rc+0.04,fSp);
+                        setFinger(lRP,lRI,lRD,rc+0.06,fSp); setFinger(lLP,lLI,lLD,rc+0.09,fSp); setThumb(lTP,lTI,lTD,0.14,fSp);
+                        setFinger(rIP,rII,rID,rc+fMic2,fSp); setFinger(rMP,rMI,rMD,rc+0.04+fMic,fSp);
+                        setFinger(rRP,rRI,rRD,rc+0.06+fMic2,fSp); setFinger(rLP,rLI,rLD,rc+0.09+fMic,fSp); setThumb(rTP,rTI,rTD,0.14,fSp);
+                    }
+                } else if (state === 'LISTENING') {
+                    const lc = 0.12+Math.sin(t*0.9)*0.03;
+                    setFinger(lIP,lII,lID,lc,fSp); setFinger(lMP,lMI,lMD,lc+0.03,fSp);
+                    setFinger(lRP,lRI,lRD,lc+0.05,fSp); setFinger(lLP,lLI,lLD,lc+0.07,fSp); setThumb(lTP,lTI,lTD,0.10,fSp);
+                    setFinger(rIP,rII,rID,lc,fSp); setFinger(rMP,rMI,rMD,lc+0.03,fSp);
+                    setFinger(rRP,rRI,rRD,lc+0.05,fSp); setFinger(rLP,rLI,rLD,lc+0.07,fSp); setThumb(rTP,rTI,rTD,0.10,fSp);
+                } else if (state === 'THINKING') {
+                    const ts = 0.05;
+                    // Right: pensive — index semi-extended near chin
+                    fc(rIP,0.35+Math.sin(t*1.8)*0.05,ts); fc(rII,0.42,ts); fc(rID,0.40,ts);
+                    fc(rMP,0.55,ts); fc(rMI,0.68,ts); fc(rMD,0.70,ts);
+                    fc(rRP,0.68,ts); fc(rRI,0.78,ts); fc(rRD,0.80,ts);
+                    fc(rLP,0.70,ts); fc(rLI,0.82,ts); fc(rLD,0.85,ts);
+                    setThumb(rTP,rTI,rTD,0.28+Math.sin(t*2.2)*0.04,ts);
+                    setFinger(lIP,lII,lID,0.20+fMic,fSp); setFinger(lMP,lMI,lMD,0.24+fMic2,fSp);
+                    setFinger(lRP,lRI,lRD,0.26+fMic,fSp); setFinger(lLP,lLI,lLD,0.29+fMic2,fSp); setThumb(lTP,lTI,lTD,0.13,fSp);
+                } else if (state === 'TALKING') {
+                    const phrase = (t*0.31)%(Math.PI*2);
+                    const quad = Math.floor((phrase/(Math.PI*2))*4);
+                    const tSp = 0.11;
+                    const pulse = Math.sin(t*5.8)*0.04;
+                    if (quad === 0) {
+                        const oc = 0.10+pulse;
+                        setFinger(lIP,lII,lID,oc,tSp); setFinger(lMP,lMI,lMD,oc+0.03,tSp);
+                        setFinger(lRP,lRI,lRD,oc+0.05,tSp); setFinger(lLP,lLI,lLD,oc+0.08,tSp); setThumb(lTP,lTI,lTD,0.12,tSp);
+                        setFinger(rIP,rII,rID,oc,tSp); setFinger(rMP,rMI,rMD,oc+0.03,tSp);
+                        setFinger(rRP,rRI,rRD,oc+0.05,tSp); setFinger(rLP,rLI,rLD,oc+0.08,tSp); setThumb(rTP,rTI,rTD,0.12,tSp);
+                    } else if (quad === 1) {
+                        // Right index points
+                        fc(rIP,0.08+pulse,tSp); fc(rII,0.10,tSp); fc(rID,0.08,tSp);
+                        setFinger(rMP,rMI,rMD,0.55,tSp); setFinger(rRP,rRI,rRD,0.60,tSp);
+                        setFinger(rLP,rLI,rLD,0.65,tSp); setThumb(rTP,rTI,rTD,0.25,tSp);
+                        setFinger(lIP,lII,lID,0.35+fMic,tSp); setFinger(lMP,lMI,lMD,0.40+fMic2,tSp);
+                        setFinger(lRP,lRI,lRD,0.42+fMic,tSp); setFinger(lLP,lLI,lLD,0.45+fMic2,tSp); setThumb(lTP,lTI,lTD,0.20,tSp);
+                    } else if (quad === 2) {
+                        const mc = 0.30+Math.sin(t*4.8)*0.08;
+                        setFinger(lIP,lII,lID,mc,tSp); setFinger(lMP,lMI,lMD,mc+0.05,tSp);
+                        setFinger(lRP,lRI,lRD,mc+0.08,tSp); setFinger(lLP,lLI,lLD,mc+0.12,tSp); setThumb(lTP,lTI,lTD,0.20,tSp);
+                        setFinger(rIP,rII,rID,mc+fMic,tSp); setFinger(rMP,rMI,rMD,mc+0.05+fMic2,tSp);
+                        setFinger(rRP,rRI,rRD,mc+0.08+fMic,tSp); setFinger(rLP,rLI,rLD,mc+0.12+fMic2,tSp); setThumb(rTP,rTI,rTD,0.20,tSp);
+                    } else {
+                        // Left index points
+                        fc(lIP,0.08+pulse,tSp); fc(lII,0.10,tSp); fc(lID,0.08,tSp);
+                        setFinger(lMP,lMI,lMD,0.55,tSp); setFinger(lRP,lRI,lRD,0.60,tSp);
+                        setFinger(lLP,lLI,lLD,0.65,tSp); setThumb(lTP,lTI,lTD,0.25,tSp);
+                        setFinger(rIP,rII,rID,0.35+fMic2,tSp); setFinger(rMP,rMI,rMD,0.40+fMic,tSp);
+                        setFinger(rRP,rRI,rRD,0.42+fMic2,tSp); setFinger(rLP,rLI,rLD,0.45+fMic,tSp); setThumb(rTP,rTI,rTD,0.20,tSp);
+                    }
+                }
+            }
         }
 
         // --- BLEND SHAPES: lip-sync + blink + emotions ---
@@ -2368,7 +2788,18 @@
         'leftUpperArm','rightUpperArm','leftLowerArm','rightLowerArm',
         'leftHand','rightHand',
         'leftUpperLeg','rightUpperLeg','leftLowerLeg','rightLowerLeg',
-        'leftFoot','rightFoot','leftToes','rightToes'
+        'leftFoot','rightFoot','leftToes','rightToes',
+        // ── Fingers ──────────────────────────────────────────────────────
+        'leftThumbProximal','leftThumbIntermediate','leftThumbDistal',
+        'leftIndexProximal','leftIndexIntermediate','leftIndexDistal',
+        'leftMiddleProximal','leftMiddleIntermediate','leftMiddleDistal',
+        'leftRingProximal','leftRingIntermediate','leftRingDistal',
+        'leftLittleProximal','leftLittleIntermediate','leftLittleDistal',
+        'rightThumbProximal','rightThumbIntermediate','rightThumbDistal',
+        'rightIndexProximal','rightIndexIntermediate','rightIndexDistal',
+        'rightMiddleProximal','rightMiddleIntermediate','rightMiddleDistal',
+        'rightRingProximal','rightRingIntermediate','rightRingDistal',
+        'rightLittleProximal','rightLittleIntermediate','rightLittleDistal',
     ];
     const _VRM2GLTF = {
         hips:          ['Hips','J_Bip_C_Hips','mixamorig:Hips','hip','pelvis'],
@@ -2391,6 +2822,37 @@
         rightLowerLeg: ['RightLowerLeg','J_Bip_R_LowerLeg','mixamorig:RightLeg','LowerLeg_R'],
         leftFoot:      ['LeftFoot','J_Bip_L_Foot','mixamorig:LeftFoot','Foot_L'],
         rightFoot:     ['RightFoot','J_Bip_R_Foot','mixamorig:RightFoot','Foot_R'],
+        // Fingers — VRM spec names + J_Bip variants + mixamo
+        leftThumbProximal:       ['J_Bip_L_Thumb1','mixamorig:LeftHandThumb1','LeftHandThumb1'],
+        leftThumbIntermediate:   ['J_Bip_L_Thumb2','mixamorig:LeftHandThumb2','LeftHandThumb2'],
+        leftThumbDistal:         ['J_Bip_L_Thumb3','mixamorig:LeftHandThumb3','LeftHandThumb3'],
+        leftIndexProximal:       ['J_Bip_L_Index1','mixamorig:LeftHandIndex1','LeftHandIndex1'],
+        leftIndexIntermediate:   ['J_Bip_L_Index2','mixamorig:LeftHandIndex2','LeftHandIndex2'],
+        leftIndexDistal:         ['J_Bip_L_Index3','mixamorig:LeftHandIndex3','LeftHandIndex3'],
+        leftMiddleProximal:      ['J_Bip_L_Middle1','mixamorig:LeftHandMiddle1','LeftHandMiddle1'],
+        leftMiddleIntermediate:  ['J_Bip_L_Middle2','mixamorig:LeftHandMiddle2','LeftHandMiddle2'],
+        leftMiddleDistal:        ['J_Bip_L_Middle3','mixamorig:LeftHandMiddle3','LeftHandMiddle3'],
+        leftRingProximal:        ['J_Bip_L_Ring1','mixamorig:LeftHandRing1','LeftHandRing1'],
+        leftRingIntermediate:    ['J_Bip_L_Ring2','mixamorig:LeftHandRing2','LeftHandRing2'],
+        leftRingDistal:          ['J_Bip_L_Ring3','mixamorig:LeftHandRing3','LeftHandRing3'],
+        leftLittleProximal:      ['J_Bip_L_Little1','mixamorig:LeftHandPinky1','LeftHandPinky1'],
+        leftLittleIntermediate:  ['J_Bip_L_Little2','mixamorig:LeftHandPinky2','LeftHandPinky2'],
+        leftLittleDistal:        ['J_Bip_L_Little3','mixamorig:LeftHandPinky3','LeftHandPinky3'],
+        rightThumbProximal:      ['J_Bip_R_Thumb1','mixamorig:RightHandThumb1','RightHandThumb1'],
+        rightThumbIntermediate:  ['J_Bip_R_Thumb2','mixamorig:RightHandThumb2','RightHandThumb2'],
+        rightThumbDistal:        ['J_Bip_R_Thumb3','mixamorig:RightHandThumb3','RightHandThumb3'],
+        rightIndexProximal:      ['J_Bip_R_Index1','mixamorig:RightHandIndex1','RightHandIndex1'],
+        rightIndexIntermediate:  ['J_Bip_R_Index2','mixamorig:RightHandIndex2','RightHandIndex2'],
+        rightIndexDistal:        ['J_Bip_R_Index3','mixamorig:RightHandIndex3','RightHandIndex3'],
+        rightMiddleProximal:     ['J_Bip_R_Middle1','mixamorig:RightHandMiddle1','RightHandMiddle1'],
+        rightMiddleIntermediate: ['J_Bip_R_Middle2','mixamorig:RightHandMiddle2','RightHandMiddle2'],
+        rightMiddleDistal:       ['J_Bip_R_Middle3','mixamorig:RightHandMiddle3','RightHandMiddle3'],
+        rightRingProximal:       ['J_Bip_R_Ring1','mixamorig:RightHandRing1','RightHandRing1'],
+        rightRingIntermediate:   ['J_Bip_R_Ring2','mixamorig:RightHandRing2','RightHandRing2'],
+        rightRingDistal:         ['J_Bip_R_Ring3','mixamorig:RightHandRing3','RightHandRing3'],
+        rightLittleProximal:     ['J_Bip_R_Little1','mixamorig:RightHandPinky1','RightHandPinky1'],
+        rightLittleIntermediate: ['J_Bip_R_Little2','mixamorig:RightHandPinky2','RightHandPinky2'],
+        rightLittleDistal:       ['J_Bip_R_Little3','mixamorig:RightHandPinky3','RightHandPinky3'],
     };
 
     function buildVRMBoneCache(vrm) {
@@ -2509,26 +2971,183 @@
     // ================================================================
     // 2D PARTICLES OVERLAY
     // ================================================================
+    // ================================================================
+    // PARTICLE SYSTEM v2 — multi-type, state-reactive, 120 particles
+    // Types: DUST (drift), STREAM (rise), ORBIT (circular), SPARK (burst)
+    // ================================================================
+    let _pState = 'IDLE';   // tracks current state for reactivity
+    let _pSparks = [];      // spark burst queue
+
     function initParticles2D() {
         const cv = document.getElementById('particles');
         const ctx = cv.getContext('2d');
-        cv.width = innerWidth; cv.height = innerHeight;
-        const ps = Array.from({length: 45}, () => ({
-            x: Math.random() * cv.width, y: Math.random() * cv.height,
-            sz: Math.random() * 1.8 + 0.4, sy: Math.random() * 0.8 + 0.3,
-            op: Math.random() * 0.4 + 0.15
-        }));
-        (function draw() {
+        const wv = document.getElementById('waveform');
+        const wctx = wv ? wv.getContext('2d') : null;
+
+        const resize = () => {
+            cv.width = innerWidth; cv.height = innerHeight;
+            if (wv) { wv.width = 120; wv.height = 22; }
+        };
+        resize();
+        window.addEventListener('resize', resize);
+
+        // State colors
+        const STATE_CLR = {
+            IDLE:      [0,255,157],
+            LISTENING: [0,170,255],
+            THINKING:  [255,170,0],
+            TALKING:   [0,255,157],
+        };
+
+        // Particle factories
+        const mkDust = () => ({
+            type:'DUST',
+            x: Math.random() * innerWidth,
+            y: Math.random() * innerHeight,
+            sz: Math.random() * 1.6 + 0.3,
+            vx: (Math.random()-.5) * 0.18,
+            vy: -(Math.random() * 0.35 + 0.08),
+            op: Math.random() * 0.35 + 0.08,
+            life:1,
+        });
+        const mkStream = (x) => ({
+            type:'STREAM',
+            x: x ?? (Math.random() * innerWidth),
+            y: innerHeight + 10,
+            sz: Math.random() * 1.1 + 0.3,
+            speed: Math.random() * 1.2 + 0.4,
+            op: Math.random() * 0.5 + 0.15,
+            trail: [],
+            life:1,
+        });
+        const mkOrbit = (phase) => ({
+            type:'ORBIT',
+            phase: phase ?? (Math.random() * Math.PI * 2),
+            r: 60 + Math.random() * 80,
+            speed: (Math.random() * 0.4 + 0.15) * (Math.random()<.5?1:-1),
+            sz: Math.random() * 1.4 + 0.4,
+            op: Math.random() * 0.4 + 0.1,
+            tilt: (Math.random()-.5) * 0.6,
+            life:1,
+        });
+
+        // Build initial pool
+        let ps = [
+            ...Array.from({length:55}, mkDust),
+            ...Array.from({length:30}, () => mkStream()),
+            ...Array.from({length:20}, (_, i) => mkOrbit(i * Math.PI / 10)),
+        ];
+
+        let _frameT = 0;
+        let _wavePhase = 0;
+
+        (function draw(ts) {
+            const dt = Math.min((ts - _frameT) / 1000, 0.05);
+            _frameT = ts;
+            const clr = STATE_CLR[_pState] || STATE_CLR.IDLE;
+            const cx = innerWidth * 0.5;
+            const cy = innerHeight * 0.52;
+            const isTalking = _pState === 'TALKING';
+            const isListening = _pState === 'LISTENING';
+
             ctx.clearRect(0, 0, cv.width, cv.height);
-            ps.forEach(p => {
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.sz, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(0,255,157,${p.op})`; ctx.fill();
-                p.y -= p.sy;
-                if (p.y < -5) { p.y = cv.height + 5; p.x = Math.random() * cv.width; }
+
+            ps.forEach((p, i) => {
+                if (p.type === 'DUST') {
+                    // Gentle drift + slight attraction toward center-bottom
+                    p.x += p.vx + Math.sin(ts/2400 + i) * 0.06;
+                    p.y += p.vy;
+                    p.vx += (cx - p.x) * 0.00002;
+                    if (p.y < -10) { Object.assign(p, mkDust()); p.y = innerHeight + 5; }
+                    const pulse = isTalking ? 1 + Math.sin(ts/120 + i)*0.5 : 1;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.sz * pulse, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(${clr[0]},${clr[1]},${clr[2]},${p.op * (isTalking?.9:.6)})`;
+                    ctx.fill();
+
+                } else if (p.type === 'STREAM') {
+                    // Vertical data stream with trail
+                    const spd = p.speed * (isTalking ? 1.6 : 1) * (isListening ? 1.3 : 1);
+                    p.y -= spd;
+                    p.trail.push({x:p.x, y:p.y});
+                    if (p.trail.length > 8) p.trail.shift();
+                    if (p.y < -20) { Object.assign(p, mkStream(p.x)); }
+                    // Draw trail
+                    p.trail.forEach((pt, ti) => {
+                        const a = (ti/p.trail.length) * p.op * .6;
+                        ctx.beginPath(); ctx.arc(pt.x, pt.y, p.sz*.7, 0, Math.PI*2);
+                        ctx.fillStyle = `rgba(${clr[0]},${clr[1]},${clr[2]},${a})`; ctx.fill();
+                    });
+                    // Head
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.sz, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(${clr[0]},${clr[1]},${clr[2]},${p.op})`; ctx.fill();
+                    // Glow on head
+                    ctx.shadowBlur = 6; ctx.shadowColor = `rgba(${clr[0]},${clr[1]},${clr[2]},.5)`;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.sz*1.4, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(${clr[0]},${clr[1]},${clr[2]},.08)`; ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                } else if (p.type === 'ORBIT') {
+                    // Elliptical orbit around avatar center
+                    p.phase += p.speed * dt * (isTalking ? 1.4 : 1);
+                    const ex = cx + Math.cos(p.phase) * p.r;
+                    const ey = cy + Math.sin(p.phase) * p.r * 0.28 + Math.sin(p.phase * 2 + p.tilt) * p.r * 0.08;
+                    const orbPulse = 1 + Math.sin(ts/900 + p.phase)*0.4;
+                    const ao = p.op * (isTalking ? 1.2 : .8) * orbPulse;
+                    ctx.beginPath(); ctx.arc(ex, ey, p.sz * orbPulse, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(${clr[0]},${clr[1]},${clr[2]},${Math.min(ao,0.7)})`; ctx.fill();
+                }
             });
+
+            // Sparks — burst on state change
+            _pSparks = _pSparks.filter(s => s.life > 0);
+            _pSparks.forEach(s => {
+                s.x += s.vx; s.y += s.vy; s.vy += 0.04; s.life -= dt * 2.5;
+                ctx.beginPath(); ctx.arc(s.x, s.y, s.sz * s.life, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${s.life*.9})`; ctx.fill();
+            });
+
+            // Waveform visualizer
+            if (wctx && wv) {
+                wctx.clearRect(0, 0, 120, 22);
+                if (ttsAnalyser && ttsFreq) {
+                    ttsAnalyser.getByteFrequencyData(ttsFreq);
+                    const bars = 18;
+                    const bw = 5, gap = 2;
+                    for (let b=0; b<bars; b++) {
+                        const v = ttsFreq[Math.floor(b * ttsFreq.length / bars / 3)] / 255;
+                        const h = Math.max(2, v * 20);
+                        const bx = b * (bw+gap) + 3;
+                        const by = (22 - h) / 2;
+                        wctx.fillStyle = `rgba(0,255,157,${0.4 + v*.6})`;
+                        wctx.fillRect(bx, by, bw, h);
+                    }
+                    document.getElementById('waveform').classList.add('active');
+                } else {
+                    document.getElementById('waveform').classList.remove('active');
+                }
+            }
+
             requestAnimationFrame(draw);
-        })();
-        window.addEventListener('resize', () => { cv.width = innerWidth; cv.height = innerHeight; });
+        })(0);
+
+        // State change → update color + sparks
+        const _origSetState = window._pSetState;
+        window._pSetStateCb = (s) => {
+            if (s !== _pState) {
+                _pState = s;
+                // Burst sparks on transition
+                const clr = STATE_CLR[s] || STATE_CLR.IDLE;
+                const cx = innerWidth*.5, cy = innerHeight*.52;
+                for (let i=0; i<18; i++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const spd = Math.random() * 3 + 1;
+                    _pSparks.push({x:cx,y:cy,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd-2,sz:Math.random()*2+.8,life:1,r:clr[0],g:clr[1],b:clr[2]});
+                }
+                // Update holo glow class
+                const glow = document.getElementById('holo-glow');
+                if (glow) glow.className = 'holo-glow ' + s.toLowerCase();
+            }
+        };
     }
 
     // ================================================================
@@ -2595,57 +3214,152 @@
         if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
 
         try {
+            // ── RAG: recuperar contexto relevante antes de enviar al LLM ──
+            const ragResults = await _ragSearch(sendText);
+
             const payload = {
                 messages: msgHistory,
                 avatarName: NAMES[currentIdx],
-                memoryContext: ((cfg.memory || '').trim() + getEpisodicContext(sendText)).trim()
+                memoryContext: ((cfg.memory || '').trim() + getEpisodicContext(sendText)).trim(),
+                ...(ragResults.length ? { ragContext: ragResults } : {}),
+                ...(_workflowMode ? { workflowMode: _workflowMode } : {}),
             };
             if (cfg.useVision) {
                 const vis = captureVisionForChat();
                 if (vis) payload.vision = vis;
             }
-            const res = await fetch(cfg.apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
 
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const data = await res.json();
+            // ── STREAMING MODE via /api/chat-stream ───────────────────────
+            const streamUrl = '/api/chat-stream';
+            let useStream = true;
+            let fullReply = '';
 
-            const reply = data.content?.[0]?.text || data.message || data.response || data.choices?.[0]?.message?.content || data.text || '';
-            if (!reply) throw new Error('Empty response');
+            try {
+                const sRes = await fetch(streamUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!sRes.ok || !sRes.body) throw new Error('no stream');
 
-            msgHistory.push({ role: 'assistant', content: reply });
-            document.getElementById('response').textContent = reply.substring(0, 150);
+                const reader = sRes.body.getReader();
+                const dec = new TextDecoder();
+                let buf = '';
+                let sentenceBuffer = '';
+                let firstSentenceDone = false;
+                const respEl = document.getElementById('response');
 
-            // Detect emotion and apply to avatar expressions
-            _emotion = detectEmotion(reply);
-            _emotionTimer = 12; // expresión + gestos acordes un poco más largos
+                // Sentence splitter — splits on . ! ? followed by space/end
+                const extractSentences = (text) => {
+                    const segs = text.split(/(?<=[.!?…])\s+/);
+                    if (segs.length <= 1) return { sentences: [], rest: text };
+                    return { sentences: segs.slice(0, -1), rest: segs[segs.length - 1] };
+                };
 
-            saveEpisodicMemory(sendText, reply, _emotion);
+                // Streaming TTS queue — speak sentence as soon as it's complete
+                const _sQueue = [];
+                let _sSpeaking = false;
+                const speakNext = async () => {
+                    if (_sSpeaking || _sQueue.length === 0) return;
+                    _sSpeaking = true;
+                    while (_sQueue.length > 0) {
+                        const s = _sQueue.shift();
+                        if (s && s.trim().length > 2) {
+                            setState('TALKING');
+                            await speakText(s);
+                        }
+                    }
+                    _sSpeaking = false;
+                    if (_sQueue.length === 0) {  // all done
+                        setState('IDLE');
+                        respEl.textContent = '';
+                        if (voiceConversationActive) {
+                            updateStatus('TE ESCUCHO…');
+                            setTimeout(() => { if (voiceConversationActive && state === 'IDLE') startListening({ fastSilence: true }); }, 320);
+                        } else {
+                            updateStatus(cfg.wakeWord ? 'LISTA — di «AVA»' : 'LISTA');
+                            if (cfg.wakeWord) scheduleWakeRestart();
+                        }
+                    }
+                };
 
-            // Trigger matching gesture
-            if (_emotion === 'happy' || _emotion === 'excited') {
-                AMOVE.state = 'GREET'; AMOVE.timer = 2; AMOVE.greetArm = Math.random() > 0.5;
-            } else if (_emotion === 'curious' || _emotion === 'focused') {
-                AMOVE.state = 'POINT'; AMOVE.timer = 1.5; AMOVE.greetArm = Math.random() > 0.5;
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buf += dec.decode(value, { stream: true });
+                    const lines = buf.split('\n');
+                    buf = lines.pop();
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const raw = line.slice(6).trim();
+                        if (raw === '[DONE]') break;
+                        try {
+                            const chunk = JSON.parse(raw);
+                            if (chunk.error) throw new Error(chunk.error);
+                            const token = chunk.text || '';
+                            fullReply += token;
+                            sentenceBuffer += token;
+                            respEl.textContent = fullReply.slice(-120);
+                            // Extract complete sentences
+                            const { sentences, rest } = extractSentences(sentenceBuffer);
+                            sentenceBuffer = rest;
+                            for (const s of sentences) {
+                                _sQueue.push(s);
+                                if (!firstSentenceDone) {
+                                    firstSentenceDone = true;
+                                    // Detect emotion on first sentence for early gesture
+                                    _emotion = detectEmotion(s);
+                                    _emotionTimer = 14;
+                                    if (_emotion === 'happy' || _emotion === 'excited') { AMOVE.state = 'GREET'; AMOVE.timer = 2; AMOVE.greetArm = Math.random() > .5; }
+                                    else if (_emotion === 'curious' || _emotion === 'focused') { AMOVE.state = 'POINT'; AMOVE.timer = 1.5; AMOVE.greetArm = Math.random() > .5; }
+                                }
+                                speakNext(); // non-blocking: starts pipeline
+                            }
+                        } catch (_) {}
+                    }
+                }
+                // Flush remaining buffer
+                if (sentenceBuffer.trim().length > 2) _sQueue.push(sentenceBuffer.trim());
+                speakNext();
+
+            } catch (streamErr) {
+                console.warn('Stream failed, falling back to /api/chat:', streamErr.message);
+                useStream = false;
             }
 
-            speak(reply);
+            if (!useStream) {
+                // ── FALLBACK: regular JSON endpoint ───────────────────────
+                const res = await fetch(cfg.apiUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                fullReply = data.content?.[0]?.text || data.message || data.response || data.choices?.[0]?.message?.content || data.text || '';
+                if (!fullReply) throw new Error('Empty response');
+                document.getElementById('response').textContent = fullReply.substring(0, 150);
+                _emotion = detectEmotion(fullReply);
+                _emotionTimer = 12;
+                saveEpisodicMemory(sendText, fullReply, _emotion);
+                if (_emotion === 'happy' || _emotion === 'excited') { AMOVE.state = 'GREET'; AMOVE.timer = 2; AMOVE.greetArm = Math.random() > .5; }
+                else if (_emotion === 'curious' || _emotion === 'focused') { AMOVE.state = 'POINT'; AMOVE.timer = 1.5; AMOVE.greetArm = Math.random() > .5; }
+                speak(fullReply);
+            }
+
+            if (fullReply) {
+                msgHistory.push({ role: 'assistant', content: fullReply });
+                if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
+                saveEpisodicMemory(sendText, fullReply, _emotion);
+            }
+
         } catch (err) {
             console.error('Chat error:', err);
-            // Diagnose the actual problem
             let fallback = 'Error de conexión.';
-            if (err.message && err.message.includes('Failed to fetch')) {
-                fallback = 'El servidor no está corriendo. Abre una terminal en la carpeta del proyecto y ejecuta: npm run dev:local';
-            } else if (err.message && err.message.includes('404')) {
-                fallback = 'Servidor estático detectado. Debes usar npm run dev:local en lugar de dev:static para activar el chat.';
-            } else if (err.message && err.message.includes('503')) {
-                fallback = 'Ningun proveedor de IA respondió. Verifica tu ANTHROPIC_API_KEY en el archivo .env.local.';
-            }
+            if (err.message?.includes('Failed to fetch')) fallback = 'El servidor no está corriendo. Ejecuta: npm run dev:local';
+            else if (err.message?.includes('404'))        fallback = 'Servidor estático detectado. Usa npm run dev:local.';
+            else if (err.message?.includes('503'))        fallback = 'Ningún proveedor de IA respondió. Verifica tu API key en .env.local.';
             updateStatus('ERROR — corre: npm run dev:local');
-            document.getElementById('response').textContent = '⚠ ' + (err.message || 'Error') + ' → npm run dev:local';
+            document.getElementById('response').textContent = '⚠ ' + (err.message || 'Error');
             speak(fallback);
         }
     }
@@ -3543,6 +4257,43 @@
     document.addEventListener('touchstart', _unlockAudio);
     document.addEventListener('keydown', _unlockAudio);
 
+    // ── TTS CACHE: pre-warm common short phrases for zero-latency replay ──────
+    const _ttsCache = new Map(); // key: normalised text → base64 audio string
+    const _TTS_PREWARM = [
+        'Entendido.', 'Claro que sí.', 'Un momento.', 'Dame un segundo.',
+        'Con gusto.', 'Por supuesto.', 'Déjame pensar.', 'Mmm, interesante.',
+        '¿En qué más puedo ayudarte?', 'Listo.',
+    ];
+    function _ttsCacheKey(text) {
+        return text.replace(/\s+/g,' ').trim().toLowerCase().substring(0, 120);
+    }
+    async function _prewarmTtsCache() {
+        for (const phrase of _TTS_PREWARM) {
+            const key = _ttsCacheKey(phrase);
+            if (_ttsCache.has(key)) continue;
+            try {
+                const ctrl = new AbortController();
+                const tOut = setTimeout(() => ctrl.abort(), 5000);
+                const r = await fetch('/api/tts-edge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: phrase, avatarIndex: currentIdx }),
+                    signal: ctrl.signal,
+                });
+                clearTimeout(tOut);
+                if (r.ok) {
+                    const d = await r.json();
+                    if (d.audioContent) {
+                        _ttsCache.set(key, d.audioContent);
+                        console.log('[TTS cache] ✓', phrase);
+                    }
+                }
+            } catch (_) {} // silent — cache is best-effort
+        }
+    }
+    // Pre-warm after 3 seconds so it doesn't block startup
+    setTimeout(_prewarmTtsCache, 3000);
+
     async function speak(text) {
         synth.cancel();
         if (_curAudio) { _curAudio.pause(); _curAudio = null; }
@@ -3555,31 +4306,46 @@
 
         // If user hasn't interacted yet, show text and skip audio (autoplay policy)
         if (!_userInteracted) {
-            document.getElementById('response').textContent = clean.substring(0, 150);
             const done = () => { setState('IDLE'); updateStatus('LISTA'); document.getElementById('response').textContent = ''; };
             setTimeout(done, Math.min(clean.length * 60, 8000));
             return;
         }
 
-        // Desbloquear contexto antes del fetch a APIs TTS (Chrome exige contexto ya activado)
+        // ── TTS CACHE HIT: instant replay ─────────────────────────────────────
+        const cacheKey = _ttsCacheKey(clean);
+        if (_ttsCache.has(cacheKey)) {
+            console.log('[TTS cache] HIT:', cacheKey);
+            await ensureTtsContextRunning();
+            await playBase64Audio(_ttsCache.get(cacheKey));
+            return;
+        }
+
+        // Desbloquear contexto antes del fetch a APIs TTS
         await ensureTtsContextRunning();
 
-        // TTS chain — Latin Spanish voices first (ElevenLabs disabled — always 401)
+        // TTS chain: Edge FREE first (fast, no key), OpenAI as fallback
+        // Each provider has a 4s AbortController timeout to avoid stalling
         const ttsProviders = [
-            { url: '/api/tts-openai',     label: 'OpenAI TTS'      }, // es-MX nova
-            { url: '/api/tts-edge',       label: 'Edge Dalia/MX'   }, // es-MX-DaliaNeural FREE
+            { url: '/api/tts-edge',   label: 'Edge Dalia/MX'   }, // FREE — es-MX-DaliaNeural
+            { url: '/api/tts-openai', label: 'OpenAI TTS'      }, // fallback
         ];
         for (const p of ttsProviders) {
             try {
+                const ctrl = new AbortController();
+                const tOut = setTimeout(() => ctrl.abort(), 4000);
                 const r = await fetch(p.url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: clean.substring(0, 1200), avatarIndex: currentIdx })
+                    body: JSON.stringify({ text: clean.substring(0, 1200), avatarIndex: currentIdx }),
+                    signal: ctrl.signal,
                 });
+                clearTimeout(tOut);
                 if (r.ok) {
                     const d = await r.json();
                     if (d.audioContent) {
                         console.log('TTS:', p.label, d.voice || '');
+                        // Cache short responses for future instant replay
+                        if (clean.length <= 140) _ttsCache.set(cacheKey, d.audioContent);
                         await playBase64Audio(d.audioContent);
                         return;
                     }
@@ -3589,6 +4355,9 @@
         // Last resort: browser Web Speech
         speakBrowser(clean);
     }
+
+    // speakText = async alias for speak, used by the streaming sentence pipeline
+    const speakText = speak;
 
     function playBase64Audio(b64) {
         return new Promise(done => {
@@ -3728,6 +4497,21 @@
         micI.style.display = (s === 'IDLE' || s === 'LISTENING') ? 'block' : 'none';
         stopI.style.display = (s === 'IDLE' || s === 'LISTENING') ? 'none' : 'block';
         if (s === 'IDLE') scheduleWakeRestart();
+        if (typeof window._pSetStateCb === 'function') window._pSetStateCb(s);
+
+        // Holo dual mode: scanlines + colour filter on THINKING/LISTENING
+        const cvs = document.getElementById('avatar-canvas');
+        const sl  = document.getElementById('holo-scanlines');
+        if (cvs) {
+            cvs.classList.remove('holo-thinking','holo-listening');
+            if (s === 'THINKING') cvs.classList.add('holo-thinking');
+            else if (s === 'LISTENING') cvs.classList.add('holo-listening');
+        }
+        if (sl) {
+            sl.className = (s === 'THINKING' || s === 'LISTENING')
+                ? 'active ' + s.toLowerCase()
+                : '';
+        }
     }
 
     function updateStatus(t) { document.getElementById('status-text').textContent = t; }
@@ -4067,6 +4851,153 @@
     }
 
     window.addEventListener('load', init);
+
+    // ================================================================
+    // ── WORKFLOW AGENT MODE ───────────────────────────────────────────────────
+    let _workflowMode = null; // null = auto-detect, 'BI'|'SQL'|'DATA'|'AUTO'|'CODE' = locked
+
+    function toggleWorkflow(mode) {
+        // Toggle off if already active
+        _workflowMode = (_workflowMode === mode) ? null : mode;
+        // Update button states
+        document.querySelectorAll('.wf-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === _workflowMode);
+        });
+        const lbl = document.getElementById('wf-label');
+        if (_workflowMode) {
+            lbl.textContent = _workflowMode + ' AGENT';
+            lbl.classList.remove('hidden');
+        } else {
+            lbl.classList.add('hidden');
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // RAG — KNOWLEDGE BASE ENGINE (client-side TF-IDF cosine search)
+    // ================================================================
+
+    const RAG_STORE_KEY = 'ava_kb_v1';
+    let _ragChunks = [];
+
+    function _ragLoad() {
+        try { const r = localStorage.getItem(RAG_STORE_KEY); if (r) _ragChunks = JSON.parse(r); } catch(_) { _ragChunks=[]; }
+        _ragUpdateUI();
+    }
+    function _ragSave() {
+        try { localStorage.setItem(RAG_STORE_KEY, JSON.stringify(_ragChunks)); } catch(_) {}
+    }
+
+    const _RAG_SW = new Set(['de','la','el','en','y','a','los','del','se','las','por','un','con','no','una','su','para','es','al','lo','como','mas','pero','sus','le','ya','o','fue','este','ha','si','sobre','ser','tiene','entre','cuando','muy','sin','también','me','hasta','hay','donde','quien','desde','nos','todos','uno','les','ni','otros','ese','eso','ante','ellos','e','esto','antes','algunos','unos','yo','otro','otras','otra','él','tanto','esa','estos','mucho','nada','muchos','cual','poco','ella','estar','estas','algunas','algo','nosotros','mi','mis','tú','te','ti','tu','tus','está','estás','estoy','estamos','están','soy','eres','somos','son','era','eras','eran','sea','sido','siendo','haber','tengo','tienes','tienen','he','has','hemos','han','bajo','hacia','durante','mediante','según','tan','más','menos','muy','bien','aquí','allí','también','tampoco','así','ahora','the','and','for','are','but','not','you','all','can','her','was','one','our','out','get','has','him','his','how','its','may','new','now','see','who','did','own','too','use','way','got','let','why','few','ask','say','via','had','that','this','with','from','they','been','have','will','said','each','which','their','time','would','there','could','other','into','then','than','some','what','when','about','more','also','just','like','only','over','such','even','most','after','where','before','through','should','these','those']);
+
+    function _ragTokenize(text) {
+        return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w\s]/g,' ').split(/\s+/).filter(t=>t.length>2&&!_RAG_SW.has(t));
+    }
+
+    function _ragScore(queryTokens, chunkVec) {
+        if (!chunkVec || !queryTokens.length) return 0;
+        const qCount={};
+        for (const t of queryTokens) qCount[t]=(qCount[t]||0)+1;
+        const qMag=Math.sqrt(Object.values(qCount).reduce((s,v)=>s+v*v,0));
+        let dot=0, cMag=0;
+        for (const [t,w] of Object.entries(chunkVec)) { cMag+=w*w; if(qCount[t]) dot+=(qCount[t]/qMag)*w; }
+        let keyword=0;
+        for (const t of queryTokens) if(chunkVec[t]) keyword+=0.06;
+        return Math.min(1,(cMag>0?dot/Math.sqrt(cMag):0)+keyword);
+    }
+
+    async function _ragSearch(query, topK=3, minScore=0.04) {
+        if (!_ragChunks.length || !query) return [];
+        const tokens=_ragTokenize(query);
+        if (!tokens.length) return [];
+        const scored=_ragChunks.map(c=>({...c,score:Math.round(_ragScore(tokens,c.vector)*1000)/1000}));
+        const results=scored.filter(r=>r.score>=minScore).sort((a,b)=>b.score-a.score).slice(0,topK);
+        if (results.length) {
+            const ind=document.getElementById('rag-indicator');
+            if (ind) { ind.classList.add('visible'); setTimeout(()=>ind.classList.remove('visible'),2500); }
+        }
+        return results;
+    }
+
+    async function ragIngest() {
+        const text=(document.getElementById('rag-text')?.value||'').trim();
+        const source=(document.getElementById('rag-source')?.value||'documento').trim();
+        if (!text||text.length<20) { alert('Pega el contenido del documento primero.'); return; }
+        const btn=document.getElementById('rag-ingest-btn');
+        if (btn) { btn.disabled=true; btn.textContent='PROCESANDO…'; }
+        try {
+            const res=await fetch('/api/rag-ingest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,source,chunkSize:512,chunkOverlap:64})});
+            if (!res.ok) throw new Error('HTTP '+res.status);
+            const data=await res.json();
+            const newChunks=data.chunks||[];
+            const existingIds = new Set(_ragChunks.map(c => c.id));
+            const merged = [..._ragChunks];
+            let added = 0;
+            for (const chunk of newChunks) {
+                if (!existingIds.has(chunk.id)) { merged.push(chunk); added++; }
+            }
+            _ragChunks = merged;
+            _ragSave();
+            _ragUpdateUI();
+            alert(`KB actualizada: +${added} fragmentos nuevos. Total: ${_ragChunks.length}`);
+        } catch(e) {
+            alert('Error al ingestar: ' + e.message);
+        } finally {
+            if (btn) { btn.disabled=false; btn.textContent='INGESTAR EN KB'; }
+        }
+    }
+
+    function ragClear() {
+        if (!confirm('Borrar toda la KB? Esta acción no se puede deshacer.')) return;
+        _ragChunks = [];
+        _ragSave();
+        _ragUpdateUI();
+    }
+
+    async function ragTest() {
+        const q = (document.getElementById('rag-test-input')?.value || '').trim();
+        if (!q) return;
+        const out = document.getElementById('rag-test-output');
+        if (out) out.textContent = 'Buscando…';
+        const results = await _ragSearch(q, 3, 0.02);
+        if (!results.length) {
+            if (out) out.textContent = 'Sin resultados para esa búsqueda.';
+            return;
+        }
+        const txt = results.map((r,i) =>
+            `[${i+1}] score:${r.score.toFixed(3)} | ${r.source}\n${r.text.slice(0,200)}…`
+        ).join('\n\n');
+        if (out) out.textContent = txt;
+    }
+
+    function toggleRagPanel() {
+        const panel = document.getElementById('rag-panel');
+        const btn   = document.getElementById('rag-btn');
+        if (!panel) return;
+        const isOpen = panel.classList.contains('open');
+        panel.classList.toggle('open', !isOpen);
+        if (btn) btn.classList.toggle('active', !isOpen);
+    }
+
+    function _ragUpdateUI() {
+        const btn   = document.getElementById('rag-btn');
+        const indic = document.getElementById('rag-indicator');
+        const stats = document.getElementById('rag-stats');
+        const list  = document.getElementById('rag-chunk-list');
+        const count = _ragChunks.length;
+        if (btn)   btn.classList.toggle('active', count > 0);
+        if (indic) indic.style.display = count > 0 ? 'block' : 'none';
+        if (stats) stats.textContent = `${count} fragmentos en KB`;
+        if (list) {
+            const sources = [...new Set(_ragChunks.map(c => c.source))];
+            list.innerHTML = sources.map(s => {
+                const n = _ragChunks.filter(c => c.source === s).length;
+                return `<div class="rag-chunk-item"><span>${s}</span><span>${n} frags</span></div>`;
+            }).join('') || '<div style="color:rgba(0,255,157,.4);font-size:11px">KB vacía</div>';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', _ragLoad);
+
     </script>
 </body>
 </html>
