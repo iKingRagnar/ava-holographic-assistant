@@ -23,6 +23,7 @@ git add api/rag-search.js
 git add api/tts-edge.js
 git add api/tts-openai.js
 git add api/stt-deepgram.js
+git add server.js
 git add agents.md
 git add memory.md
 git add PUSH_GITHUB.bat
@@ -30,7 +31,7 @@ echo      OK
 
 echo.
 echo [3/4] Creando commit...
-git commit -m "Workflow Agents (BI/SQL/DATA/AUTO/CODE) + RAG KB + memory system + holo filter + TTS cache + finger bones + streaming SSE"
+git commit -m "fix(railway): VRM streaming + Content-Length + /api/debug + mejor logging VRM"
 echo      OK
 
 echo.

@@ -23,7 +23,6 @@ if (fs.existsSync(envFile)) {
     if (eq === -1) continue;
     const key = trimmed.slice(0, eq).trim();
     let val = trimmed.slice(eq + 1).trim();
-    // Quitar comillas envolventes
     if ((val.startsWith('"') && val.endsWith('"')) ||
         (val.startsWith("'") && val.endsWith("'"))) {
       val = val.slice(1, -1);
@@ -125,6 +124,29 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
+  // ── Debug endpoint (Railway diagnostics) ─────────────────────────────
+  if (pathname === '/api/debug') {
+    const publicDir = path.join(__dirname, 'public');
+    let vrmFiles = [];
+    try { vrmFiles = fs.readdirSync(publicDir).filter(f => f.endsWith('.vrm')); } catch(_) {}
+    const info = {
+      node: process.version,
+      port: PORT,
+      env: process.env.NODE_ENV || 'none',
+      cwd: __dirname,
+      vrm_count: vrmFiles.length,
+      vrm_files: vrmFiles.map(f => {
+        try { return { name: f, size_mb: +(fs.statSync(path.join(publicDir, f)).size / 1048576).toFixed(1) }; }
+        catch(_) { return { name: f, error: true }; }
+      }),
+      anthropic: !!process.env.ANTHROPIC_API_KEY,
+      deepgram: !!process.env.DEEPGRAM_API_KEY,
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(info, null, 2));
+    return;
+  }
+
   // ── API routes ────────────────────────────────────────────────────────
   const apiMatch = pathname.match(/^\/api\/(.+)$/);
   if (apiMatch) {
@@ -151,9 +173,11 @@ const server = http.createServer(async (req, res) => {
   // ── Static files ──────────────────────────────────────────────────────
   let filePath = path.join(__dirname, pathname === '/' ? 'ava.html' : pathname);
 
-  // VRM files live in /public/
+  // VRM/GLB files live in /public/ — handle both /filename.vrm and /public/filename.vrm
   if (pathname.match(/^\/\d+\.vrm$/)) {
     filePath = path.join(__dirname, 'public', pathname.slice(1));
+  } else if (pathname.match(/^\/public\/\d+\.vrm$/)) {
+    filePath = path.join(__dirname, 'public', pathname.replace('/public/', ''));
   }
 
   // Directory → try ava.html
@@ -168,6 +192,42 @@ const server = http.createServer(async (req, res) => {
 
   const ext = path.extname(filePath);
   const mime = MIME[ext] || 'application/octet-stream';
+
+  // ── Large binary files (VRM/GLB) → stream with proper headers ─────────
+  if (['.vrm', '.glb'].includes(ext)) {
+    try {
+      const stat = fs.statSync(filePath);
+      const total = stat.size;
+      const rangeHeader = req.headers['range'];
+      if (rangeHeader) {
+        const [startStr, endStr] = rangeHeader.replace('bytes=', '').split('-');
+        const start = parseInt(startStr, 10);
+        const end = endStr ? parseInt(endStr, 10) : total - 1;
+        const chunkSize = (end - start) + 1;
+        res.writeHead(206, {
+          'Content-Type': mime,
+          'Content-Range': `bytes ${start}-${end}/${total}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunkSize,
+          'Cache-Control': 'public, max-age=86400',
+        });
+        fs.createReadStream(filePath, { start, end }).pipe(res);
+      } else {
+        res.writeHead(200, {
+          'Content-Type': mime,
+          'Content-Length': total,
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': 'public, max-age=86400',
+        });
+        fs.createReadStream(filePath).pipe(res);
+      }
+    } catch (e) {
+      console.error('VRM stream error:', e.message);
+      res.writeHead(500);
+      res.end('VRM stream error: ' + e.message);
+    }
+    return;
+  }
 
   try {
     const data = fs.readFileSync(filePath);

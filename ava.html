@@ -1672,6 +1672,7 @@
                 updateStatus('LISTA');
             }).catch(err => {
                 console.error('VRM parse error:', err);
+                updateStatus('ERROR VRM PARSE — usando placeholder');
                 hideLoading();
                 createPlaceholder(idx);
             });
@@ -1679,14 +1680,25 @@
 
         const tryUrl = (i) => {
             if (i >= urls.length) {
+                console.warn('All VRM URLs failed, showing placeholder. Attempted:', urls);
+                updateStatus('VRM NO DISPONIBLE — placeholder activo');
                 hideLoading();
                 createPlaceholder(idx);
                 return;
             }
-            updateLoadText('VRM ' + (i+1) + '/' + urls.length);
+            console.log(`Loading VRM [${i+1}/${urls.length}]:`, urls[i]);
+            updateLoadText('VRM ' + (i+1) + '/' + urls.length + ' — ' + urls[i].slice(-30));
             loader.load(urls[i], onDone,
-                p => { if (p.total > 0) updateLoadText(Math.round(p.loaded/p.total*100) + '%'); },
-                () => tryUrl(i + 1)
+                p => {
+                    if (p.total > 0) {
+                        const pct = Math.round(p.loaded/p.total*100);
+                        updateLoadText(`VRM ${pct}% — ${Math.round(p.loaded/1048576)}MB/${Math.round(p.total/1048576)}MB`);
+                    }
+                },
+                (err) => {
+                    console.warn(`VRM URL failed [${i}]:`, urls[i], err);
+                    tryUrl(i + 1);
+                }
             );
         };
         tryUrl(0);
@@ -4595,9 +4607,18 @@
     // ================================================================
     async function init() {
         updateStatus('CARGANDO LIBRERÍAS...');
+        console.log('[AVA] init() start — hostname:', location.hostname, '| THREE:', typeof THREE);
         const hasVRM = await ensureVRM();
+        console.log('[AVA] three-vrm loaded:', hasVRM, '| VRM lib:', typeof getVRM());
 
-        initScene();
+        try {
+            initScene();
+            console.log('[AVA] initScene OK — renderer:', renderer ? 'ready' : 'FAILED');
+        } catch(e) {
+            console.error('[AVA] initScene FAILED:', e);
+            updateStatus('ERROR THREEJS: ' + e.message);
+            return;
+        }
         initParticles2D();
         initSTT();
 
