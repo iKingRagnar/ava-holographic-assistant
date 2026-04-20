@@ -5,6 +5,7 @@
   "type": "module",
   "description": "AVA holografico - proyecto raiz: Holograma_AI.",
   "scripts": {
+    "start": "node server.js",
     "dev": "vercel dev",
     "dev:static": "npx --yes serve . -l 3333",
     "dev:local": "node server.js",
