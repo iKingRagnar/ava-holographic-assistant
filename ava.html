@@ -1687,7 +1687,7 @@
 
                 avatarGroup.add(model);
                 addBase(color);
-                addParticles3D(color);
+                // No floating 3D particles around VRM — solo el avatar limpio
                 scene.add(avatarGroup);
                 avatar = avatarGroup;
                 updateUI();
@@ -3143,7 +3143,7 @@
             _pSparks = _pSparks.filter(s => s.life > 0);
             _pSparks.forEach(s => {
                 s.x += s.vx; s.y += s.vy; s.vy += 0.04; s.life -= dt * 2.5;
-                ctx.beginPath(); ctx.arc(s.x, s.y, s.sz * s.life, 0, Math.PI*2);
+                ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(0, s.sz * s.life), 0, Math.PI*2);
                 ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${s.life*.9})`; ctx.fill();
             });
 
@@ -3362,6 +3362,12 @@
                 // Flush remaining buffer
                 if (sentenceBuffer.trim().length > 2) _sQueue.push(sentenceBuffer.trim());
                 speakNext();
+
+                // Safety: if stream returned nothing, force fallback
+                if (!fullReply.trim()) {
+                    console.warn('Stream returned empty response — forcing JSON fallback');
+                    useStream = false;
+                }
 
             } catch (streamErr) {
                 console.warn('Stream failed, falling back to /api/chat:', streamErr.message);

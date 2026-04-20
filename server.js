@@ -77,20 +77,43 @@ function makeVercelReq(req, body) {
 function makeVercelRes(res) {
   let statusCode = 200;
   const headers = {};
+  let headersSent = false;
+
+  function ensureHeaders() {
+    if (!headersSent) {
+      headersSent = true;
+      res.writeHead(statusCode, headers);
+    }
+  }
+
   return {
     status(code) { statusCode = code; return this; },
     setHeader(k, v) { headers[k] = v; return this; },
+    // SSE support: flush headers immediately so the browser sees the stream
+    flushHeaders() { ensureHeaders(); if (res.flushHeaders) res.flushHeaders(); return this; },
+    // write() is required for SSE / streaming responses
+    write(data) {
+      ensureHeaders();
+      try { res.write(data); } catch (_) {}
+      return this;
+    },
     json(obj) {
       const body = JSON.stringify(obj);
-      res.writeHead(statusCode, { 'Content-Type': 'application/json', ...headers });
+      if (!headersSent) {
+        headersSent = true;
+        res.writeHead(statusCode, { 'Content-Type': 'application/json', ...headers });
+      }
       res.end(body);
     },
     send(text) {
-      res.writeHead(statusCode, { 'Content-Type': 'text/plain', ...headers });
+      if (!headersSent) {
+        headersSent = true;
+        res.writeHead(statusCode, { 'Content-Type': 'text/plain', ...headers });
+      }
       res.end(String(text));
     },
     end(data) {
-      res.writeHead(statusCode, headers);
+      ensureHeaders();
       res.end(data);
     },
   };

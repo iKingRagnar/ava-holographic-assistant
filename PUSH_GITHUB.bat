@@ -31,7 +31,7 @@ echo      OK
 
 echo.
 echo [3/4] Creando commit...
-git commit -m "fix(critical): restore truncated ava.html — window.onload never fired, ACTIVAR AVA broke"
+git commit -m "fix: SSE streaming wrapper + arc crash + remove 3D particles + correct model names"
 echo      OK
 
 echo.
