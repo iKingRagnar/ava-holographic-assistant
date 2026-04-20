@@ -5008,4 +5008,46 @@
         if (!q) return;
         const out = document.getElementById('rag-test-output');
         if (out) out.textContent = 'Buscando…';
- 
+        const results = await _ragSearch(q, 3, 0.02);
+        if (!results.length) {
+            if (out) out.textContent = 'Sin resultados para esa búsqueda.';
+            return;
+        }
+        const txt = results.map((r,i) =>
+            `[${i+1}] score:${r.score.toFixed(3)} | ${r.source}\n${r.text.slice(0,200)}…`
+        ).join('\n\n');
+        if (out) out.textContent = txt;
+    }
+
+    function toggleRagPanel() {
+        const panel = document.getElementById('rag-panel');
+        const btn   = document.getElementById('rag-btn');
+        if (!panel) return;
+        const isOpen = panel.classList.contains('open');
+        panel.classList.toggle('open', !isOpen);
+        if (btn) btn.classList.toggle('active', !isOpen);
+    }
+
+    function _ragUpdateUI() {
+        const btn   = document.getElementById('rag-btn');
+        const indic = document.getElementById('rag-indicator');
+        const stats = document.getElementById('rag-stats');
+        const list  = document.getElementById('rag-chunk-list');
+        const count = _ragChunks.length;
+        if (btn)   btn.classList.toggle('active', count > 0);
+        if (indic) indic.style.display = count > 0 ? 'block' : 'none';
+        if (stats) stats.textContent = `${count} fragmentos en KB`;
+        if (list) {
+            const sources = [...new Set(_ragChunks.map(c => c.source))];
+            list.innerHTML = sources.map(s => {
+                const n = _ragChunks.filter(c => c.source === s).length;
+                return `<div class="rag-chunk-item"><span>${s}</span><span>${n} frags</span></div>`;
+            }).join('') || '<div style="color:rgba(0,255,157,.4);font-size:11px">KB vacía</div>';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', _ragLoad);
+
+    </script>
+</body>
+</html>

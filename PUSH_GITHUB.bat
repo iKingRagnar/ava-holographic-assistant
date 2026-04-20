@@ -31,7 +31,7 @@ echo      OK
 
 echo.
 echo [3/4] Creando commit...
-git commit -m "fix(vrm): brClav undefined crash + selfie_segmentation lazy-load — fix avatar black screen"
+git commit -m "fix(critical): restore truncated ava.html — window.onload never fired, ACTIVAR AVA broke"
 echo      OK
 
 echo.
