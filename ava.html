@@ -1196,6 +1196,8 @@
         renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
         renderer.setSize(innerWidth, innerHeight);
         renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        // NOTE: outputEncoding / toneMapping only applied when NOT using EffectComposer
+        // (composer handles its own pipeline; setting these here can cause black output)
         renderer.outputEncoding = THREE.sRGBEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.1;
@@ -1261,6 +1263,7 @@
         });
 
         if (THREE.EffectComposer && THREE.RenderPass && THREE.ShaderPass) {
+          try {
             composer = new THREE.EffectComposer(renderer);
             composer.addPass(new THREE.RenderPass(scene, camera));
 
@@ -1340,6 +1343,11 @@
 
             _lensPass = new THREE.ShaderPass(lensShader);
             composer.addPass(_lensPass);
+            console.log('[AVA] EffectComposer + LensPass initialized OK');
+          } catch(e) {
+            console.warn('[AVA] EffectComposer init failed, falling back to direct render:', e.message);
+            composer = null;
+          }
         }
     }
 
@@ -1917,8 +1925,14 @@
         }
         // ─────────────────────────────────────────────────────────────────
 
-        if (composer && typeof composer.render === 'function') composer.render();
-        else renderer.render(scene, camera);
+        try {
+            if (composer && typeof composer.render === 'function') composer.render();
+            else renderer.render(scene, camera);
+        } catch(e) {
+            console.warn('[AVA] Render error, disabling composer:', e.message);
+            composer = null;
+            try { renderer.render(scene, camera); } catch(_) {}
+        }
     }
 
     // ---- VRM animation (autonomous + reactive) ----
