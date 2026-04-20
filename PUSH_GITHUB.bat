@@ -31,7 +31,7 @@ echo      OK
 
 echo.
 echo [3/4] Creando commit...
-git commit -m "fix(railway): VRM streaming + Content-Length + /api/debug + mejor logging VRM"
+git commit -m "fix(vrm): brClav undefined crash + selfie_segmentation lazy-load — fix avatar black screen"
 echo      OK
 
 echo.
