@@ -1429,6 +1429,42 @@
         window._holoGrid = { g1: grid1, g2: grid2, g3: grid3, disc: glowDisc, discMat: glowMat };
         // ─────────────────────────────────────────────────────────────
 
+        // ── AURA EMOCIONAL detrás del avatar ──────────────────────────
+        // Plano con gradient radial suave que cambia de tinte según _emotion.
+        try {
+            const auraGeo = new THREE.PlaneGeometry(2.8, 3.4);
+            const auraMat = new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uColor: { value: new THREE.Color(0x00ff9d) },
+                    uTime: { value: 0 },
+                    uIntensity: { value: 0.22 },
+                },
+                vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+                fragmentShader: `
+                    uniform vec3 uColor;
+                    uniform float uTime;
+                    uniform float uIntensity;
+                    varying vec2 vUv;
+                    void main(){
+                        vec2 p = vUv - vec2(0.5, 0.4);
+                        p.x *= 0.82;
+                        float r = length(p);
+                        float breath = 0.94 + 0.06 * sin(uTime * 0.7);
+                        float glow = smoothstep(0.55, 0.05, r) * breath;
+                        gl_FragColor = vec4(uColor, glow * uIntensity);
+                    }
+                `,
+            });
+            const aura = new THREE.Mesh(auraGeo, auraMat);
+            aura.position.set(0, 0.55, -1.1);
+            scene.add(aura);
+            window._emotionAura = aura;
+        } catch(e) { console.warn('[AVA] aura skipped:', e.message); }
+
         // ── VOLUMETRIC GOD-RAYS DETRÁS DEL AVATAR ──────────────────────
         // Cono vertical con shader de gradient para fake-volumetric light.
         try {
@@ -1967,6 +2003,10 @@
                 _enableBloomLayerOnAvatar(model);
                 // Cross-fade in
                 _fadeInAvatar(model);
+                // Toast con el nombre al cargar
+                if (typeof showAvatarToast === 'function') showAvatarToast(NAMES[idx]);
+                // Precarga el siguiente/anterior en segundo plano
+                if (typeof _preloadAdjacentVRMs === 'function') _preloadAdjacentVRMs(idx);
                 updateUI();
                 hideLoading();
                 updateStatus('LISTA');
@@ -2230,18 +2270,41 @@
             p.material.opacity = 0.3 + Math.sin(t * 1.5 + i) * 0.25;
         });
 
-        // God-ray tick — shimmer + color por estado
+        // God-ray tick — shimmer + color por avatar/estado
         if (window._godRay && window._godRay.material && window._godRay.material.uniforms) {
             const u = window._godRay.material.uniforms;
             u.uTime.value = t;
             const gRcolor = (state === 'LISTENING') ? 0x00aaff
                 : (state === 'THINKING') ? 0xffaa00
-                : (state === 'TALKING')  ? 0x00ff9d
-                : 0x00ff9d;
+                : (COLORS[currentIdx] || 0x00ff9d); // IDLE/TALKING → color del avatar
             u.uColor.value.setHex(gRcolor);
             const baseI = (state === 'TALKING') ? 0.45 + Math.sin(t * 2.2) * 0.08
                 : (state === 'THINKING') ? 0.30 + Math.sin(t * 0.9) * 0.04
                 : 0.28;
+            u.uIntensity.value += (baseI - u.uIntensity.value) * 0.05;
+        }
+
+        // Aura emocional — color por emoción + estado, intensidad respira
+        if (window._emotionAura && window._emotionAura.material && window._emotionAura.material.uniforms) {
+            const u = window._emotionAura.material.uniforms;
+            u.uTime.value = t;
+            const EMO_COLOR = {
+                happy:    0xffe88a,
+                excited:  0xff9a5c,
+                calm:     0x8ad6ff,
+                curious:  0xd1a3ff,
+                focused:  0xa8ffd1,
+                sad:      0x6688bb,
+                neutral:  COLORS[currentIdx] || 0x00ff9d,
+            };
+            const tgtHex = EMO_COLOR[_emotion] || EMO_COLOR.neutral;
+            // lerp hacia el color nuevo
+            const target = new THREE.Color(tgtHex);
+            u.uColor.value.lerp(target, 0.04);
+            const baseI = (state === 'TALKING') ? 0.32 + Math.sin(t * 1.8) * 0.06
+                : (state === 'THINKING') ? 0.20 + Math.sin(t * 0.6) * 0.03
+                : (state === 'LISTENING') ? 0.26
+                : 0.22;
             u.uIntensity.value += (baseI - u.uIntensity.value) * 0.05;
         }
 
@@ -3553,13 +3616,19 @@
         resize();
         window.addEventListener('resize', resize);
 
-        // State colors
-        const STATE_CLR = {
-            IDLE:      [0,255,157],
+        // State colors — IDLE/TALKING derivan del COLORS del avatar activo;
+        // LISTENING (azul) y THINKING (ámbar) se mantienen constantes por semántica.
+        const hexToRgb = (hex) => [(hex>>16)&255, (hex>>8)&255, hex&255];
+        const avatarRgb = () => hexToRgb(COLORS[currentIdx] || 0x00ff9d);
+        const STATE_CLR_BASE = {
             LISTENING: [0,170,255],
             THINKING:  [255,170,0],
-            TALKING:   [0,255,157],
         };
+        const stateClr = (s) => {
+            if (STATE_CLR_BASE[s]) return STATE_CLR_BASE[s];
+            return avatarRgb(); // IDLE y TALKING ≡ color del avatar
+        };
+        const STATE_CLR = new Proxy({}, { get: (_, s) => stateClr(s) });
 
         // Particle factories
         const mkDust = () => ({
@@ -3776,6 +3845,34 @@
         return { type: 'none' };
     }
 
+    // ── Precarga de VRM adyacentes ─────────────────────────────────────
+    // El navegador cachea los .vrm vía HTTP. Forzamos fetch (no parse) del
+    // anterior y siguiente → al cambiar de avatar ya está en disk cache.
+    const _vrmPrefetched = new Set();
+    function _preloadAdjacentVRMs(currentIdxLocal) {
+        const adjacents = [
+            (currentIdxLocal + 1) % NAMES.length,
+            (currentIdxLocal - 1 + NAMES.length) % NAMES.length,
+        ];
+        for (const i of adjacents) {
+            if (_vrmPrefetched.has(i)) continue;
+            _vrmPrefetched.add(i);
+            const urls = vrmUrls(i);
+            if (!urls.length) continue;
+            // Usa <link rel="prefetch"> — dispara fetch silencioso con baja prioridad
+            setTimeout(() => {
+                try {
+                    const lnk = document.createElement('link');
+                    lnk.rel = 'prefetch';
+                    lnk.href = urls[0];
+                    lnk.as = 'fetch';
+                    lnk.crossOrigin = 'anonymous';
+                    document.head.appendChild(lnk);
+                } catch(_) {}
+            }, 2500); // espera a que el actual termine de cargar
+        }
+    }
+
     /** Cambia al avatar idx (0-based). Actualiza UI + carga VRM. */
     function switchAvatar(idx) {
         if (idx == null || idx < 0 || idx >= NAMES.length) return;
@@ -3784,9 +3881,81 @@
         loadVRMAvatar(idx);
         // Refresca el indicador visual (dots) + caps
         if (typeof updateUI === 'function') updateUI();
+        // Toast con el nombre grande
+        showAvatarToast(NAMES[idx]);
     }
     // Expuesto para depuración desde consola
     window.switchAvatar = switchAvatar;
+
+    // ── CONTROL DE AUDIO POR VOZ ──────────────────────────────────────────
+    let _audioGainMul = 1.0;   // multiplica volumen TTS global (0.3..1.5)
+    let _ttsRateMul   = 1.0;   // multiplica rate TTS (0.6..1.5)
+    let _lastReply    = '';    // cache para "repite"
+
+    /**
+     * Intenta parsear un comando de audio del transcript. Retorna acción ejecutada
+     * (string human-readable) o null si no es un comando.
+     */
+    function _parseAudioCommand(norm) {
+        if (/^(callate|calla|silencio|para|stop|ya basta|cierra la boca)(\s|$)/i.test(norm)) {
+            stopSpeaking();
+            return 'callando';
+        }
+        if (/\b(repite|repitelo|dilo otra vez|di eso de nuevo|que dijiste|no te entendi)\b/.test(norm)) {
+            if (_lastReply) { speak(_lastReply); return 'repitiendo'; }
+            return null;
+        }
+        if (/\b(mas fuerte|sube(\s+el)?\s+volumen|volumen arriba|alto|mas alto)\b/.test(norm)) {
+            _audioGainMul = Math.min(1.5, _audioGainMul + 0.2);
+            if (_curAudio) _curAudio.volume = Math.min(1, _audioGainMul);
+            return `volumen ${Math.round(_audioGainMul*100)}%`;
+        }
+        if (/\b(mas bajo|baja(\s+el)?\s+volumen|volumen abajo|bajo|mas suave)\b/.test(norm)) {
+            _audioGainMul = Math.max(0.3, _audioGainMul - 0.2);
+            if (_curAudio) _curAudio.volume = Math.min(1, _audioGainMul);
+            return `volumen ${Math.round(_audioGainMul*100)}%`;
+        }
+        if (/\b(mas despacio|mas lento|mas lenta|baja(\s+la)?\s+velocidad)\b/.test(norm)) {
+            _ttsRateMul = Math.max(0.6, _ttsRateMul - 0.15);
+            return `hablando más despacio`;
+        }
+        if (/\b(mas rapido|mas rapida|mas deprisa|acelera|sube(\s+la)?\s+velocidad)\b/.test(norm)) {
+            _ttsRateMul = Math.min(1.5, _ttsRateMul + 0.15);
+            return `hablando más rápido`;
+        }
+        if (/\b(volumen normal|velocidad normal|reset audio|reestablece audio)\b/.test(norm)) {
+            _audioGainMul = 1.0; _ttsRateMul = 1.0;
+            if (_curAudio) _curAudio.volume = 1;
+            return `audio normal`;
+        }
+        return null;
+    }
+
+    /** Toast grande con el nombre del avatar — se desvanece en ~2s. */
+    function showAvatarToast(name) {
+        let toast = document.getElementById('avatar-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'avatar-toast';
+            toast.style.cssText = `position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);
+                font-size:80px;font-weight:300;letter-spacing:14px;color:#fff;
+                text-shadow:0 0 22px currentColor,0 0 55px currentColor;
+                z-index:180;pointer-events:none;opacity:0;
+                transition:opacity .4s,transform .6s cubic-bezier(.2,.8,.2,1);
+                font-family:'Segoe UI','Roboto',sans-serif;`;
+            document.body.appendChild(toast);
+        }
+        const c = '#' + COLORS[currentIdx].toString(16).padStart(6,'0');
+        toast.style.color = c;
+        toast.textContent = name;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translate(-50%,-50%) scale(1)';
+        clearTimeout(toast._hideT);
+        toast._hideT = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translate(-50%,-50%) scale(.85)';
+        }, 1500);
+    }
 
     async function processMessage(text) {
         _lastUserActionAt = Date.now();
@@ -3816,6 +3985,15 @@
             const msg = `Cambiando a ${NAMES[cmd.idx]}.`;
             document.getElementById('response').textContent = msg;
             speak(msg);
+            return;
+        }
+
+        // ── COMANDOS DE VOZ PARA CONTROLAR AUDIO ───────────────────────
+        const audioAck = _parseAudioCommand(norm);
+        if (audioAck) {
+            document.getElementById('response').textContent = audioAck;
+            // Ack corto (excepto para callar — ahí silencio)
+            if (audioAck !== 'callando') speak(audioAck);
             return;
         }
 
@@ -3999,6 +4177,7 @@
                 const data = await res.json();
                 fullReply = data.content?.[0]?.text || data.message || data.response || data.choices?.[0]?.message?.content || data.text || '';
                 if (!fullReply) throw new Error('Empty response');
+                _lastReply = fullReply; // cache para comando "repite"
                 document.getElementById('response').textContent = fullReply.substring(0, 150);
                 _emotion = data.emotion || detectEmotion(fullReply);
                 _emotionTimer = 12;
@@ -5056,6 +5235,8 @@
             audio.playsInline = true;
             audio.setAttribute('playsinline', '');
             audio.preload = 'auto';
+            audio.volume = Math.min(1, _audioGainMul);
+            audio.playbackRate = _ttsRateMul;
             _curAudio = audio;
             const _wasVoiceConvPA = voiceConversationActive;
             const finish = () => {
@@ -5115,9 +5296,10 @@
     function speakBrowser(text) {
         const u = new SpeechSynthesisUtterance(text);
         u.lang = 'es-MX';
-        // Young Latina ~19 años: pitch alto, ritmo natural
-        u.pitch = 1.28;
-        u.rate  = 1.08;
+        // Young Latina ~19 años: pitch alto, ritmo natural × control por voz
+        u.pitch  = 1.28;
+        u.rate   = 1.08 * _ttsRateMul;
+        u.volume = Math.min(1, _audioGainMul);
         const pickVoice = () => {
             const all = synth.getVoices();
             // P1: voces con nombre de mujer joven mexicana/latina conocidas
