@@ -643,19 +643,21 @@
     let _bokehPass = null;  // BokehPass DOF
     let _afterimagePass = null; // motion-blur ghost
 
-    // ── Adaptive quality (FPS-driven) ──────────────────────────────────
+    // ── Adaptive quality (FPS-driven) — arranca en MEDIUM por default ──
+    // Antes arrancaba en HIGH con todos los passes activos → muchos equipos
+    // se trababan en los primeros 3s antes de que el adaptive baje calidad.
     const _perf = {
         frameTimes: [],
         lowTicks: 0, highTicks: 0,
-        level: 2, // 0=min, 1=medium, 2=high (default)
+        level: 1, // arranque seguro: MEDIUM
     };
     function _updateAdaptiveQuality(delta) {
         _perf.frameTimes.push(delta);
         if (_perf.frameTimes.length > 60) _perf.frameTimes.shift();
-        if (_perf.frameTimes.length < 45) return;
+        if (_perf.frameTimes.length < 30) return;
         const avg = _perf.frameTimes.reduce((a,b)=>a+b,0) / _perf.frameTimes.length;
         const fps = 1 / avg;
-        if (fps < 45)      { _perf.lowTicks++; _perf.highTicks = 0; }
+        if (fps < 40)      { _perf.lowTicks++; _perf.highTicks = 0; }
         else if (fps > 58) { _perf.highTicks++; _perf.lowTicks = 0; }
         else               { _perf.lowTicks = 0; _perf.highTicks = 0; }
 
@@ -664,27 +666,27 @@
             _perf.level = lvl;
             if (!renderer) return;
             if (lvl === 0) {
-                // Mínimo: desactiva afterimage + bokeh, baja pixelRatio
-                renderer.setPixelRatio(Math.min(1, devicePixelRatio));
+                renderer.setPixelRatio(1);
                 if (_afterimagePass) _afterimagePass.enabled = false;
                 if (_bokehPass) _bokehPass.enabled = false;
-                if (_bloomPass) _bloomPass.strength = 0.35;
+                if (_bloomPass) _bloomPass.strength = 0.28;
             } else if (lvl === 1) {
-                renderer.setPixelRatio(Math.min(1.5, devicePixelRatio));
+                renderer.setPixelRatio(Math.min(1.25, devicePixelRatio));
                 if (_afterimagePass) _afterimagePass.enabled = false;
-                if (_bokehPass) _bokehPass.enabled = true;
-                if (_bloomPass) _bloomPass.strength = 0.55;
+                if (_bokehPass) _bokehPass.enabled = false;
+                if (_bloomPass) _bloomPass.strength = 0.45;
             } else {
-                renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+                renderer.setPixelRatio(Math.min(1.75, devicePixelRatio));
                 if (_afterimagePass) _afterimagePass.enabled = true;
                 if (_bokehPass) _bokehPass.enabled = true;
-                if (_bloomPass) _bloomPass.strength = 0.68;
+                if (_bloomPass) _bloomPass.strength = 0.58;
             }
             console.log('[AVA] adaptive quality →', ['min','medium','high'][lvl]);
         };
 
-        if (_perf.lowTicks > 180) apply(Math.max(0, _perf.level - 1));
-        if (_perf.highTicks > 300) apply(Math.min(2, _perf.level + 1));
+        // Downgrade rápido si traba (2s), upgrade lento (8s de FPS alto)
+        if (_perf.lowTicks > 120)  apply(Math.max(0, _perf.level - 1));
+        if (_perf.highTicks > 480) apply(Math.min(2, _perf.level + 1));
     }
     const BLOOM_LAYER = 1;   // layer selectivo — solo avatar/particulas glow
     const _bloomDarkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
@@ -1394,42 +1396,20 @@
         roomLightPt.position.set(0, -0.5, 1.5);
         scene.add(roomLightPt);
 
-        // ── HOLOGRAPHIC FLOOR — multi-layer animated grid ─────────────
-        // Layer 1: fine inner grid
-        const grid1 = new THREE.GridHelper(6, 40, 0x004422, 0x002211);
+        // ── HOLOGRAPHIC FLOOR — grid simplificado (1 capa densa) ─────
+        // Antes 3 grids (40×6 + 14×10 + 8×16 = 504 líneas). Ahora 1 solo
+        // de 30×7 = 210 líneas → −60% draw calls de piso.
+        const grid1 = new THREE.GridHelper(7, 30, 0x005533, 0x001a11);
         grid1.position.y = -0.98;
-        grid1.material.opacity = 0.55; grid1.material.transparent = true;
+        grid1.material.opacity = 0.42; grid1.material.transparent = true;
         scene.add(grid1);
-        // Layer 2: coarse outer grid — slightly larger
-        const grid2 = new THREE.GridHelper(10, 14, 0x006633, 0x001a0d);
-        grid2.position.y = -0.98;
-        grid2.material.opacity = 0.28; grid2.material.transparent = true;
-        scene.add(grid2);
-        // Layer 3: horizon perspective grid tilted
-        const grid3 = new THREE.GridHelper(16, 8, 0x003322, 0x000d08);
-        grid3.position.y = -0.98;
-        grid3.material.opacity = 0.14; grid3.material.transparent = true;
-        scene.add(grid3);
-        // Reflejo sutil del avatar en el piso holográfico
-        try {
-            if (THREE.Reflector) {
-                const reflGeo = new THREE.CircleGeometry(2.2, 64);
-                const reflector = new THREE.Reflector(reflGeo, {
-                    clipBias: 0.003,
-                    textureWidth: Math.min(1024, innerWidth),
-                    textureHeight: Math.min(1024, innerHeight),
-                    color: 0x081018,
-                });
-                reflector.rotation.x = -Math.PI / 2;
-                reflector.position.y = -0.981;
-                reflector.material.transparent = true;
-                reflector.material.opacity = 0.35;
-                scene.add(reflector);
-                window._holoReflector = reflector;
-            }
-        } catch(e) { console.warn('[AVA] Reflector skipped:', e.message); }
+        const grid2 = grid1; // alias para compatibilidad con código legacy
+        const grid3 = grid1;
+        // Reflector ELIMINADO — renderizaba toda la escena 2× por frame,
+        // bajaba ~25-40fps en GPUs medias. El glow-disc + grids ya dan
+        // suficiente sensación de piso holográfico.
 
-        // Glow disc on floor (encima del reflector)
+        // Glow disc on floor
         const glowGeo = new THREE.CircleGeometry(2.2, 64);
         const glowMat = new THREE.MeshBasicMaterial({
             color: 0x00ff9d, transparent: true, opacity: 0.04, side: THREE.DoubleSide
@@ -1535,79 +1515,49 @@
             if (_bloomComposer && typeof _bloomComposer.setSize === 'function') _bloomComposer.setSize(innerWidth, innerHeight);
         });
 
-        // ── Holographic post-process pipeline ───────────────────────────
-        // Patrón de dos composers para bloom selectivo:
-        //   _bloomComposer : render de la escena con todo excepto layer 1
-        //                    en negro → UnrealBloomPass → tex. final.
-        //   composer       : render full de la escena + shader que suma
-        //                    la textura del bloomComposer encima + DOF + rim.
+        // ── Pipeline post-process SIMPLIFICADO para fluidez ──────────────
+        // Antes tenía 2 composers + bloom selectivo + Bokeh + Afterimage +
+        // holo rim shader. En GPUs medianas eso tiraba 40-50% FPS.
+        // Ahora: 1 composer con UnrealBloom directo + rim shader liviano.
+        // Los efectos extra (bokeh/afterimage) quedan OFF por defecto y
+        // adaptive quality los prende solo si FPS >58 sostenido.
         if (THREE.EffectComposer && THREE.RenderPass && THREE.ShaderPass) {
           try {
-            // 1) Bloom composer (solo capa bloom — avatar + partículas)
-            if (THREE.UnrealBloomPass) {
-                _bloomComposer = new THREE.EffectComposer(renderer);
-                _bloomComposer.renderToScreen = false;
-                _bloomComposer.addPass(new THREE.RenderPass(scene, camera));
-                const bloom = new THREE.UnrealBloomPass(
-                    new THREE.Vector2(innerWidth, innerHeight),
-                    0.68, 0.95, 0.15
-                );
-                _bloomComposer.addPass(bloom);
-                _bloomPass = bloom;
-            }
-
-            // 2) Main composer
             composer = new THREE.EffectComposer(renderer);
             composer.addPass(new THREE.RenderPass(scene, camera));
 
-            // Mezcla aditiva con el bloom composer
-            if (_bloomComposer) {
-                const mixShader = {
-                    uniforms: {
-                        tDiffuse: { value: null },
-                        tBloom:   { value: _bloomComposer.renderTarget2.texture },
-                        uBloomAmt:{ value: 1.0 },
-                    },
-                    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-                    fragmentShader: `
-                        uniform sampler2D tDiffuse;
-                        uniform sampler2D tBloom;
-                        uniform float uBloomAmt;
-                        varying vec2 vUv;
-                        void main(){
-                            vec4 base = texture2D(tDiffuse, vUv);
-                            vec4 bloom = texture2D(tBloom, vUv);
-                            gl_FragColor = vec4(base.rgb + bloom.rgb * uBloomAmt, base.a);
-                        }
-                    `,
-                };
-                composer.addPass(new THREE.ShaderPass(mixShader));
+            if (THREE.UnrealBloomPass) {
+                const bloom = new THREE.UnrealBloomPass(
+                    new THREE.Vector2(innerWidth, innerHeight),
+                    0.45, 0.85, 0.35
+                );
+                composer.addPass(bloom);
+                _bloomPass = bloom;
             }
 
-            // Motion-blur sutil via AfterimagePass (damp=0.88 → ghost tenue)
+            // BokehPass (DOF) — OFF por default, enable lo hace adaptive quality
+            if (THREE.BokehPass) {
+                try {
+                    const bokeh = new THREE.BokehPass(scene, camera, {
+                        focus: 3.8, aperture: 0.00006, maxblur: 0.006,
+                        width: innerWidth, height: innerHeight,
+                    });
+                    bokeh.renderToScreen = false;
+                    bokeh.enabled = false;
+                    composer.addPass(bokeh);
+                    _bokehPass = bokeh;
+                } catch(e) { console.warn('[AVA] BokehPass skipped:', e.message); }
+            }
+
+            // AfterimagePass — OFF por default (motion blur se activa en high)
             if (THREE.AfterimagePass) {
                 try {
                     const afterimage = new THREE.AfterimagePass(0.82);
                     afterimage.renderToScreen = false;
+                    afterimage.enabled = false;
                     composer.addPass(afterimage);
                     _afterimagePass = afterimage;
                 } catch(e) { console.warn('[AVA] AfterimagePass skipped:', e.message); }
-            }
-
-            // 3) Depth-of-field (BokehPass) sutil — desenfoca el fondo
-            if (THREE.BokehPass) {
-                try {
-                    const bokeh = new THREE.BokehPass(scene, camera, {
-                        focus:    3.8,
-                        aperture: 0.00008,
-                        maxblur:  0.008,
-                        width:    innerWidth,
-                        height:   innerHeight,
-                    });
-                    bokeh.renderToScreen = false;
-                    composer.addPass(bokeh);
-                    _bokehPass = bokeh;
-                } catch(e) { console.warn('[AVA] BokehPass skipped:', e.message); }
             }
 
             // 2) Chromatic rim + subtle film grain — reemplaza al lensShader
@@ -1983,11 +1933,10 @@
 
                 model.traverse(o => {
                     if (o.isMesh) {
-                        o.castShadow = true;
-                        o.receiveShadow = true;
-                        // Rim fresnel eliminado — los VRMs conservan sus colores
-                        // y texturas originales. El "glow holográfico" ahora viene
-                        // del bloom selectivo + god-rays + backlight, sin teñir.
+                        // shadows desactivadas — shadowMap no está habilitado en
+                        // renderer, así que castShadow/receiveShadow solo añadían
+                        // checks innecesarios por frame.
+                        o.frustumCulled = true;
                     }
                 });
 
@@ -2371,22 +2320,11 @@
         // ─────────────────────────────────────────────────────────────────
 
         try {
-            if (_bloomComposer && composer) {
-                // Pass 1: darken non-bloom objects, render bloom-only
-                scene.traverse(_darkenNonBloomed);
-                _bloomComposer.render();
-                scene.traverse(_restoreMaterial);
-                // Pass 2: final composite
-                composer.render();
-            } else if (composer) {
-                composer.render();
-            } else {
-                renderer.render(scene, camera);
-            }
+            if (composer) composer.render();
+            else renderer.render(scene, camera);
         } catch(e) {
             console.warn('[AVA] Render error, disabling composer:', e.message);
             composer = null;
-            _bloomComposer = null;
             try { renderer.render(scene, camera); } catch(_) {}
         }
     }
@@ -3690,11 +3628,13 @@
             life:1,
         });
 
-        // Build initial pool
+        // Build initial pool — reducido 55/30/20 → 25/14/10 para FPS estable.
+        // Total: 49 partículas (antes 105). En canvas 2D cada una es fillRect
+        // + shadowBlur (STREAM) = costoso en laptops sin GPU dedicada.
         let ps = [
-            ...Array.from({length:55}, mkDust),
-            ...Array.from({length:30}, () => mkStream()),
-            ...Array.from({length:20}, (_, i) => mkOrbit(i * Math.PI / 10)),
+            ...Array.from({length:25}, mkDust),
+            ...Array.from({length:14}, () => mkStream()),
+            ...Array.from({length:10}, (_, i) => mkOrbit(i * Math.PI / 5)),
         ];
 
         let _frameT = 0;
