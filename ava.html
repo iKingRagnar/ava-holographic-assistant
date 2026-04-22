@@ -137,7 +137,9 @@
         .status-area{position:fixed;bottom:270px;left:50%;transform:translateX(-50%);
             z-index:60;text-align:center;width:90%;max-width:500px;pointer-events:none}
         .status-text{font-size:11px;color:rgba(0,255,157,.65);text-transform:uppercase;letter-spacing:3px;margin-bottom:4px}
-        .transcript{font-size:13px;color:#fff;min-height:18px;text-shadow:0 0 8px rgba(255,255,255,.2)}
+        /* Transcript oculto — reduce "ruido" visual en la vitrina. El STT sigue
+           escuchando y enviando al backend; solo ocultamos el texto en pantalla. */
+        .transcript{font-size:13px;color:#fff;min-height:18px;text-shadow:0 0 8px rgba(255,255,255,.2);display:none}
         .response{font-size:14px;color:#00ff9d;margin-top:4px;text-shadow:0 0 12px rgba(0,255,157,.4);line-height:1.35;max-height:56px;overflow:hidden}
 
         /* === Chat input === */
@@ -487,17 +489,22 @@
     const NAMES   = ['AVA','KIRA','ZANE','FAKER','SAO','NEON','YUKI','REI','MIRA','KAI'];
     const COLORS  = [0x00ff9d,0xff69b4,0xff3333,0x00aaff,0xaa66ff,0xffaa00,0x00ffff,0xff0066,0x6600ff,0x66ff00];
     // Voice profiles per avatar: [pitch, rate, lang preference]
+    // Perfil de voz por avatar — pitch/rate + nombres preferidos de voz.
+    // El picker intenta encontrar una voz del OS que haga MATCH por nombre;
+    // si no, recae a otra voz femenina en español latino.
+    // En Windows/Edge y Chrome hay típicamente: Dalia(MX), Paulina(MX), Sabina(MX),
+    // Catalina(MX), Renata(MX-Neural), Elvira(ES). macOS: Angélica, Paulina, Diego.
     const VOICES = {
-        0: {pitch:1.28, rate:1.08, pref:'female'},   // AVA  — joven ~19, profesional MX
-        1: {pitch:1.38, rate:1.18, pref:'female'},   // KIRA — joven enérgica
-        2: {pitch:1.20, rate:0.98, pref:'female'},   // ZANE — firme pero joven
-        3: {pitch:1.25, rate:1.10, pref:'female'},   // FAKER — precisa joven
-        4: {pitch:1.30, rate:0.96, pref:'female'},   // SAO  — elegante joven
-        5: {pitch:1.32, rate:1.16, pref:'female'},   // NEON — rápida joven
-        6: {pitch:1.40, rate:1.05, pref:'female'},   // YUKI — suave joven
-        7: {pitch:1.22, rate:1.12, pref:'female'},   // REI  — directa joven
-        8: {pitch:1.26, rate:0.92, pref:'female'},   // MIRA — tranquila joven
-        9: {pitch:1.32, rate:1.14, pref:'female'},   // KAI  — carismática joven
+        0: {pitch:1.28, rate:1.08, preferNames:['Dalia','Paulina','Catalina'],        tone:'joven profesional, regia, clara'},   // AVA
+        1: {pitch:1.42, rate:1.22, preferNames:['Renata','Sabina','Ximena','Camila'], tone:'acelerada, enérgica, gamer'},         // KIRA
+        2: {pitch:1.16, rate:0.96, preferNames:['Catalina','Marisol','Angélica'],     tone:'firme, decisiva, grave'},             // ZANE
+        3: {pitch:1.22, rate:1.06, preferNames:['Paulina','Ximena','Sabina'],         tone:'enfocada, serena'},                   // FAKER
+        4: {pitch:1.30, rate:0.94, preferNames:['Angélica','Dalia','Paulina'],        tone:'elegante, pausada, ejecutiva'},       // SAO
+        5: {pitch:1.36, rate:1.20, preferNames:['Sabina','Renata','Abril'],           tone:'rápida, cyber, nerd'},                // NEON
+        6: {pitch:1.44, rate:1.00, preferNames:['Ximena','Sabina','Camila'],          tone:'soñadora, artística, suave'},         // YUKI
+        7: {pitch:1.20, rate:1.14, preferNames:['Marisol','Dalia','Paulina'],         tone:'técnica, directa, taller'},           // REI
+        8: {pitch:1.24, rate:0.90, preferNames:['Paulina','Elvira','Angélica'],       tone:'tranquila, empática, coach'},         // MIRA
+        9: {pitch:1.34, rate:1.16, preferNames:['Renata','Camila','Ximena'],          tone:'carismática, cálida, social'},        // KAI
     };
     const CAPS = {
         0:{t:'ASISTENTE HOLOGRÁFICA',s:['BI & Datos','Gestión de agenda','Asistente personal','Apoyo emocional']},
@@ -1111,27 +1118,33 @@
         posePhase: 0, // phase within current pose for micro-animations
         nextState(t) {
             this.posePhase = t;
-            this.transStart = t; // marca inicio de cross-fade
+            this.transStart = t;
             const r = Math.random();
-            // Locomotion (25%)
-            if      (r < 0.12) { this.state = 'CATWALK';    this.timer = 2.0 + Math.random()*2.5; this.targetX=(Math.random()-0.5)*1.2; this.targetRY=(Math.random()-0.5)*0.6; }
+            // Locomotion 22%
+            if      (r < 0.10) { this.state = 'CATWALK';    this.timer = 2.0 + Math.random()*2.5; this.targetX=(Math.random()-0.5)*1.2; this.targetRY=(Math.random()-0.5)*0.6; }
             else if (r < 0.22) { this.state = 'WALK';       this.timer = 1.5 + Math.random()*1.8; this.targetX=(Math.random()-0.5)*1.0; this.targetRY=(Math.random()-0.5)*0.5; }
-            // Confident/seductive poses (40%)
-            else if (r < 0.32) { this.state = 'HAND_HIP';   this.timer = 1.2 + Math.random()*1.4; this.greetArm = Math.random()>0.5; }
-            else if (r < 0.40) { this.state = 'FLIP_HAIR';  this.timer = 1.0 + Math.random()*0.8; this.greetArm = Math.random()>0.5; }
-            else if (r < 0.47) { this.state = 'SASSY_LEAN'; this.timer = 1.0 + Math.random()*1.0; this.leanDir = Math.random()>0.5?1:-1; }
-            else if (r < 0.54) { this.state = 'LOOK_SIDE';  this.timer = 0.8 + Math.random()*0.8; this.leanDir = Math.random()>0.5?1:-1; }
-            else if (r < 0.60) { this.state = 'GREET';      this.timer = 1.2 + Math.random()*0.9; this.greetArm = Math.random()>0.5; }
-            // Expressive gestures (20%)
-            else if (r < 0.65) { this.state = 'POINT';      this.timer = 1.0 + Math.random()*0.8; this.greetArm = Math.random()>0.5; }
-            else if (r < 0.70) { this.state = 'SHRUG';      this.timer = 0.8 + Math.random()*0.6; }
-            else if (r < 0.75) { this.state = 'HAIR_TOUCH'; this.timer = 0.9 + Math.random()*0.7; this.greetArm = Math.random()>0.5; }
-            else if (r < 0.80) { this.state = 'THINK_POSE'; this.timer = 1.2 + Math.random()*1.0; this.greetArm = Math.random()>0.5; }
-            // Energy bursts (10%)
-            else if (r < 0.85) { this.state = 'DANCE';      this.timer = 1.5 + Math.random()*2.0; }
-            else if (r < 0.89) { this.state = 'NOD';        this.timer = 0.8 + Math.random()*0.6; this.nodPhase=t; }
-            else if (r < 0.93) { this.state = 'STRETCH';    this.timer = 1.0 + Math.random()*0.8; }
-            else if (r < 0.96) { this.state = 'ARMS_CROSS'; this.timer = 0.9 + Math.random()*0.7; }
+            // "Alive but still" — respira, observa, deja que el silencio respire (18%)
+            // Antes la avatar siempre se estaba moviendo; ahora 1 de cada 5 veces
+            // simplemente está presente → look-side pausado, deep-breath, stillness.
+            else if (r < 0.28) { this.state = 'LOOK_SIDE';  this.timer = 1.4 + Math.random()*1.3; this.leanDir = Math.random()>0.5?1:-1; }
+            else if (r < 0.33) { this.state = 'DEEP_BREATH';this.timer = 2.2 + Math.random()*0.8; }
+            else if (r < 0.40) { this.state = 'STILLNESS';  this.timer = 1.8 + Math.random()*1.6; this.leanDir = Math.random()>0.5?1:-1; }
+            // Confident poses 22%
+            else if (r < 0.48) { this.state = 'HAND_HIP';   this.timer = 1.4 + Math.random()*1.4; this.greetArm = Math.random()>0.5; }
+            else if (r < 0.54) { this.state = 'SASSY_LEAN'; this.timer = 1.3 + Math.random()*1.1; this.leanDir = Math.random()>0.5?1:-1; }
+            else if (r < 0.60) { this.state = 'ARMS_CROSS'; this.timer = 1.2 + Math.random()*0.9; }
+            else if (r < 0.62) { this.state = 'FLIP_HAIR';  this.timer = 1.0 + Math.random()*0.8; this.greetArm = Math.random()>0.5; }
+            // Social gestures 16%
+            else if (r < 0.68) { this.state = 'GREET';      this.timer = 1.2 + Math.random()*0.9; this.greetArm = Math.random()>0.5; }
+            else if (r < 0.73) { this.state = 'POINT';      this.timer = 1.0 + Math.random()*0.8; this.greetArm = Math.random()>0.5; }
+            else if (r < 0.77) { this.state = 'SHRUG';      this.timer = 0.8 + Math.random()*0.6; }
+            else if (r < 0.78) { this.state = 'HAIR_TOUCH'; this.timer = 0.9 + Math.random()*0.7; this.greetArm = Math.random()>0.5; }
+            // Thoughtful 10%
+            else if (r < 0.85) { this.state = 'THINK_POSE'; this.timer = 1.5 + Math.random()*1.0; this.greetArm = Math.random()>0.5; }
+            else if (r < 0.88) { this.state = 'NOD';        this.timer = 0.9 + Math.random()*0.6; this.nodPhase=t; }
+            // Energy / stretch 7%
+            else if (r < 0.92) { this.state = 'STRETCH';    this.timer = 1.0 + Math.random()*0.8; }
+            else if (r < 0.95) { this.state = 'DANCE';      this.timer = 1.5 + Math.random()*1.8; }
             else               { this.state = 'BOW';        this.timer = 0.8 + Math.random()*0.4; }
         }
     };
@@ -2877,6 +2890,21 @@
                 // Bow: arms slightly back
                 apA(la,'vLA_z','vLA_x', 1.38+breathShoulder, 0.18);
                 apA(ra,'vRA_z','vRA_x',-1.38+breathShoulder, 0.18);
+            } else if (AMOVE.state === 'DEEP_BREATH') {
+                // Inhala profundo — brazos descienden, pecho sube, pausa exhala
+                const bphase = (t - AMOVE.posePhase) / (AMOVE.timer + 0.01);
+                const wave = Math.sin(bphase * Math.PI * 2); // completo ciclo
+                apA(la,'vLA_z','vLA_x', 1.32 + mb*0.5 + wave*0.04, 0.04);
+                apA(ra,'vRA_z','vRA_x',-1.32 + mb*0.5 + wave*0.04, 0.04);
+                if (lf) lf.rotation.y = lerp(lf.rotation.y, 0.10, 0.05);
+                if (rf) rf.rotation.y = lerp(rf.rotation.y,-0.10, 0.05);
+            } else if (AMOVE.state === 'STILLNESS') {
+                // Quieta, presente, solo respiración natural — weight shift sutil
+                const shift = Math.sin((t - AMOVE.posePhase) * 0.6) * AMOVE.leanDir * 0.06;
+                apA(la,'vLA_z','vLA_x', 1.28 + mb + shift*0.3, 0.05);
+                apA(ra,'vRA_z','vRA_x',-1.28 + mb - shift*0.3, 0.05);
+                if (lf) lf.rotation.y = lerp(lf.rotation.y, 0.12, 0.04);
+                if (rf) rf.rotation.y = lerp(rf.rotation.y,-0.12, 0.04);
             } else {
                 // STOP / default — relax: one hand hip, other hanging (signature pose)
                 apA(la,'vLA_z','vLA_x', 0.58+mb, -0.42);
@@ -5294,35 +5322,45 @@
     }
 
     function speakBrowser(text) {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'es-MX';
-        // Young Latina ~19 años: pitch alto, ritmo natural × control por voz
-        u.pitch  = 1.28;
-        u.rate   = 1.08 * _ttsRateMul;
-        u.volume = Math.min(1, _audioGainMul);
+        // Perfil del avatar activo
+        const prof = VOICES[currentIdx] || VOICES[0];
+        // Voice picker con prioridad a nombres del perfil del avatar
         const pickVoice = () => {
             const all = synth.getVoices();
-            // P1: voces con nombre de mujer joven mexicana/latina conocidas
-            const youngNames = ['Dalia','Paulina','Sabina','Marina','Ximena','Renata','Camila','Valentina','Salome','Elena','Catalina','Abril'];
-            const byName = all.find(v => v.lang.startsWith('es') && youngNames.some(n => v.name.includes(n)));
-            if (byName) return byName;
-            // P2: es-MX femeninas online (Neural/Natural)
-            const mxNeural = all.filter(v => v.lang === 'es-MX' && !v.localService &&
-                (v.name.includes('Neural') || v.name.includes('Natural') || v.name.includes('female') || v.name.toLowerCase().includes('fem')));
-            if (mxNeural.length) return mxNeural[0];
+            const prefer = prof.preferNames || [];
+            // P1: matches de nombres preferidos del avatar en ES
+            for (const name of prefer) {
+                const hit = all.find(v => v.lang.startsWith('es') && v.name.toLowerCase().includes(name.toLowerCase()));
+                if (hit) return hit;
+            }
+            // P2: voces es-MX femeninas neural/online
+            const mxNeural = all.filter(v => v.lang === 'es-MX' && !v.localService);
+            if (mxNeural.length) return mxNeural[Math.min(currentIdx, mxNeural.length-1)];
             // P3: cualquier es-MX
             const mx = all.filter(v => v.lang === 'es-MX');
-            if (mx.length) return mx[0];
-            // P4: es-419 / es-AR / es-CO / es-CL
+            if (mx.length) return mx[Math.min(currentIdx, mx.length-1)];
+            // P4: LATAM
             const latam = all.filter(v => /^es-(419|AR|CO|CL|PE|UY|VE)/.test(v.lang));
-            if (latam.length) return latam[0];
-            // P5: cualquier español
+            if (latam.length) return latam[Math.min(currentIdx, latam.length-1)];
+            // P5: cualquier ES
             const es = all.filter(v => v.lang.startsWith('es'));
-            if (es.length) return es[0];
-            return null;
+            return es[Math.min(currentIdx, Math.max(0, es.length-1))] || null;
         };
         const v = pickVoice();
-        if (v) { u.voice = v; console.log('Browser TTS voice:', v.name, v.lang); }
+        console.log(`[AVA] TTS voice for ${NAMES[currentIdx]}:`, v ? `${v.name} (${v.lang})` : 'default', '—', prof.tone);
+
+        // ── PROSODIA AUTÓNOMA ──────────────────────────────────────────
+        // Parte el texto en oraciones y emite una utterance por cada una,
+        // variando pitch/rate según signos de puntuación y longitud.
+        // ! → más alto, más rápido, más volumen
+        // ? → subida final (no podemos automatizar intonación pero sí pitch base)
+        // .  → normal
+        // , / ; → pausa interna suave (speech synth lo respeta)
+        // Oraciones largas → un poco más lento; cortas → un poco más rápido.
+        const chunks = String(text)
+            .replace(/\s+/g, ' ')
+            .match(/[^.!?…]+[.!?…]?/g) || [text];
+
         const _wasVoiceConvBr = voiceConversationActive;
         const done = () => {
             ttsAnalyser = null; ttsFreq = null;
@@ -5344,25 +5382,49 @@
                 }
             }
         };
-        // ── Phonetic viseme sync via onboundary ─────────────────────────
-        // Cada palabra pronunciada actualiza los targets A/I/U/E/O según sus
-        // letras; el render loop interpola suavemente.
-        u.onboundary = (ev) => {
-            if (ev.name !== 'word') return;
-            try {
-                const word = text.slice(ev.charIndex, ev.charIndex + (ev.charLength || 8));
-                _setVisemeFromWord(word);
-            } catch(_) {}
+        // ── Emitir chunks con prosodia variable por oración ─────────────
+        let i = 0;
+        const speakNext = () => {
+            if (i >= chunks.length) {
+                _vis.target.A = _vis.target.I = _vis.target.U = _vis.target.E = _vis.target.O = _vis.target.M = 0;
+                done();
+                return;
+            }
+            const raw = chunks[i++].trim();
+            if (!raw) { speakNext(); return; }
+
+            const u2 = new SpeechSynthesisUtterance(raw);
+            u2.lang = 'es-MX';
+            if (v) u2.voice = v;
+
+            // Variaciones por puntuación y longitud de oración
+            const endsExcl  = /!$/.test(raw);
+            const endsQues  = /\?$/.test(raw);
+            const endsEllip = /…$/.test(raw);
+            const wordCount = raw.split(/\s+/).length;
+            // Oración larga (>18 palabras) → un poco más lento
+            const lengthRate = wordCount > 18 ? 0.96 : wordCount < 6 ? 1.06 : 1.0;
+            const pitchVar  = endsExcl ? +0.10 : endsQues ? +0.06 : endsEllip ? -0.06 : 0;
+            const rateVar   = endsExcl ? 1.08 : endsEllip ? 0.90 : 1.0;
+            const volVar    = endsExcl ? 1.0 : endsEllip ? 0.75 : 0.92;
+
+            u2.pitch  = Math.max(0.5, Math.min(2, prof.pitch + pitchVar));
+            u2.rate   = Math.max(0.5, Math.min(2, prof.rate * lengthRate * rateVar * _ttsRateMul));
+            u2.volume = Math.min(1, _audioGainMul * volVar);
+
+            // Viseme sync usa el texto de este chunk
+            u2.onboundary = (ev) => {
+                if (ev.name !== 'word') return;
+                try {
+                    const word = raw.slice(ev.charIndex, ev.charIndex + (ev.charLength || 8));
+                    _setVisemeFromWord(word);
+                } catch(_) {}
+            };
+            u2.onend   = () => setTimeout(speakNext, 30); // mini pausa entre oraciones
+            u2.onerror = () => speakNext();
+            synth.speak(u2);
         };
-        u.onend = () => {
-            _vis.target.A = _vis.target.I = _vis.target.U = _vis.target.E = _vis.target.O = _vis.target.M = 0;
-            done();
-        };
-        u.onerror = () => {
-            _vis.target.A = _vis.target.I = _vis.target.U = _vis.target.E = _vis.target.O = _vis.target.M = 0;
-            done();
-        };
-        synth.speak(u);
+        speakNext();
     }
 
     function stopSpeaking() {
