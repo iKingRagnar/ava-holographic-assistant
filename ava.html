@@ -83,10 +83,11 @@
         .holo-glow{position:fixed;inset:0;pointer-events:none;z-index:11;transition:opacity 1.2s;
             background:radial-gradient(ellipse 55% 75% at 50% 55%, rgba(0,255,157,.045) 0%, transparent 65%);
         }
-        .holo-glow.listening{background:radial-gradient(ellipse 55% 75% at 50% 55%, rgba(0,170,255,.055) 0%, transparent 65%)}
-        .holo-glow.thinking {background:radial-gradient(ellipse 55% 75% at 50% 55%, rgba(255,170,0,.04) 0%, transparent 65%)}
-        .holo-glow.talking  {background:radial-gradient(ellipse 60% 80% at 50% 55%, rgba(0,255,157,.07) 0%, transparent 65%);animation:glow-pulse .6s ease-in-out infinite alternate}
-        @keyframes glow-pulse{0%{opacity:.8}100%{opacity:1}}
+        .holo-glow.listening{background:radial-gradient(ellipse 58% 78% at 50% 55%, rgba(0,170,255,.06) 0%, rgba(0,170,255,.018) 40%, transparent 70%);animation:glow-breathe 4.5s ease-in-out infinite alternate}
+        .holo-glow.thinking {background:radial-gradient(ellipse 58% 78% at 50% 55%, rgba(255,170,0,.048) 0%, rgba(255,170,0,.014) 40%, transparent 70%);animation:glow-breathe 5.5s ease-in-out infinite alternate}
+        .holo-glow.talking  {background:radial-gradient(ellipse 64% 84% at 50% 55%, rgba(0,255,157,.08) 0%, rgba(0,255,157,.022) 42%, transparent 72%);animation:glow-breathe 1.8s ease-in-out infinite alternate}
+        @keyframes glow-pulse{0%{opacity:.88}100%{opacity:1}}
+        @keyframes glow-breathe{0%{opacity:.72;transform:scale(.985)}100%{opacity:1;transform:scale(1.015)}}
 
         /* === HUD corner decorations === */
         .hud-corner{position:fixed;z-index:55;pointer-events:none;width:36px;height:36px;opacity:.45}
@@ -461,7 +462,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/EffectComposer.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/RenderPass.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <!-- selfie_segmentation loaded lazily inside ensureSegmentation() — avoids WASM GPU crash on page load -->
@@ -573,8 +576,10 @@
     // ================================================================
     let scene, camera, renderer, avatarGroup, avatar;
     let composer = null;
-    let _lensPass = null;
-    let _lensMass = 0;
+    let _lensPass = null;   // legacy — kept null, no longer used
+    let _holoPass = null;   // new clean chromatic rim shader
+    let _bloomPass = null;  // UnrealBloomPass (holographic glow)
+    let _lensMass = 0;      // re-purposed as "mood intensity" 0..1 driving bloom + chroma
     let particles3d = [];
     let time = 0;
     let currentVRM = null, loadedModel = null;
@@ -1202,19 +1207,24 @@
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.1;
 
-        // Lights — balanced for VRM MToon shaders
-        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+        // Lights — balanceadas para look holográfico (rim fresnel destaca)
+        scene.add(new THREE.AmbientLight(0xffffff, 0.62));
 
-        const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+        const dir = new THREE.DirectionalLight(0xfff8e6, 1.05);
         dir.position.set(1.5, 2.5, 2);
         scene.add(dir);
 
-        const dir2 = new THREE.DirectionalLight(0xaaddff, 0.4);
+        const dir2 = new THREE.DirectionalLight(0xaaddff, 0.55);
         dir2.position.set(-1.5, 1, -1);
         scene.add(dir2);
 
-        // Subtle colored accent from below
-        roomLightPt = new THREE.PointLight(0x00ff9d, 0.15, 8);
+        // Back rim light — empuja el contorno holográfico
+        const backRim = new THREE.DirectionalLight(0x00ffcc, 0.45);
+        backRim.position.set(0, 1.2, -2.5);
+        scene.add(backRim);
+
+        // Acento inferior holográfico
+        roomLightPt = new THREE.PointLight(0x00ff9d, 0.28, 10);
         roomLightPt.position.set(0, -0.5, 1.5);
         scene.add(roomLightPt);
 
@@ -1252,8 +1262,8 @@
         lookAtTarget.position.set(0, 1.2, 3);
         scene.add(lookAtTarget);
 
-        // Subtle fog
-        scene.fog = new THREE.FogExp2(0x000510, 0.06);
+        // Fog holográfico — más profundidad, menos densidad al frente
+        scene.fog = new THREE.FogExp2(0x001018, 0.048);
 
         window.addEventListener('resize', () => {
             camera.aspect = innerWidth / innerHeight;
@@ -1262,88 +1272,88 @@
             if (composer && typeof composer.setSize === 'function') composer.setSize(innerWidth, innerHeight);
         });
 
+        // ── Holographic post-process: clean bloom + soft chromatic rim ───────
+        // Reemplaza el viejo LensPass (agujero negro + anillo parpadeante feo)
+        // por un pipeline limpio: UnrealBloom suave + aberración cromática sutil.
         if (THREE.EffectComposer && THREE.RenderPass && THREE.ShaderPass) {
           try {
             composer = new THREE.EffectComposer(renderer);
             composer.addPass(new THREE.RenderPass(scene, camera));
 
-            const lensShader = {
+            // 1) Bloom limpio y suave (sin flicker)
+            if (THREE.UnrealBloomPass) {
+                const bloom = new THREE.UnrealBloomPass(
+                    new THREE.Vector2(innerWidth, innerHeight),
+                    0.55,  // strength
+                    0.85,  // radius
+                    0.22   // threshold
+                );
+                bloom.renderToScreen = false;
+                composer.addPass(bloom);
+                _bloomPass = bloom;
+            }
+
+            // 2) Chromatic rim + subtle film grain — reemplaza al lensShader
+            // Sin warp, sin vignette agresivo, sin anillo parpadeante.
+            const holoShader = {
                 uniforms: {
                     tDiffuse: { value: null },
-                    uMask: { value: null },
-                    uCenter: { value: new THREE.Vector2(0.5, 0.52) },
-                    uMass: { value: 0.0 },
-                    uAspect: { value: innerWidth / innerHeight },
-                    uTime: { value: 0.0 },
-                    uMaskStrength: { value: 0.0 },
+                    uTime:    { value: 0.0 },
+                    uMood:    { value: 0.0 }, // 0..1 — leve aumento de chroma en talking/thinking
+                    uAspect:  { value: innerWidth / innerHeight },
                 },
                 vertexShader: `
                     varying vec2 vUv;
                     void main(){
                         vUv = uv;
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     }
                 `,
                 fragmentShader: `
                     uniform sampler2D tDiffuse;
-                    uniform sampler2D uMask;
-                    uniform vec2 uCenter;
-                    uniform float uMass;
-                    uniform float uAspect;
                     uniform float uTime;
-                    uniform float uMaskStrength;
+                    uniform float uMood;
+                    uniform float uAspect;
                     varying vec2 vUv;
 
-                    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+                    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
                     void main(){
                         vec2 uv = vUv;
-                        vec2 c = uCenter;
-                        vec2 d = uv - c;
+                        vec2 d  = uv - 0.5;
                         d.x *= uAspect;
                         float r = length(d);
 
-                        float m = clamp(uMass, 0.0, 1.0);
-                        float warp = m * (0.16 / (r + 0.08));
-                        float ring = smoothstep(0.18, 0.11, abs(r - (0.22 - m * 0.06))) * m;
-                        float vign = 1.0 - smoothstep(0.55, 0.18, r) * (m * 0.55);
+                        // Chromatic aberration — solo en los bordes, constante, NO parpadea
+                        float rim = smoothstep(0.35, 0.85, r);
+                        float ca  = rim * (0.0025 + uMood * 0.0025);
+                        vec2 dir  = d / max(r, 1e-4);
+                        vec2 off  = dir * ca;
 
-                        vec2 duv = d;
-                        duv /= max(0.0001, r);
-                        vec2 offset = duv * warp * 0.015;
-                        vec2 suv = uv + offset;
+                        vec4 cR = texture2D(tDiffuse, uv + off);
+                        vec4 cG = texture2D(tDiffuse, uv);
+                        vec4 cB = texture2D(tDiffuse, uv - off);
+                        vec3 col = vec3(cR.r, cG.g, cB.b);
 
-                        float ca = (m * 0.004 + ring * 0.006);
-                        vec2 caDir = duv * ca;
+                        // Scanline holográfica ultra sutil (2% máximo)
+                        float scan = 0.985 + 0.015 * sin(uv.y * 1100.0);
+                        col *= scan;
 
-                        vec4 colR = texture2D(tDiffuse, suv + caDir);
-                        vec4 colG = texture2D(tDiffuse, suv);
-                        vec4 colB = texture2D(tDiffuse, suv - caDir);
+                        // Vignette extremadamente suave — nunca agresivo
+                        col *= 1.0 - rim * 0.12;
 
-                        vec3 col = vec3(colR.r, colG.g, colB.b);
-                        float a0 = colG.a;
-                        col *= vign;
+                        // Grano de película 1% — vida sin ensuciar
+                        float grain = (hash(uv + uTime * 0.37) - 0.5) * 0.010;
+                        col += grain;
 
-                        float glow = ring * (0.6 + 0.4 * sin(uTime * 9.0));
-                        col += vec3(0.95, 0.85, 0.45) * glow;
-
-                        float noise = (hash(uv * (120.0 + m * 120.0) + uTime) - 0.5) * (m * 0.035);
-                        col += noise;
-
-                        float maskA = 0.0;
-                        if (uMaskStrength > 0.001) {
-                            vec4 mk = texture2D(uMask, uv);
-                            maskA = clamp(mk.r, 0.0, 1.0);
-                        }
-                        float outA = a0 * (1.0 - maskA * clamp(uMaskStrength, 0.0, 1.0));
-                        gl_FragColor = vec4(col, outA);
+                        gl_FragColor = vec4(col, cG.a);
                     }
                 `,
             };
-
-            _lensPass = new THREE.ShaderPass(lensShader);
-            composer.addPass(_lensPass);
-            console.log('[AVA] EffectComposer + LensPass initialized OK');
+            _holoPass = new THREE.ShaderPass(holoShader);
+            _holoPass.renderToScreen = true;
+            composer.addPass(_holoPass);
+            console.log('[AVA] EffectComposer (bloom + holoPass) initialized OK');
           } catch(e) {
             console.warn('[AVA] EffectComposer init failed, falling back to direct render:', e.message);
             composer = null;
@@ -1534,23 +1544,24 @@
     }
 
     function _updateLensMass(delta) {
+        // Re-purposed: drives bloom intensity + subtle chroma, NOT any warp/black-hole.
         const dt = Math.min(0.05, Math.max(0.001, delta || 0.016));
-        const stress = (cfg.faceMesh ? Math.min(1, _face.furrowHold / 45) : 0) * 0.35 + (cfg.bioSync ? Math.max(0, Math.min(1, (_bioBpm - 75) / 55)) * 0.25 : 0);
-        const think = (state === 'THINKING') ? 0.92 : (state === 'TALKING') ? 0.25 : (state === 'LISTENING') ? 0.18 : 0.12;
-        const screen = _screenStream ? 0.12 : 0;
-        const target = Math.max(0, Math.min(1, think + stress + screen));
+        const stress = (cfg.faceMesh ? Math.min(1, _face.furrowHold / 45) : 0) * 0.25;
+        const mood = (state === 'TALKING') ? 0.55 : (state === 'THINKING') ? 0.35 : (state === 'LISTENING') ? 0.30 : 0.20;
+        const target = Math.max(0, Math.min(1, mood + stress));
         const a = 1 - Math.exp(-2.8 * dt);
         _lensMass = _lensMass + (target - _lensMass) * a;
 
-        if (_lensPass && _lensPass.uniforms) {
-            const v = _lensPass.uniforms;
-            v.uMass.value = _lensMass;
+        if (_holoPass && _holoPass.uniforms) {
+            const v = _holoPass.uniforms;
+            v.uMood.value  = _lensMass;
+            v.uTime.value  = time;
             v.uAspect.value = innerWidth / innerHeight;
-            v.uTime.value = time;
-            if (!cfg.mixedReality) v.uMaskStrength.value = 0.0;
-            const cx = 0.5 + (mx * 0.08);
-            const cy = 0.52 + (my * 0.06);
-            v.uCenter.value.set(cx, cy);
+        }
+        // Bloom intensity breathes with state for holographic life
+        if (_bloomPass) {
+            const baseStrength = 0.48 + _lensMass * 0.35 + (state === 'TALKING' ? Math.sin(time * 2.4) * 0.05 : 0);
+            _bloomPass.strength = baseStrength;
         }
     }
 
@@ -1673,17 +1684,63 @@
                 }
 
                 model.traverse(o => {
-                    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                        // ── Holographic rim-light (fresnel) ──────────────────
+                        // Inyección onBeforeCompile — añade un término Fresnel
+                        // que ilumina los bordes con un verde/cian holográfico.
+                        // No afecta el color difuso interior, solo el borde.
+                        const mats = Array.isArray(o.material) ? o.material : [o.material];
+                        mats.forEach(mat => {
+                            if (!mat || mat._holoRim) return;
+                            mat._holoRim = true;
+                            const prevOBC = mat.onBeforeCompile;
+                            mat.onBeforeCompile = (shader) => {
+                                if (typeof prevOBC === 'function') prevOBC(shader);
+                                shader.uniforms.uRimColor    = { value: new THREE.Color(0x00ffcc) };
+                                shader.uniforms.uRimPower    = { value: 2.4 };
+                                shader.uniforms.uRimStrength = { value: 0.55 };
+                                shader.fragmentShader = shader.fragmentShader
+                                    .replace(
+                                        '#include <common>',
+                                        `#include <common>
+                                         uniform vec3  uRimColor;
+                                         uniform float uRimPower;
+                                         uniform float uRimStrength;`
+                                    )
+                                    .replace(
+                                        '#include <dithering_fragment>',
+                                        `#include <dithering_fragment>
+                                         {
+                                             vec3 vN = normalize(vNormal);
+                                             vec3 vV = normalize(-vViewPosition);
+                                             float rim = pow(1.0 - max(dot(vN, vV), 0.0), uRimPower);
+                                             gl_FragColor.rgb += uRimColor * rim * uRimStrength;
+                                         }`
+                                    );
+                                mat.userData.holoShader = shader;
+                            };
+                            mat.needsUpdate = true;
+                        });
+                    }
                 });
 
-                // Apply natural rest pose immediately (avoid T-pose on load)
+                // ── ANTI-T-POSE SHIELD ───────────────────────────────────────
+                // Algunas cargas VRM necesitan 1-3 frames para que los huesos
+                // estén totalmente conectados al Object3D. Forzamos rest pose
+                // durante ~2s con rebuild del cache en cada intento.
                 applyRestPose(vrm);
-                // Triple-fire: first render tick + one frame later to guarantee GPU flush
-                requestAnimationFrame(() => {
-                    applyRestPose(vrm);
-                    requestAnimationFrame(() => applyRestPose(vrm));
-                });
                 if (typeof vrm.update === 'function') vrm.update(0);
+                let _rpTries = 0;
+                const _rpGuard = () => {
+                    if (gen !== _vrmGen || !currentVRM) return;
+                    buildVRMBoneCache(vrm);
+                    applyRestPose(vrm);
+                    if (typeof vrm.update === 'function') vrm.update(0);
+                    if (++_rpTries < 60) requestAnimationFrame(_rpGuard); // ~1s a 60fps
+                };
+                requestAnimationFrame(_rpGuard);
 
                 avatarGroup.add(model);
                 addBase(color);
@@ -1963,9 +2020,11 @@
         const B = (name) => vrmBoneNode(vrm, name);
         const lerp = THREE.MathUtils.lerp;
 
-        // Warmup: snap bones fast for the first 90 frames post-load
+        // Warmup extendido: snap bones fuerte durante los primeros 240 frames
+        // (~4s). Evita que el avatar se vea en T-pose cuando el VRM tarda
+        // unos frames extras en mapear huesos (VRM 0.x bug).
         _vrmLoadFrame++;
-        const _warmup = _vrmLoadFrame < 90 ? Math.max(0.55, 1 - _vrmLoadFrame / 90) : 0;
+        const _warmup = _vrmLoadFrame < 240 ? Math.max(0.35, 1 - _vrmLoadFrame / 240) : 0;
 
         if (!avatarGroup.userData.phys) {
             avatarGroup.userData.phys = {
@@ -2014,12 +2073,13 @@
         const _emotionLift = (_emotion === 'excited' || _emotion === 'happy') ? Math.abs(Math.sin(t * 4.5)) * 0.007 : 0;
         if (AMOVE.state !== 'DANCE') avatarGroup.position.y = _floatY + _emotionLift;
 
-        // --- WANDERING FSM (only when not talking/listening) ---
+        // --- WANDERING FSM — ahora activo también en TALKING/THINKING ---
+        // Así el avatar nunca luce "pegado al piso" y la movilidad es completamente autónoma.
         if (state === 'IDLE') {
             AMOVE.timer -= delta;
             if (AMOVE.timer <= 0) AMOVE.nextState(t);
 
-            if (AMOVE.state === 'WALK') {
+            if (AMOVE.state === 'WALK' || AMOVE.state === 'CATWALK') {
                 avatarGroup.position.x = lerp(avatarGroup.position.x, AMOVE.targetX + _floatX * 0.3, 0.025);
                 avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, AMOVE.targetRY, 0.04);
             } else if (AMOVE.state === 'STOP' || AMOVE.state === 'GREET') {
@@ -2040,13 +2100,21 @@
                 avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, swayY, 0.04);
             }
         } else if (state === 'LISTENING') {
-            // Face user when listening
-            avatarGroup.position.x = lerp(avatarGroup.position.x, 0, 0.04);
-            avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, mx * 0.15, 0.06);
+            // Cara hacia el usuario + micro-desplazamiento lateral atento
+            const listenDrift = Math.sin(t * 0.35) * 0.08;
+            avatarGroup.position.x = lerp(avatarGroup.position.x, listenDrift, 0.03);
+            avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, mx * 0.15 + Math.sin(t * 0.22) * 0.04, 0.06);
         } else if (state === 'THINKING') {
-            avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.6) * 0.2, 0.03);
+            // Paso lateral tipo "pacing" mientras piensa — idéntico a un humano real
+            const pace = Math.sin(t * 0.55) * 0.28 + Math.sin(t * 0.17) * 0.10;
+            avatarGroup.position.x = lerp(avatarGroup.position.x, pace, 0.022);
+            avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.6) * 0.2 + Math.sin(t * 0.31) * 0.08, 0.03);
         } else {
+            // TALKING: balanceo expresivo + micro-pasos sutiles hacia adelante/atrás
+            const talkSway = Math.sin(t * 0.48) * 0.18 + Math.sin(t * 0.23) * 0.07;
+            avatarGroup.position.x = lerp(avatarGroup.position.x, talkSway, 0.025);
             avatarGroup.rotation.y = lerp(avatarGroup.rotation.y, Math.sin(t * 0.4) * 0.15 + mx * 0.1, 0.05);
+            avatarGroup.position.z = lerp(avatarGroup.position.z, Math.sin(t * 0.37) * 0.06, 0.02);
         }
 
         // --- HIPS primero: peso y balance (todo lo demás reacciona encima) ---
@@ -2981,16 +3049,52 @@
 
     // ================================================================
     // INSTANT REST POSE — elimina T-pose al cargar el VRM
+    // Fallback robusto: si el cache VRM falla, busca huesos por nombre en la
+    // escena directa. Así funciona aunque three-vrm aún no haya indexado.
     // ================================================================
     function applyRestPose(vrm) {
-        const get = name => vrmBoneNode(vrm, name);
+        // Intento principal: cache VRM
+        const getCached = name => vrmBoneNode(vrm, name);
+
+        // Fallback: scan directo de la escena por nombre (robusto contra
+        // three-vrm 0.6.x devolviendo índices glTF en lugar de Object3D).
+        const _nameMap = {
+            leftUpperArm:  ['LeftUpperArm','J_Bip_L_UpperArm','mixamorig:LeftArm','UpperArm_L'],
+            rightUpperArm: ['RightUpperArm','J_Bip_R_UpperArm','mixamorig:RightArm','UpperArm_R'],
+            leftLowerArm:  ['LeftLowerArm','J_Bip_L_LowerArm','mixamorig:LeftForeArm','LowerArm_L'],
+            rightLowerArm: ['RightLowerArm','J_Bip_R_LowerArm','mixamorig:RightForeArm','LowerArm_R'],
+            leftHand:      ['LeftHand','J_Bip_L_Hand','mixamorig:LeftHand','Hand_L'],
+            rightHand:     ['RightHand','J_Bip_R_Hand','mixamorig:RightHand','Hand_R'],
+            hips:          ['Hips','J_Bip_C_Hips','mixamorig:Hips','hip','pelvis'],
+            spine:         ['Spine','J_Bip_C_Spine','mixamorig:Spine','spine_01'],
+            chest:         ['Chest','J_Bip_C_Chest','mixamorig:Spine1','spine_02'],
+            leftUpperLeg:  ['LeftUpperLeg','J_Bip_L_UpperLeg','mixamorig:LeftUpLeg'],
+            rightUpperLeg: ['RightUpperLeg','J_Bip_R_UpperLeg','mixamorig:RightUpLeg'],
+            leftLowerLeg:  ['LeftLowerLeg','J_Bip_L_LowerLeg','mixamorig:LeftLeg'],
+            rightLowerLeg: ['RightLowerLeg','J_Bip_R_LowerLeg','mixamorig:RightLeg'],
+        };
+        const findByScan = (logicalName) => {
+            if (!vrm || !vrm.scene) return null;
+            const candidates = _nameMap[logicalName] || [logicalName];
+            const norm = s => String(s).toLowerCase().replace(/[^a-z]/g,'');
+            const want = new Set(candidates.map(norm));
+            let hit = null;
+            vrm.scene.traverse(o => {
+                if (hit) return;
+                if (!o || !o.name) return;
+                if (want.has(norm(o.name))) hit = o;
+            });
+            return hit;
+        };
+        const get = name => getCached(name) || findByScan(name);
+
         const la = get('leftUpperArm'),  ra = get('rightUpperArm');
         const lf = get('leftLowerArm'),  rf = get('rightLowerArm');
         const lh = get('leftHand'),      rh = get('rightHand');
-        if (la) { la.rotation.z =  1.35; la.rotation.x = 0.05; }
-        if (ra) { ra.rotation.z = -1.35; ra.rotation.x = 0.05; }
-        if (lf) { lf.rotation.y =  0.15; lf.rotation.x = 0.05; }
-        if (rf) { rf.rotation.y = -0.15; rf.rotation.x = 0.05; }
+        if (la) { la.rotation.z =  1.35; la.rotation.x = 0.05; la.rotation.y = 0; }
+        if (ra) { ra.rotation.z = -1.35; ra.rotation.x = 0.05; ra.rotation.y = 0; }
+        if (lf) { lf.rotation.y =  0.15; lf.rotation.x = 0.05; lf.rotation.z = 0; }
+        if (rf) { rf.rotation.y = -0.15; rf.rotation.x = 0.05; rf.rotation.z = 0; }
         if (lh) { lh.rotation.z =  0.05; }
         if (rh) { rh.rotation.z = -0.05; }
 
