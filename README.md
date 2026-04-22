@@ -102,7 +102,58 @@ cp .env.example .env.local
 npm run dev:local        # arranca en http://localhost:3333
 ```
 
-### 5. (Legacy) Deploy en Vercel
+### 5. Plugins de Railway recomendados
+
+| Plugin | Variable auto-inyectada | Qué mejora |
+|---|---|---|
+| **Redis** | `REDIS_URL` | Rate-limit persistente entre redeploys y entre réplicas. Si no está configurado, el servicio cae a un token-bucket in-memory (funciona, pero se reinicia con cada deploy). |
+| **PostgreSQL** | `DATABASE_URL` | Permite persistir chunks RAG server-side (`/api/rag-store`). Si falta, el cliente sigue guardando chunks en `localStorage` (flujo actual). |
+
+Para añadirlos: en tu proyecto Railway → **+ New → Database → Add Redis** (y repetir con PostgreSQL). Railway inyecta las env vars automáticamente en todos los servicios del mismo proyecto.
+
+### 6. Cron job opcional (pre-warming TTS)
+
+Para mantener el servicio "tibio" y que el primer "Hola" no espere cold-start del TTS:
+
+1. En tu proyecto Railway → **+ New → Empty Service**
+2. Connect al mismo repo
+3. **Settings → Cron Schedule** → `*/10 * * * *` (cada 10 min)
+4. **Settings → Start Command** → `node scripts/cron-prewarm.mjs`
+5. **Variables** → `PREWARM_URL = https://<tu-servicio-principal>.up.railway.app`
+
+Cost: ~5s de ejecución cada 10 min ≈ despreciable en Hobby tier.
+
+### 7. Custom domain
+
+1. **Settings → Networking → Custom Domain** → escribe `ava.tudominio.com`
+2. Railway te da un `CNAME` target (ej. `ghs.railway.app`).
+3. En tu DNS (Cloudflare, Namecheap, etc.) crea:
+   ```
+   Tipo: CNAME
+   Nombre: ava
+   Valor: <el que te dio Railway>
+   Proxy: OFF (si es Cloudflare — Railway maneja su propio TLS)
+   ```
+4. En ~1-2 minutos Railway emite el certificado Let's Encrypt automáticamente.
+5. Actualiza `ALLOWED_ORIGINS=https://ava.tudominio.com` en Variables para reforzar CORS.
+
+### 8. Tier sizing — qué esperar
+
+| Tier Railway | Recomendación |
+|---|---|
+| **Hobby ($5 crédito/mes)** | Suficiente para 1 usuario / demo. Sin Redis/Postgres, solo `ava-holographic-assistant`. |
+| **Pro ($20/mes base)** | Recomendado si vas a habilitar Postgres + Redis + cron prewarm. Mejor CPU, sin sleep automático en servicios idle. |
+| **Deployment usage** | El avatar VRM (~40MB) se sirve estático; el tráfico pesado está en ese primer load. Tras eso, solo TTS/STT y chat. Estima ~50-200MB egress por sesión de 10 min. |
+
+### 9. Docker (alternativa a Nixpacks)
+
+Si prefieres build reproducible local: el repo incluye `Dockerfile`. Railway lo auto-detecta si borras `nixpacks.toml` y `railway.json`. Build local:
+```bash
+docker build -t ava-holo .
+docker run -p 3333:3333 --env-file .env.local ava-holo
+```
+
+### 10. (Legacy) Deploy en Vercel
 
 Aún soportado via `vercel.json`. Usa `npm run deploy:vercel`. No se garantiza mantenimiento — el path recomendado es Railway.
 

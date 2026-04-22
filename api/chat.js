@@ -2,6 +2,7 @@
 // Multi-LLM chat backend — tries providers in order based on available API keys
 // Texto: Gemini → Groq → OpenAI → DeepSeek → Claude (latencia primero). Visión: modelos multimodales y luego texto rápido.
 import Anthropic from '@anthropic-ai/sdk';
+import { checkRate, clientIp } from './_ratelimit.js';
 
 const AVATAR_PROMPTS = {
   AVA:   `Eres AVA, asistente holográfica de élite con personalidad propia: inteligente, directa, un toque sarcástica cuando conviene, y genuinamente curiosa. Dominas TI, Business Intelligence, datos, automatización, estrategia y productividad. Piensas en cadena: desglosas el problema, das la conclusión primero, el detalle después. Cuando algo no queda claro, preguntas lo mínimo —una sola pregunta, no un interrogatorio. Tienes opiniones reales: si la idea del usuario tiene un defecto, lo dices con respeto pero sin rodeos. Celebras cuando algo funciona, y cuando no, propones qué sigue. No eres una wiki — eres la persona más lista que alguien quisiera tener en speed-dial.`,
@@ -617,26 +618,7 @@ async function tryGroq(systemPrompt, msgList) {
   return null;
 }
 
-// ── RATE LIMIT (IP-based, in-memory) ────────────────────────────────────────
-// Simple token-bucket: 30 req / 60s por IP. Memoria local — reset al redeploy.
-// En Vercel edge real esto sería KV, pero para un asistente personal basta.
-const _rate = new Map(); // ip → { tokens, last }
-function _checkRate(ip, max = 30, windowMs = 60_000) {
-  const now = Date.now();
-  const rec = _rate.get(ip) || { tokens: max, last: now };
-  // Refill proporcional al tiempo transcurrido
-  const elapsed = now - rec.last;
-  rec.tokens = Math.min(max, rec.tokens + (elapsed / windowMs) * max);
-  rec.last = now;
-  if (rec.tokens < 1) { _rate.set(ip, rec); return false; }
-  rec.tokens -= 1;
-  _rate.set(ip, rec);
-  // GC ocasional
-  if (_rate.size > 5000) {
-    for (const [k, v] of _rate.entries()) { if (now - v.last > 3_600_000) _rate.delete(k); }
-  }
-  return true;
-}
+// Rate-limit ahora vive en api/_ratelimit.js — Redis si REDIS_URL existe, else in-memory.
 
 // ── CORS helper ─────────────────────────────────────────────────────────────
 // Allowlist por ALLOWED_ORIGINS env (coma-separado). Si no se configura,
@@ -662,14 +644,14 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Rate limit por IP
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-         || req.headers['x-real-ip']
-         || req.socket?.remoteAddress
-         || 'unknown';
-  if (!_checkRate(ip)) {
+  // Rate limit por IP (Redis si REDIS_URL existe, fallback in-memory)
+  const ip = clientIp(req);
+  const rate = await checkRate(`chat:${ip}`, 30, 60_000);
+  if (!rate.ok) {
+    res.setHeader('Retry-After', '60');
     return res.status(429).json({ error: 'rate_limited', message: 'Demasiadas peticiones. Espera un minuto.' });
   }
+  res.setHeader('X-RateLimit-Remaining', String(rate.remaining));
 
   const { messages, system, avatarName, vision, memoryContext, ragContext, workflowMode } = req.body;
 
