@@ -1712,41 +1712,15 @@
     let _tessPhase = 0;
 
     function _ensureTesseract() {
-        if (_tesseract) return;
-        _tesseract = new THREE.Group();
-        _tesseract.visible = true;
-        _tesseract.position.set(0, 0, 0);
-        if (scene) scene.add(_tesseract);
-
-        const verts = [];
-        for (let i = 0; i < 16; i++) {
-            const x = (i & 1) ? 1 : -1;
-            const y = (i & 2) ? 1 : -1;
-            const z = (i & 4) ? 1 : -1;
-            const w = (i & 8) ? 1 : -1;
-            verts.push({ x, y, z, w });
-        }
-
-        const edges = [];
-        for (let i = 0; i < 16; i++) {
-            for (let b = 0; b < 4; b++) {
-                const j = i ^ (1 << b);
-                if (j > i) edges.push([i, j]);
-            }
-        }
-
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edges.length * 2 * 3), 3));
-        const mat = new THREE.LineBasicMaterial({ color: 0x00ff9d, transparent: true, opacity: 0.25 });
-        _tessLines = new THREE.LineSegments(geo, mat);
-        _tessLines.frustumCulled = false;
-        _tesseract.add(_tessLines);
-
-        _tesseract.userData.verts4 = verts;
-        _tesseract.userData.edges = edges;
+        // Tesseract (hipercubo 4D) ELIMINADO a petición del usuario.
+        // Se mantiene la función vacía para compatibilidad con el render loop.
+        return;
     }
 
     function _updateTesseract(t, delta) {
+        // No-op: tesseract removido.
+        return;
+        // eslint-disable-next-line no-unreachable
         if (!_tesseract || !_tessLines) return;
         if (!avatarGroup) return;
 
@@ -3751,6 +3725,79 @@
     // ================================================================
     // AI CHAT (Claude via /api/chat)
     // ================================================================
+    // ── AVATAR SWITCH POR COMANDO DE VOZ ──────────────────────────────────
+    // Números en palabras (es) → dígito
+    const _NUM_WORDS = {
+        uno:1, una:1, dos:2, tres:3, cuatro:4, cinco:5, seis:6,
+        siete:7, ocho:8, nueve:9, diez:10,
+        primero:1, primera:1, segundo:2, segunda:2, tercero:3, tercera:3,
+        cuarto:4, cuarta:4, quinto:5, quinta:5, sexto:6, sexta:6,
+        septimo:7, septima:7, octavo:8, octava:8, noveno:9, novena:9, decimo:10, decima:10,
+    };
+
+    /**
+     * Devuelve { type:'switch', idx } | { type:'list' } | { type:'none' }
+     * El `norm` viene lowercase + sin tildes.
+     */
+    function _parseAvatarCommand(norm) {
+        // "qué avatares hay", "cuáles avatares", "lista de avatares"
+        if (/\b(que|cuales|lista de|cuantos|dime los)\s+avatar(es)?\b/.test(norm) ||
+            /\bavatar(es)?\s+(hay|tienes|disponibles|existen)\b/.test(norm)) {
+            return { type: 'list' };
+        }
+
+        // Cambio por nombre: "cambia a kira", "pon a sao", "activa a neon"
+        for (let i = 0; i < NAMES.length; i++) {
+            const nm = NAMES[i].toLowerCase();
+            const re = new RegExp(`\\b(cambi[ao]|pon|activa|muestra|ponme|ponla|selecciona|quiero a?)\\s+(a|al|la|el)?\\s*${nm}\\b`, 'i');
+            if (re.test(norm)) return { type: 'switch', idx: i };
+            // También acepta solo el nombre como comando corto: "kira!" / "avatar kira"
+            const short = new RegExp(`^${nm}\\b`, 'i');
+            if (/\bavatar\b/.test(norm) && new RegExp(`\\b${nm}\\b`, 'i').test(norm)) {
+                return { type: 'switch', idx: i };
+            }
+            if (short.test(norm) && norm.length < nm.length + 4) return { type: 'switch', idx: i };
+        }
+
+        // Siguiente / anterior
+        if (/\b(siguiente|otro|otra)\s+avatar\b/.test(norm) || /\bavatar\s+siguiente\b/.test(norm)) {
+            return { type: 'switch', idx: (currentIdx + 1) % NAMES.length };
+        }
+        if (/\b(anterior|previa|previo)\s+avatar\b/.test(norm) || /\bavatar\s+anterior\b/.test(norm)) {
+            return { type: 'switch', idx: (currentIdx - 1 + NAMES.length) % NAMES.length };
+        }
+
+        // Número: "avatar 2", "avatar numero 3", "cambia al avatar cuatro",
+        // "pon el avatar cinco", "quiero avatar dos"
+        const numMatch = norm.match(/\bavatar\s+(?:numero\s+)?(\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|primer[ao]|segund[ao]|tercer[ao]|cuart[ao]|quint[ao]|sext[ao]|septim[ao]|octav[ao]|noven[ao]|decim[ao])\b/);
+        if (numMatch) {
+            const tok = numMatch[1];
+            const n = Number(tok) || _NUM_WORDS[tok] || 0;
+            if (n >= 1 && n <= NAMES.length) return { type: 'switch', idx: n - 1 };
+        }
+        // También "(cambia|pon) al número 3"
+        const numCmd = norm.match(/\b(cambi[ao]|pon|activa)\s+(a(l)?|el|la)?\s*(numero\s+)?(\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/);
+        if (numCmd) {
+            const tok = numCmd[5];
+            const n = Number(tok) || _NUM_WORDS[tok] || 0;
+            if (n >= 1 && n <= NAMES.length) return { type: 'switch', idx: n - 1 };
+        }
+
+        return { type: 'none' };
+    }
+
+    /** Cambia al avatar idx (0-based). Actualiza UI + carga VRM. */
+    function switchAvatar(idx) {
+        if (idx == null || idx < 0 || idx >= NAMES.length) return;
+        if (idx === currentIdx) return;
+        currentIdx = idx;
+        loadVRMAvatar(idx);
+        // Refresca el indicador visual (dots) + caps
+        if (typeof updateUI === 'function') updateUI();
+    }
+    // Expuesto para depuración desde consola
+    window.switchAvatar = switchAvatar;
+
     async function processMessage(text) {
         _lastUserActionAt = Date.now();
         const raw = String(text || '').trim();
@@ -3760,6 +3807,25 @@
             stopActiveListen();
             updateStatus('LISTA — di «AVA» para conversación de voz');
             setState('IDLE');
+            return;
+        }
+
+        // ── COMANDOS DE VOZ PARA CAMBIAR AVATAR ────────────────────────
+        // "avatar 2", "cambia al avatar 3", "pon al avatar número 4",
+        // "cambia a KIRA", "pon a SAO", "siguiente avatar", "anterior"
+        const cmd = _parseAvatarCommand(norm);
+        if (cmd.type === 'list') {
+            const list = NAMES.map((n, i) => `${i+1}. ${n}`).join(', ');
+            const msg = `Tengo ${NAMES.length} avatares: ${list}. Dime el número o nombre para cambiar.`;
+            document.getElementById('response').textContent = msg;
+            speak(msg);
+            return;
+        }
+        if (cmd.type === 'switch') {
+            switchAvatar(cmd.idx);
+            const msg = `Cambiando a ${NAMES[cmd.idx]}.`;
+            document.getElementById('response').textContent = msg;
+            speak(msg);
             return;
         }
 
