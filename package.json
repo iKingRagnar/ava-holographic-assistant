@@ -15,12 +15,16 @@
     "deploy": "railway up",
     "deploy:vercel": "vercel --prod",
     "check:syntax": "node scripts/check-inline-js.mjs && node --check server.js && node --check api/chat.js",
-    "test": "playwright test"
+    "test": "playwright test",
+    "dev:vite":   "vite",
+    "build:vite": "vite build",
+    "upload:vrms": "node scripts/upload-vrms.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "ioredis": "^5.4.1",
-    "pg": "^8.12.0"
+    "pg": "^8.12.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

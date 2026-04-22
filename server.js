@@ -204,6 +204,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── VRM CDN redirect ──────────────────────────────────────────────────
+  // Si VRM_CDN_BASE está definido (Cloudflare R2, Vercel Blob, S3, etc.),
+  // redirige los GET de *.vrm al CDN externo y ahorra ancho de banda del host.
+  // Sin VRM_CDN_BASE, sirve desde /public como siempre.
+  const vrmCdn = (process.env.VRM_CDN_BASE || '').replace(/\/$/, '');
+  const vrmMatch = pathname.match(/^\/(?:public\/)?(\d+\.vrm)$/);
+  if (vrmMatch && vrmCdn) {
+    const target = `${vrmCdn}/${vrmMatch[1]}`;
+    res.writeHead(302, { 'Location': target, 'Cache-Control': 'public, max-age=3600' });
+    res.end();
+    return;
+  }
+
   // ── Static files ──────────────────────────────────────────────────────
   let filePath = path.join(__dirname, pathname === '/' ? 'ava.html' : pathname);
 
