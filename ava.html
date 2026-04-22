@@ -473,6 +473,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/BokehShader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/environments/RoomEnvironment.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/objects/Reflector.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/AfterimagePass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/AfterimageShader.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <!-- selfie_segmentation loaded lazily inside ensureSegmentation() — avoids WASM GPU crash on page load -->
@@ -538,6 +541,49 @@
     let state = 'IDLE';
     let currentIdx = 0;
     let msgHistory = [];
+
+    // ── IndexedDB para persistencia de conversación ─────────────────────
+    const _IDB_NAME = 'ava-db', _IDB_STORE = 'history';
+    function _idbOpen() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(_IDB_NAME, 1);
+            req.onupgradeneeded = () => req.result.createObjectStore(_IDB_STORE, { keyPath: 'id' });
+            req.onsuccess = () => resolve(req.result);
+            req.onerror  = () => reject(req.error);
+        });
+    }
+    async function _idbLoadHistory() {
+        try {
+            const db = await _idbOpen();
+            return new Promise(resolve => {
+                const tx = db.transaction(_IDB_STORE, 'readonly');
+                const rq = tx.objectStore(_IDB_STORE).get('current');
+                rq.onsuccess = () => resolve(rq.result?.msgs || []);
+                rq.onerror  = () => resolve([]);
+            });
+        } catch(_) { return []; }
+    }
+    async function _idbSaveHistory(msgs) {
+        try {
+            const db = await _idbOpen();
+            const tx = db.transaction(_IDB_STORE, 'readwrite');
+            tx.objectStore(_IDB_STORE).put({ id: 'current', msgs: msgs.slice(-200), t: Date.now() });
+        } catch(_) {}
+    }
+    let _idbSaveTimer = null;
+    function _persistMsgHistory() {
+        if (_idbSaveTimer) clearTimeout(_idbSaveTimer);
+        _idbSaveTimer = setTimeout(() => _idbSaveHistory(msgHistory), 400);
+    }
+    // Bootstrap: carga el histórico al arrancar
+    if (typeof indexedDB !== 'undefined') {
+        _idbLoadHistory().then(prev => {
+            if (Array.isArray(prev) && prev.length) {
+                msgHistory = prev.slice(-24);
+                console.log('[AVA] Restored', msgHistory.length, 'msgs from IndexedDB');
+            }
+        });
+    }
     let recognition = null;
     let wakeRec = null;
     let wakeRestartTimer = null;
@@ -588,6 +634,11 @@
     let _holoPass = null;   // new clean chromatic rim shader
     let _bloomPass = null;  // UnrealBloomPass (holographic glow)
     let _bokehPass = null;  // BokehPass DOF
+    let _afterimagePass = null; // motion-blur ghost
+    const BLOOM_LAYER = 1;   // layer selectivo — solo avatar/particulas glow
+    const _bloomDarkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const _bloomMatStash = {};
+    let _bloomComposer = null; // render solo del layer bloom
     let _lensMass = 0;      // re-purposed as "mood intensity" 0..1 driving bloom + chroma
     let particles3d = [];
     let time = 0;
@@ -1293,18 +1344,78 @@
         grid3.position.y = -0.98;
         grid3.material.opacity = 0.14; grid3.material.transparent = true;
         scene.add(grid3);
-        // Glow disc on floor
+        // Reflejo sutil del avatar en el piso holográfico
+        try {
+            if (THREE.Reflector) {
+                const reflGeo = new THREE.CircleGeometry(2.2, 64);
+                const reflector = new THREE.Reflector(reflGeo, {
+                    clipBias: 0.003,
+                    textureWidth: Math.min(1024, innerWidth),
+                    textureHeight: Math.min(1024, innerHeight),
+                    color: 0x081018,
+                });
+                reflector.rotation.x = -Math.PI / 2;
+                reflector.position.y = -0.981;
+                reflector.material.transparent = true;
+                reflector.material.opacity = 0.35;
+                scene.add(reflector);
+                window._holoReflector = reflector;
+            }
+        } catch(e) { console.warn('[AVA] Reflector skipped:', e.message); }
+
+        // Glow disc on floor (encima del reflector)
         const glowGeo = new THREE.CircleGeometry(2.2, 64);
         const glowMat = new THREE.MeshBasicMaterial({
             color: 0x00ff9d, transparent: true, opacity: 0.04, side: THREE.DoubleSide
         });
         const glowDisc = new THREE.Mesh(glowGeo, glowMat);
         glowDisc.rotation.x = -Math.PI / 2;
-        glowDisc.position.y = -0.979;
+        glowDisc.position.y = -0.978;
         scene.add(glowDisc);
         // Store references for animation
         window._holoGrid = { g1: grid1, g2: grid2, g3: grid3, disc: glowDisc, discMat: glowMat };
         // ─────────────────────────────────────────────────────────────
+
+        // ── VOLUMETRIC GOD-RAYS DETRÁS DEL AVATAR ──────────────────────
+        // Cono vertical con shader de gradient para fake-volumetric light.
+        try {
+            const rayGeo = new THREE.ConeGeometry(1.1, 3.2, 48, 1, true);
+            const rayMat = new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uColor: { value: new THREE.Color(0x00ff9d) },
+                    uTime:  { value: 0 },
+                    uIntensity: { value: 0.35 },
+                },
+                vertexShader: `
+                    varying vec3 vPos;
+                    void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+                `,
+                fragmentShader: `
+                    uniform vec3 uColor;
+                    uniform float uTime;
+                    uniform float uIntensity;
+                    varying vec3 vPos;
+                    void main(){
+                        float dist = length(vPos.xz) / 1.1;
+                        float vert = clamp((vPos.y + 1.6) / 3.2, 0.0, 1.0);
+                        // Core más fuerte en el centro del cono, se desvanece arriba
+                        float core = pow(1.0 - dist, 2.2);
+                        float fade = (1.0 - vert) * 0.85 + 0.15;
+                        float shimmer = 0.92 + 0.08 * sin(uTime * 1.4 + vPos.y * 2.6);
+                        float a = core * fade * uIntensity * shimmer;
+                        gl_FragColor = vec4(uColor, a);
+                    }
+                `,
+            });
+            const rayCone = new THREE.Mesh(rayGeo, rayMat);
+            rayCone.position.set(0, 0.6, -0.8);
+            scene.add(rayCone);
+            window._godRay = rayCone;
+        } catch(e) { console.warn('[AVA] god-rays skipped:', e.message); }
 
         // LookAt target for VRM eye tracking
         lookAtTarget = new THREE.Object3D();
@@ -1319,31 +1430,69 @@
             camera.updateProjectionMatrix();
             renderer.setSize(innerWidth, innerHeight);
             if (composer && typeof composer.setSize === 'function') composer.setSize(innerWidth, innerHeight);
+            if (_bloomComposer && typeof _bloomComposer.setSize === 'function') _bloomComposer.setSize(innerWidth, innerHeight);
         });
 
-        // ── Holographic post-process: clean bloom + soft chromatic rim ───────
-        // Reemplaza el viejo LensPass (agujero negro + anillo parpadeante feo)
-        // por un pipeline limpio: UnrealBloom suave + aberración cromática sutil.
+        // ── Holographic post-process pipeline ───────────────────────────
+        // Patrón de dos composers para bloom selectivo:
+        //   _bloomComposer : render de la escena con todo excepto layer 1
+        //                    en negro → UnrealBloomPass → tex. final.
+        //   composer       : render full de la escena + shader que suma
+        //                    la textura del bloomComposer encima + DOF + rim.
         if (THREE.EffectComposer && THREE.RenderPass && THREE.ShaderPass) {
           try {
-            composer = new THREE.EffectComposer(renderer);
-            composer.addPass(new THREE.RenderPass(scene, camera));
-
-            // 1) Bloom selectivo — threshold alto para que solo ilumine el
-            // rim holográfico y las zonas realmente brillantes del avatar.
+            // 1) Bloom composer (solo capa bloom — avatar + partículas)
             if (THREE.UnrealBloomPass) {
+                _bloomComposer = new THREE.EffectComposer(renderer);
+                _bloomComposer.renderToScreen = false;
+                _bloomComposer.addPass(new THREE.RenderPass(scene, camera));
                 const bloom = new THREE.UnrealBloomPass(
                     new THREE.Vector2(innerWidth, innerHeight),
-                    0.58,  // strength
-                    0.92,  // radius
-                    0.55   // threshold — más alto = más selectivo
+                    0.68, 0.95, 0.15
                 );
-                bloom.renderToScreen = false;
-                composer.addPass(bloom);
+                _bloomComposer.addPass(bloom);
                 _bloomPass = bloom;
             }
 
-            // 2) Depth-of-field (BokehPass) sutil — desenfoca el fondo
+            // 2) Main composer
+            composer = new THREE.EffectComposer(renderer);
+            composer.addPass(new THREE.RenderPass(scene, camera));
+
+            // Mezcla aditiva con el bloom composer
+            if (_bloomComposer) {
+                const mixShader = {
+                    uniforms: {
+                        tDiffuse: { value: null },
+                        tBloom:   { value: _bloomComposer.renderTarget2.texture },
+                        uBloomAmt:{ value: 1.0 },
+                    },
+                    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+                    fragmentShader: `
+                        uniform sampler2D tDiffuse;
+                        uniform sampler2D tBloom;
+                        uniform float uBloomAmt;
+                        varying vec2 vUv;
+                        void main(){
+                            vec4 base = texture2D(tDiffuse, vUv);
+                            vec4 bloom = texture2D(tBloom, vUv);
+                            gl_FragColor = vec4(base.rgb + bloom.rgb * uBloomAmt, base.a);
+                        }
+                    `,
+                };
+                composer.addPass(new THREE.ShaderPass(mixShader));
+            }
+
+            // Motion-blur sutil via AfterimagePass (damp=0.88 → ghost tenue)
+            if (THREE.AfterimagePass) {
+                try {
+                    const afterimage = new THREE.AfterimagePass(0.82);
+                    afterimage.renderToScreen = false;
+                    composer.addPass(afterimage);
+                    _afterimagePass = afterimage;
+                } catch(e) { console.warn('[AVA] AfterimagePass skipped:', e.message); }
+            }
+
+            // 3) Depth-of-field (BokehPass) sutil — desenfoca el fondo
             if (THREE.BokehPass) {
                 try {
                     const bokeh = new THREE.BokehPass(scene, camera, {
@@ -1820,6 +1969,10 @@
                 // No floating 3D particles around VRM — solo el avatar limpio
                 scene.add(avatarGroup);
                 avatar = avatarGroup;
+                // Activar layer de bloom selectivo solo en el VRM
+                _enableBloomLayerOnAvatar(model);
+                // Cross-fade in
+                _fadeInAvatar(model);
                 updateUI();
                 hideLoading();
                 updateStatus('LISTA');
@@ -1984,9 +2137,62 @@
     }
 
     function clearAvatar() {
-        if (avatarGroup) scene.remove(avatarGroup);
+        if (avatarGroup) {
+            // Cross-fade out: baja opacidad y remueve tras 350ms
+            const old = avatarGroup;
+            const mats = [];
+            old.traverse(o => {
+                if (o.isMesh) {
+                    const ms = Array.isArray(o.material) ? o.material : [o.material];
+                    ms.forEach(m => {
+                        if (!m) return;
+                        if (m._origTransparent === undefined) {
+                            m._origTransparent = m.transparent;
+                            m._origOpacity = m.opacity;
+                        }
+                        m.transparent = true;
+                        mats.push(m);
+                    });
+                }
+            });
+            const t0 = performance.now();
+            const fade = () => {
+                const k = Math.min(1, (performance.now() - t0) / 350);
+                const op = 1 - k;
+                mats.forEach(m => { m.opacity = (m._origOpacity ?? 1) * op; });
+                if (k < 1) requestAnimationFrame(fade);
+                else { scene.remove(old); }
+            };
+            requestAnimationFrame(fade);
+        }
         avatarGroup = new THREE.Group();
         particles3d = [];
+    }
+
+    // Fade-in helper — llamado tras añadir el nuevo avatar a la escena
+    function _fadeInAvatar(group) {
+        if (!group) return;
+        const mats = [];
+        group.traverse(o => {
+            if (o.isMesh) {
+                const ms = Array.isArray(o.material) ? o.material : [o.material];
+                ms.forEach(m => {
+                    if (!m) return;
+                    if (m._fadeOrig === undefined) m._fadeOrig = m.opacity;
+                    m.transparent = true;
+                    m.opacity = 0;
+                    mats.push(m);
+                });
+            }
+        });
+        const t0 = performance.now();
+        const step = () => {
+            const k = Math.min(1, (performance.now() - t0) / 500);
+            const eased = k * k * (3 - 2 * k); // smoothstep
+            mats.forEach(m => { m.opacity = (m._fadeOrig ?? 1) * eased; });
+            if (k < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
     }
 
     // ================================================================
@@ -2028,6 +2234,21 @@
             p.position.y = p.userData.h + Math.sin(t * p.userData.fSpeed + p.userData.fOff) * 0.12;
             p.material.opacity = 0.3 + Math.sin(t * 1.5 + i) * 0.25;
         });
+
+        // God-ray tick — shimmer + color por estado
+        if (window._godRay && window._godRay.material && window._godRay.material.uniforms) {
+            const u = window._godRay.material.uniforms;
+            u.uTime.value = t;
+            const gRcolor = (state === 'LISTENING') ? 0x00aaff
+                : (state === 'THINKING') ? 0xffaa00
+                : (state === 'TALKING')  ? 0x00ff9d
+                : 0x00ff9d;
+            u.uColor.value.setHex(gRcolor);
+            const baseI = (state === 'TALKING') ? 0.45 + Math.sin(t * 2.2) * 0.08
+                : (state === 'THINKING') ? 0.30 + Math.sin(t * 0.9) * 0.04
+                : 0.28;
+            u.uIntensity.value += (baseI - u.uIntensity.value) * 0.05;
+        }
 
         // ── Holographic grid animation + state-reactive color ─────────────
         if (window._holoGrid) {
@@ -2071,13 +2292,42 @@
         // ─────────────────────────────────────────────────────────────────
 
         try {
-            if (composer && typeof composer.render === 'function') composer.render();
-            else renderer.render(scene, camera);
+            if (_bloomComposer && composer) {
+                // Pass 1: darken non-bloom objects, render bloom-only
+                scene.traverse(_darkenNonBloomed);
+                _bloomComposer.render();
+                scene.traverse(_restoreMaterial);
+                // Pass 2: final composite
+                composer.render();
+            } else if (composer) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
         } catch(e) {
             console.warn('[AVA] Render error, disabling composer:', e.message);
             composer = null;
+            _bloomComposer = null;
             try { renderer.render(scene, camera); } catch(_) {}
         }
+    }
+
+    // ── Selective bloom helpers ────────────────────────────────────────
+    function _darkenNonBloomed(obj) {
+        if (obj.isMesh && (obj.layers.mask & (1 << BLOOM_LAYER)) === 0) {
+            _bloomMatStash[obj.uuid] = obj.material;
+            obj.material = _bloomDarkMat;
+        }
+    }
+    function _restoreMaterial(obj) {
+        if (_bloomMatStash[obj.uuid]) {
+            obj.material = _bloomMatStash[obj.uuid];
+            delete _bloomMatStash[obj.uuid];
+        }
+    }
+    function _enableBloomLayerOnAvatar(root) {
+        if (!root) return;
+        root.traverse(o => { try { o.layers.enable(BLOOM_LAYER); } catch(_) {} });
     }
 
     // ---- VRM animation (autonomous + reactive) ----
@@ -2257,9 +2507,12 @@
             chest.rotation.z = (Math.sin(t * 0.35 + 0.8) * 0.034 + Math.sin(t * 0.60) * 0.016) * bMul + ePostZ;
         }
         if (upperChest) {
+            // Añade un componente de "brisa" muy sutil — propaga al springBone
+            // chain del pelo (si el VRM lo tiene) para movimiento orgánico.
+            const wind = Math.sin(t * 0.37) * 0.008 + Math.sin(t * 0.93 + 1.1) * 0.004;
             upperChest.rotation.x = Math.sin(t * breathRate + 0.22) * 0.052 * bMul * talkMod + ePostX * 1.2;
-            upperChest.rotation.y = (Math.sin(t * 0.32) * 0.030 + organic(t, 2.2) * 0.017) * bMul + P.spineTw * 0.25;
-            upperChest.rotation.z = organic(t, 5) * 0.024 * bMul + ePostZ * 0.8;
+            upperChest.rotation.y = (Math.sin(t * 0.32) * 0.030 + organic(t, 2.2) * 0.017) * bMul + P.spineTw * 0.25 + wind;
+            upperChest.rotation.z = organic(t, 5) * 0.024 * bMul + ePostZ * 0.8 + wind * 0.6;
         }
 
         // --- CABEZA: objetivo suavizado; CUELLO con inercia (no bloque sólido) ---
@@ -3453,6 +3706,7 @@
                 msgHistory.push({ role: 'user', content: sendText });
                 msgHistory.push({ role: 'assistant', content: fast });
                 if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
+                _persistMsgHistory();
                 document.getElementById('response').textContent = fast.substring(0, 150);
                 speak(fast);
                 setState('IDLE');
@@ -3473,6 +3727,7 @@
 
         msgHistory.push({ role: 'user', content: sendText });
         if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
+        _persistMsgHistory();
 
         try {
             // ── RAG: recuperar contexto relevante antes de enviar al LLM ──
@@ -3616,6 +3871,7 @@
             if (fullReply) {
                 msgHistory.push({ role: 'assistant', content: fullReply });
                 if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
+                _persistMsgHistory();
                 saveEpisodicMemory(sendText, fullReply, _emotion);
             }
 
@@ -4777,6 +5033,51 @@
         setState('IDLE'); updateStatus('LISTA');
     }
 
+    // ── Barge-in: detecta voz del usuario MIENTRAS AVA habla ───────────
+    // Si el usuario habla durante TTS, cortamos TTS y arrancamos a escuchar.
+    let _bargeStream = null, _bargeCtx = null, _bargeAn = null, _bargeRaf = 0;
+    let _bargeLoud = 0;
+    async function _startBargeIn() {
+        if (!voiceConversationActive) return;
+        if (_bargeAn) return; // ya activo
+        try {
+            _bargeStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+            _bargeCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const src = _bargeCtx.createMediaStreamSource(_bargeStream);
+            _bargeAn = _bargeCtx.createAnalyser();
+            _bargeAn.fftSize = 512;
+            _bargeAn.smoothingTimeConstant = 0.5;
+            src.connect(_bargeAn);
+            const data = new Uint8Array(_bargeAn.frequencyBinCount);
+            _bargeLoud = 0;
+            const tick = () => {
+                if (!_bargeAn) return;
+                _bargeAn.getByteFrequencyData(data);
+                // Promedio en banda 100-2000Hz donde vive la voz
+                let sum = 0, n = 0;
+                for (let i = 2; i < 40 && i < data.length; i++) { sum += data[i]; n++; }
+                const avg = n ? sum / n / 255 : 0;
+                if (avg > 0.22) _bargeLoud += 1; else _bargeLoud = Math.max(0, _bargeLoud - 1);
+                if (_bargeLoud > 10 && state === 'TALKING') {
+                    // Sostained voice → barge-in
+                    console.log('[AVA] 🎤 Barge-in detected, stopping TTS');
+                    _stopBargeIn();
+                    stopSpeaking();
+                    setTimeout(() => { if (voiceConversationActive) startListening({ fastSilence: true }); }, 80);
+                    return;
+                }
+                _bargeRaf = requestAnimationFrame(tick);
+            };
+            tick();
+        } catch(e) { console.warn('[AVA] Barge-in unavailable:', e.message); }
+    }
+    function _stopBargeIn() {
+        if (_bargeRaf) { cancelAnimationFrame(_bargeRaf); _bargeRaf = 0; }
+        try { _bargeStream?.getTracks().forEach(t => t.stop()); } catch(_) {}
+        try { _bargeCtx?.close(); } catch(_) {}
+        _bargeStream = null; _bargeCtx = null; _bargeAn = null; _bargeLoud = 0;
+    }
+
     // ================================================================
     // UI STATE
     // ================================================================
@@ -4792,6 +5093,10 @@
         stopI.style.display = (s === 'IDLE' || s === 'LISTENING') ? 'none' : 'block';
         if (s === 'IDLE') scheduleWakeRestart();
         if (typeof window._pSetStateCb === 'function') window._pSetStateCb(s);
+
+        // Barge-in: activar solo durante TALKING si hay conversación de voz
+        if (s === 'TALKING' && voiceConversationActive) { _startBargeIn(); }
+        else if (s !== 'TALKING') { _stopBargeIn(); }
 
         // Holo dual mode: scanlines + colour filter on THINKING/LISTENING
         const cvs = document.getElementById('avatar-canvas');
@@ -5154,6 +5459,16 @@
     }
 
     window.addEventListener('load', init);
+
+    // ── Service Worker — offline shell ──────────────────────────────────
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').then(
+                reg => console.log('[AVA] SW registered, scope:', reg.scope),
+                err => console.warn('[AVA] SW registration failed:', err.message)
+            );
+        });
+    }
 
     // ================================================================
     // ── WORKFLOW AGENT MODE ───────────────────────────────────────────────────

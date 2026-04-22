@@ -616,13 +616,61 @@ async function tryGroq(systemPrompt, msgList) {
   return null;
 }
 
+// ── RATE LIMIT (IP-based, in-memory) ────────────────────────────────────────
+// Simple token-bucket: 30 req / 60s por IP. Memoria local — reset al redeploy.
+// En Vercel edge real esto sería KV, pero para un asistente personal basta.
+const _rate = new Map(); // ip → { tokens, last }
+function _checkRate(ip, max = 30, windowMs = 60_000) {
+  const now = Date.now();
+  const rec = _rate.get(ip) || { tokens: max, last: now };
+  // Refill proporcional al tiempo transcurrido
+  const elapsed = now - rec.last;
+  rec.tokens = Math.min(max, rec.tokens + (elapsed / windowMs) * max);
+  rec.last = now;
+  if (rec.tokens < 1) { _rate.set(ip, rec); return false; }
+  rec.tokens -= 1;
+  _rate.set(ip, rec);
+  // GC ocasional
+  if (_rate.size > 5000) {
+    for (const [k, v] of _rate.entries()) { if (now - v.last > 3_600_000) _rate.delete(k); }
+  }
+  return true;
+}
+
 // ── MAIN HANDLER ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  // Rate limit por IP
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+         || req.headers['x-real-ip']
+         || req.socket?.remoteAddress
+         || 'unknown';
+  if (!_checkRate(ip)) {
+    return res.status(429).json({ error: 'rate_limited', message: 'Demasiadas peticiones. Espera un minuto.' });
+  }
+
   const { messages, system, avatarName, vision, memoryContext, ragContext, workflowMode } = req.body;
+
+  // Validación de entrada
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages array required' });
+  }
+  if (messages.length > 100) {
+    return res.status(400).json({ error: 'too_many_messages', max: 100 });
+  }
+  // Cap total payload para evitar abuso/DoS
+  const totalLen = messages.reduce((n, m) => n + (typeof m?.content === 'string' ? m.content.length : 0), 0);
+  if (totalLen > 64_000) {
+    return res.status(400).json({ error: 'payload_too_large', max_chars: 64_000 });
+  }
+  // Validación individual
+  for (const m of messages) {
+    if (!m || typeof m !== 'object') return res.status(400).json({ error: 'invalid_message_shape' });
+    if (typeof m.content !== 'string') return res.status(400).json({ error: 'content_must_be_string' });
+    if (m.role && !['user', 'assistant', 'system'].includes(m.role)) {
+      return res.status(400).json({ error: 'invalid_role' });
+    }
   }
 
   const name = (avatarName || 'AVA').toUpperCase();
