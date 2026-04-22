@@ -635,6 +635,50 @@
     let _bloomPass = null;  // UnrealBloomPass (holographic glow)
     let _bokehPass = null;  // BokehPass DOF
     let _afterimagePass = null; // motion-blur ghost
+
+    // ── Adaptive quality (FPS-driven) ──────────────────────────────────
+    const _perf = {
+        frameTimes: [],
+        lowTicks: 0, highTicks: 0,
+        level: 2, // 0=min, 1=medium, 2=high (default)
+    };
+    function _updateAdaptiveQuality(delta) {
+        _perf.frameTimes.push(delta);
+        if (_perf.frameTimes.length > 60) _perf.frameTimes.shift();
+        if (_perf.frameTimes.length < 45) return;
+        const avg = _perf.frameTimes.reduce((a,b)=>a+b,0) / _perf.frameTimes.length;
+        const fps = 1 / avg;
+        if (fps < 45)      { _perf.lowTicks++; _perf.highTicks = 0; }
+        else if (fps > 58) { _perf.highTicks++; _perf.lowTicks = 0; }
+        else               { _perf.lowTicks = 0; _perf.highTicks = 0; }
+
+        const apply = (lvl) => {
+            if (lvl === _perf.level) return;
+            _perf.level = lvl;
+            if (!renderer) return;
+            if (lvl === 0) {
+                // Mínimo: desactiva afterimage + bokeh, baja pixelRatio
+                renderer.setPixelRatio(Math.min(1, devicePixelRatio));
+                if (_afterimagePass) _afterimagePass.enabled = false;
+                if (_bokehPass) _bokehPass.enabled = false;
+                if (_bloomPass) _bloomPass.strength = 0.35;
+            } else if (lvl === 1) {
+                renderer.setPixelRatio(Math.min(1.5, devicePixelRatio));
+                if (_afterimagePass) _afterimagePass.enabled = false;
+                if (_bokehPass) _bokehPass.enabled = true;
+                if (_bloomPass) _bloomPass.strength = 0.55;
+            } else {
+                renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+                if (_afterimagePass) _afterimagePass.enabled = true;
+                if (_bokehPass) _bokehPass.enabled = true;
+                if (_bloomPass) _bloomPass.strength = 0.68;
+            }
+            console.log('[AVA] adaptive quality →', ['min','medium','high'][lvl]);
+        };
+
+        if (_perf.lowTicks > 180) apply(Math.max(0, _perf.level - 1));
+        if (_perf.highTicks > 300) apply(Math.min(2, _perf.level + 1));
+    }
     const BLOOM_LAYER = 1;   // layer selectivo — solo avatar/particulas glow
     const _bloomDarkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
     const _bloomMatStash = {};
@@ -1137,9 +1181,18 @@
         _eye.blinkDur = 0.09 + Math.random() * 0.07;
         _eye.blinkHold = 0.012 + Math.random() * 0.03;
         _eye.blinkPhase = 1;
+        // 8% de los blinks: wink (un solo ojo) — personalidad coqueta
+        _eye._isWink = Math.random() < 0.08;
+        _eye._winkSide = Math.random() > 0.5 ? 1 : -1;
         const asym = (Math.random() - 0.5) * 0.12;
-        _eye.blinkL = _clamp01(1 + asym);
-        _eye.blinkR = _clamp01(1 - asym);
+        if (_eye._isWink) {
+            // Wink: un ojo se cierra totalmente, el otro se mantiene abierto
+            _eye.blinkL = _eye._winkSide > 0 ? 1 : 0;
+            _eye.blinkR = _eye._winkSide > 0 ? 0 : 1;
+        } else {
+            _eye.blinkL = _clamp01(1 + asym);
+            _eye.blinkR = _clamp01(1 - asym);
+        }
     }
 
     function _updateBlink(t) {
@@ -2207,6 +2260,7 @@
         if (!avatar) { renderer.render(scene, camera); return; }
 
         updateAdaptiveRoomLight(t, delta);
+        _updateAdaptiveQuality(delta);
         _connectBioWs();
         _updateLensMass(delta);
         _updateDivineTone(delta);
@@ -2248,6 +2302,14 @@
                 : (state === 'THINKING') ? 0.30 + Math.sin(t * 0.9) * 0.04
                 : 0.28;
             u.uIntensity.value += (baseI - u.uIntensity.value) * 0.05;
+        }
+
+        // LOD por performance: si nivel=0, oculta grids externos y disc extra
+        if (window._holoGrid) {
+            const hg = window._holoGrid;
+            const minMode = _perf.level === 0;
+            if (hg.g2 && hg.g2.visible !== !minMode) hg.g2.visible = !minMode;
+            if (hg.g3 && hg.g3.visible !== !minMode) hg.g3.visible = !minMode;
         }
 
         // ── Holographic grid animation + state-reactive color ─────────────
@@ -3090,6 +3152,28 @@
             if (emo === 'calm'    && SAD)  setBlend(proxy, SAD,  eStrength * 0.12);
             if (emo === 'curious' && JOY)  setBlend(proxy, JOY,  eStrength * 0.3);
 
+            // ── MICRO-FACIAL REACTIVO ───────────────────────────────────
+            // Micro-oscilaciones orgánicas sobre los blend shapes expresivos
+            // para dar vida constante a la cara, no solo en cambios de emoción.
+            const microSmile = (emo === 'happy' || emo === 'excited' || emo === 'curious')
+                ? (0.04 + Math.sin(t * 0.9) * 0.025)
+                : 0;
+            if (microSmile > 0 && JOY) {
+                const base = (emo === 'happy') ? eStrength * 0.75
+                    : (emo === 'excited') ? eStrength * 0.5
+                    : eStrength * 0.3;
+                setBlend(proxy, JOY, Math.min(1, base + microSmile));
+            }
+            // Sorpresa sutil en curioso (cejas ligeramente arriba)
+            if (emo === 'curious' && SURP) {
+                setBlend(proxy, SURP, eStrength * 0.18 + Math.sin(t * 0.5) * 0.04);
+            }
+            // Fruncido sutil si faceMesh detecta stress del usuario (proyección empática)
+            if (cfg.faceMesh && _face.furrowHold > 25 && SURP) {
+                const empathy = Math.min(0.22, (_face.furrowHold - 25) / 100);
+                setBlend(proxy, SURP, empathy);
+            }
+
             if (state === 'TALKING') {
                 // Audio-driven amplitude (volumen global de la boca)
                 let mOpen = Math.abs(Math.sin(t * 7.8)) * 0.55
@@ -3860,11 +3944,25 @@
                 fullReply = data.content?.[0]?.text || data.message || data.response || data.choices?.[0]?.message?.content || data.text || '';
                 if (!fullReply) throw new Error('Empty response');
                 document.getElementById('response').textContent = fullReply.substring(0, 150);
-                _emotion = detectEmotion(fullReply);
+                _emotion = data.emotion || detectEmotion(fullReply);
                 _emotionTimer = 12;
                 saveEpisodicMemory(sendText, fullReply, _emotion);
-                if (_emotion === 'happy' || _emotion === 'excited') { AMOVE.state = 'GREET'; AMOVE.timer = 2; AMOVE.greetArm = Math.random() > .5; }
-                else if (_emotion === 'curious' || _emotion === 'focused') { AMOVE.state = 'POINT'; AMOVE.timer = 1.5; AMOVE.greetArm = Math.random() > .5; }
+
+                // Si el backend devuelve `gesture` explícito, lo respetamos.
+                // Valores soportados: GREET, POINT, SHRUG, THINK_POSE, FLIP_HAIR,
+                // HAIR_TOUCH, DANCE, NOD, BOW, ARMS_CROSS, STRETCH
+                const explicitGesture = String(data.gesture || '').toUpperCase();
+                const GESTURE_SET = new Set(['GREET','POINT','SHRUG','THINK_POSE','FLIP_HAIR','HAIR_TOUCH','DANCE','NOD','BOW','ARMS_CROSS','STRETCH','HAND_HIP','CATWALK']);
+                if (explicitGesture && GESTURE_SET.has(explicitGesture)) {
+                    AMOVE.state = explicitGesture;
+                    AMOVE.timer = 2.2;
+                    AMOVE.transStart = time;
+                    AMOVE.greetArm = Math.random() > 0.5;
+                } else if (_emotion === 'happy' || _emotion === 'excited') {
+                    AMOVE.state = 'GREET'; AMOVE.timer = 2; AMOVE.transStart = time; AMOVE.greetArm = Math.random() > .5;
+                } else if (_emotion === 'curious' || _emotion === 'focused') {
+                    AMOVE.state = 'POINT'; AMOVE.timer = 1.5; AMOVE.transStart = time; AMOVE.greetArm = Math.random() > .5;
+                }
                 speak(fullReply);
             }
 
@@ -4363,9 +4461,13 @@
         if (_faceT > 0) return;
         _faceT = 0.16;
 
-        try {
-            await _faceMesh.send({ image: visionVideo });
-        } catch {
+        // Correr FaceMesh dentro de requestIdleCallback si está disponible —
+        // no interfiere con el render loop en frames cargados.
+        const runFM = () => _faceMesh.send({ image: visionVideo }).catch(() => {});
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(runFM, { timeout: 120 });
+        } else {
+            try { await runFM(); } catch {}
         }
 
         if (_face.present > 0.5) {
@@ -5058,13 +5160,25 @@
                 for (let i = 2; i < 40 && i < data.length; i++) { sum += data[i]; n++; }
                 const avg = n ? sum / n / 255 : 0;
                 if (avg > 0.22) _bargeLoud += 1; else _bargeLoud = Math.max(0, _bargeLoud - 1);
+                // Ducking progresivo: cuando el usuario empieza a hablar,
+                // baja volumen TTS antes de cortarlo → transición más suave.
+                if (_bargeLoud > 4 && _bargeLoud <= 10 && state === 'TALKING') {
+                    const targetVol = Math.max(0.25, 1 - (_bargeLoud / 12));
+                    if (_curAudio) _curAudio.volume = targetVol;
+                    try { if (synth && synth.pending === false) {/* noop */} } catch(_) {}
+                }
                 if (_bargeLoud > 10 && state === 'TALKING') {
-                    // Sostained voice → barge-in
+                    // Sostained voice → barge-in full stop
                     console.log('[AVA] 🎤 Barge-in detected, stopping TTS');
+                    if (_curAudio) _curAudio.volume = 1; // restore for next turn
                     _stopBargeIn();
                     stopSpeaking();
                     setTimeout(() => { if (voiceConversationActive) startListening({ fastSilence: true }); }, 80);
                     return;
+                }
+                // Si el usuario dejó de hablar, restaurar volumen
+                if (_bargeLoud <= 4 && _curAudio && _curAudio.volume < 1) {
+                    _curAudio.volume = Math.min(1, _curAudio.volume + 0.05);
                 }
                 _bargeRaf = requestAnimationFrame(tick);
             };

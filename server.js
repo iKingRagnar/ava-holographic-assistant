@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * AVA Local Dev Server
  * Sirve archivos estáticos + ejecuta los API endpoints de Vercel localmente.

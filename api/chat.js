@@ -1,3 +1,4 @@
+// @ts-check
 // Multi-LLM chat backend — tries providers in order based on available API keys
 // Texto: Gemini → Groq → OpenAI → DeepSeek → Claude (latencia primero). Visión: modelos multimodales y luego texto rápido.
 import Anthropic from '@anthropic-ai/sdk';
@@ -637,8 +638,28 @@ function _checkRate(ip, max = 30, windowMs = 60_000) {
   return true;
 }
 
+// ── CORS helper ─────────────────────────────────────────────────────────────
+// Allowlist por ALLOWED_ORIGINS env (coma-separado). Si no se configura,
+// responde "*" para dev. En producción conviene setearlo a los dominios reales.
+function _applyCors(req, res) {
+  const origin = req.headers.origin || '';
+  const allowList = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+  const allowed = allowList.length === 0
+    ? '*'
+    : (allowList.includes(origin) ? origin : '');
+  if (allowed) {
+    res.setHeader('Access-Control-Allow-Origin', allowed);
+    if (allowed !== '*') res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '600');
+}
+
 // ── MAIN HANDLER ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  _applyCors(req, res);
+  if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // Rate limit por IP
@@ -766,7 +787,16 @@ export default async function handler(req, res) {
       const result = await provider();
       if (result?.text) {
         console.log(`Chat answered by ${result.source} (${result.model})${detectedAgent ? ` [${detectedAgent.name}]` : ''}`);
-        return res.json({ message: result.text, source: result.source, model: result.model });
+        // Extraer emoción + gesto si el modelo los embebió con tags
+        // [emotion:happy] [gesture:GREET] al final del texto. Se remueven
+        // antes de enviar para que no se lean en voz.
+        let cleanText = result.text;
+        let emotion = null, gesture = null;
+        const emoMatch = cleanText.match(/\[emotion:\s*(happy|excited|calm|curious|focused|sad|neutral)\s*\]/i);
+        const gesMatch = cleanText.match(/\[gesture:\s*([A-Z_]+)\s*\]/);
+        if (emoMatch) { emotion = emoMatch[1].toLowerCase(); cleanText = cleanText.replace(emoMatch[0], '').trim(); }
+        if (gesMatch) { gesture = gesMatch[1].toUpperCase();  cleanText = cleanText.replace(gesMatch[0], '').trim(); }
+        return res.json({ message: cleanText, source: result.source, model: result.model, emotion, gesture });
       }
     } catch (e) {
       console.warn(`Provider failed: ${e.message}`);

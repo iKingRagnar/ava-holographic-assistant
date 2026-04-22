@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  syntax:
+    name: JS syntax + inline script check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check api/*.js + server.js + sw.js syntax
+        run: |
+          node --check server.js
+          node --check sw.js
+          for f in api/*.js; do node --check "$f"; done
+
+      - name: Validate inline JS in ava.html
+        run: node scripts/check-inline-js.mjs
+
+      - name: TypeScript @ts-check on annotated files
+        run: |
+          npx --yes -p typescript@5.4 tsc \
+            --allowJs --checkJs --noEmit --target es2022 --module esnext \
+            --moduleResolution node --skipLibCheck --strict false \
+            server.js api/chat.js || echo "@ts-check surfaced warnings (non-blocking)"
