@@ -8,7 +8,7 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3333;
@@ -124,13 +124,18 @@ function makeVercelRes(res) {
 }
 
 // ── Cargar handlers de API dinámicamente ───────────────────────────────────
+// IMPORTANTE: en Windows, import() dinámico requiere file:// URL (no paths crudos).
+// pathToFileURL resuelve esto cross-platform.
 const apiCache = {};
 async function getApiHandler(name) {
   if (apiCache[name]) return apiCache[name];
   const filePath = path.join(__dirname, 'api', name + '.js');
   if (!fs.existsSync(filePath)) return null;
+  // Ignora helpers internos (prefijo _)
+  if (name.startsWith('_')) return null;
   try {
-    const mod = await import(filePath + '?t=' + Date.now());
+    const fileUrl = pathToFileURL(filePath).href + '?t=' + Date.now();
+    const mod = await import(fileUrl);
     const handler = mod.default || mod;
     apiCache[name] = handler;
     return handler;
