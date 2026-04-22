@@ -381,18 +381,40 @@ async function tryAnthropic(systemPrompt, msgList) {
   ];
 
   const client = new Anthropic({ apiKey: key });
+  // Prompt caching: el system prompt (AVATAR + SUFFIX + workflow) se repite
+  // turno a turno. Marcar un segmento con cache_control:ephemeral reduce
+  // costo ~90% y latencia hasta ~85% en cache hits.
+  const systemBlocks = [
+    { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+  ];
   for (const model of MODELS) {
     try {
       const r = await client.messages.create({
         model,
         max_tokens: MAX_REPLY_TOKENS,
         temperature: 0.82,
-        system: systemPrompt,
+        system: systemBlocks,
         messages: msgList,
       });
       return { text: r.content?.[0]?.text || '', source: 'claude', model };
     } catch (e) {
-      if (e.status === 404 || e.status === 400) continue;
+      if (e.status === 404 || e.status === 400) {
+        // Algunos modelos antiguos no aceptan cache_control — fallback sin cache
+        try {
+          const r2 = await client.messages.create({
+            model,
+            max_tokens: MAX_REPLY_TOKENS,
+            temperature: 0.82,
+            system: systemPrompt,
+            messages: msgList,
+          });
+          return { text: r2.content?.[0]?.text || '', source: 'claude', model };
+        } catch (e2) {
+          if (e2.status === 404 || e2.status === 400) continue;
+          if (e2.status === 401) return null;
+          throw e2;
+        }
+      }
       if (e.status === 401) return null; // bad key, skip provider
       throw e;
     }

@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#00ff9d">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='%23000814'/><circle cx='32' cy='32' r='20' fill='none' stroke='%2300ff9d' stroke-width='2.5'/><text x='32' y='40' text-anchor='middle' font-family='sans-serif' font-size='24' font-weight='700' fill='%2300ff9d'>A</text></svg>">
     <title>AVA - Holographic AI Assistant</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -463,8 +468,11 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/RenderPass.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/ShaderPass.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/BokehPass.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/CopyShader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/BokehShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/environments/RoomEnvironment.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <!-- selfie_segmentation loaded lazily inside ensureSegmentation() — avoids WASM GPU crash on page load -->
@@ -562,7 +570,7 @@
     let _faceMesh = null;
     let _faceMeshReady = false;
     let _faceT = 0;
-    let _face = { furrow: 0, mouth: 0, present: 0, lastAt: 0, furrowHold: 0 };
+    let _face = { furrow: 0, mouth: 0, present: 0, lastAt: 0, furrowHold: 0, headYaw: 0, headTilt: 0 };
 
     let _seg = null;
     let _segReady = false;
@@ -579,6 +587,7 @@
     let _lensPass = null;   // legacy — kept null, no longer used
     let _holoPass = null;   // new clean chromatic rim shader
     let _bloomPass = null;  // UnrealBloomPass (holographic glow)
+    let _bokehPass = null;  // BokehPass DOF
     let _lensMass = 0;      // re-purposed as "mood intensity" 0..1 driving bloom + chroma
     let particles3d = [];
     let time = 0;
@@ -599,6 +608,34 @@
 
     // TTS audio analysis — un solo AudioContext reutilizado (Chrome suspende contextos nuevos sin gesto)
     let ttsCtx = null, ttsAnalyser = null, ttsFreq = null, _curAudio = null;
+
+    // ── Viseme tracker (phonetic lip-sync) ───────────────────────────────
+    // Se actualiza desde SpeechSynthesis.onboundary y desde speak() ticking
+    // la palabra activa. Weight 0..1 por viseme (A/I/U/E/O) + M (cerrada).
+    const _vis = { A:0, I:0, U:0, E:0, O:0, M:0, target: { A:0, I:0, U:0, E:0, O:0, M:0 } };
+    function _visemeFromLetter(ch) {
+        const c = (ch || '').toLowerCase();
+        if ('aá'.includes(c)) return 'A';
+        if ('ií'.includes(c)) return 'I';
+        if ('uúü'.includes(c)) return 'U';
+        if ('eé'.includes(c)) return 'E';
+        if ('oó'.includes(c)) return 'O';
+        if ('mbp'.includes(c)) return 'M';
+        return null;
+    }
+    function _setVisemeFromWord(word) {
+        // reset targets
+        _vis.target.A = _vis.target.I = _vis.target.U = _vis.target.E = _vis.target.O = _vis.target.M = 0;
+        if (!word) return;
+        let count = 0;
+        for (const ch of word) {
+            const v = _visemeFromLetter(ch);
+            if (v) { _vis.target[v] += 1; count++; }
+        }
+        if (count > 0) {
+            for (const k of ['A','I','U','E','O','M']) _vis.target[k] = Math.min(1, _vis.target[k] / count * 1.2);
+        }
+    }
 
     let _bioBpm = 60;
     let _bioWs = null;
@@ -979,6 +1016,7 @@
         posePhase: 0, // phase within current pose for micro-animations
         nextState(t) {
             this.posePhase = t;
+            this.transStart = t; // marca inicio de cross-fade
             const r = Math.random();
             // Locomotion (25%)
             if      (r < 0.12) { this.state = 'CATWALK';    this.timer = 2.0 + Math.random()*2.5; this.targetX=(Math.random()-0.5)*1.2; this.targetRY=(Math.random()-0.5)*0.6; }
@@ -1207,6 +1245,17 @@
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.1;
 
+        // ── HDR environment via RoomEnvironment + PMREMGenerator ───────
+        // Aporta reflejos suaves y naturales al MToon/Standard shader.
+        try {
+            if (THREE.RoomEnvironment && THREE.PMREMGenerator) {
+                const pmrem = new THREE.PMREMGenerator(renderer);
+                const envScene = new THREE.RoomEnvironment();
+                scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+                pmrem.dispose();
+            }
+        } catch(e) { console.warn('[AVA] HDR environment skipped:', e.message); }
+
         // Lights — balanceadas para look holográfico (rim fresnel destaca)
         scene.add(new THREE.AmbientLight(0xffffff, 0.62));
 
@@ -1280,17 +1329,34 @@
             composer = new THREE.EffectComposer(renderer);
             composer.addPass(new THREE.RenderPass(scene, camera));
 
-            // 1) Bloom limpio y suave (sin flicker)
+            // 1) Bloom selectivo — threshold alto para que solo ilumine el
+            // rim holográfico y las zonas realmente brillantes del avatar.
             if (THREE.UnrealBloomPass) {
                 const bloom = new THREE.UnrealBloomPass(
                     new THREE.Vector2(innerWidth, innerHeight),
-                    0.55,  // strength
-                    0.85,  // radius
-                    0.22   // threshold
+                    0.58,  // strength
+                    0.92,  // radius
+                    0.55   // threshold — más alto = más selectivo
                 );
                 bloom.renderToScreen = false;
                 composer.addPass(bloom);
                 _bloomPass = bloom;
+            }
+
+            // 2) Depth-of-field (BokehPass) sutil — desenfoca el fondo
+            if (THREE.BokehPass) {
+                try {
+                    const bokeh = new THREE.BokehPass(scene, camera, {
+                        focus:    3.8,
+                        aperture: 0.00008,
+                        maxblur:  0.008,
+                        width:    innerWidth,
+                        height:   innerHeight,
+                    });
+                    bokeh.renderToScreen = false;
+                    composer.addPass(bokeh);
+                    _bokehPass = bokeh;
+                } catch(e) { console.warn('[AVA] BokehPass skipped:', e.message); }
             }
 
             // 2) Chromatic rim + subtle film grain — reemplaza al lensShader
@@ -1569,7 +1635,7 @@
     // VRM BLEND SHAPE HELPERS
     // ================================================================
     function cacheBlendShapes(vrm) {
-        vrmBlend = {mouth:null, blink:null, all:[]};
+        vrmBlend = {mouth:null, blink:null, all:[], visA:null, visI:null, visU:null, visE:null, visO:null};
         const proxy = vrm.blendShapeProxy;
         if (!proxy) return;
 
@@ -1611,7 +1677,14 @@
         vrmBlend.blinkR = names.find(n => n.toLowerCase() === 'blink_r') ||
                           names.find(n => /blink[_\s-]*r/i.test(n)) || null;
 
-        console.log('BlendShapes available:', names, '| Mouth:', vrmBlend.mouth, '| Blink:', vrmBlend.blink, '| BlinkL:', vrmBlend.blinkL, '| BlinkR:', vrmBlend.blinkR);
+        // Visemes A/I/U/E/O — required for phonetic lip-sync
+        vrmBlend.visA = names.find(n => n.toLowerCase() === 'a') || vrmBlend.mouth;
+        vrmBlend.visI = names.find(n => n.toLowerCase() === 'i') || null;
+        vrmBlend.visU = names.find(n => n.toLowerCase() === 'u') || null;
+        vrmBlend.visE = names.find(n => n.toLowerCase() === 'e') || null;
+        vrmBlend.visO = names.find(n => n.toLowerCase() === 'o') || null;
+
+        console.log('BlendShapes available:', names, '| Mouth:', vrmBlend.mouth, '| Blink:', vrmBlend.blink, '| Visemes A/I/U/E/O:', vrmBlend.visA, vrmBlend.visI, vrmBlend.visU, vrmBlend.visE, vrmBlend.visO);
     }
 
     function setBlend(proxy, name, val) {
@@ -2212,6 +2285,11 @@
             }
             if (state === 'LISTENING') {
                 tgtX -= 0.035 + Math.sin(t * 0.38) * 0.018; // lean in attentively
+                // ── Mirror de cabeza del usuario (si faceMesh activo) ────
+                if (cfg.faceMesh && _face.present > 0.5) {
+                    tgtY += _face.headYaw  * 0.55;
+                    tgtX += _face.headTilt * 0.35;
+                }
             }
             // AMOVE state head overrides
             if (AMOVE.state === 'NOD')        tgtX += Math.sin((t - AMOVE.nodPhase) * 7.8) * 0.22;
@@ -2254,13 +2332,25 @@
         const lh = B('leftHand'),     rh = B('rightHand');
         const sp = 0.14 + _warmup * 0.86; // 1.0 (instant snap) during warmup → 0.14 at steady state
 
+        // ── Cross-fade ease para transiciones suaves entre poses AMOVE ──
+        // Durante los primeros 0.6s tras cambiar de pose, escalamos el stiffness
+        // del spring con una curva smoothstep. Evita saltos bruscos de brazos.
+        const _transElapsed = t - (AMOVE.transStart || 0);
+        const _transK = Math.min(1, Math.max(0, _transElapsed / 0.6));
+        const _ease = _transK * _transK * (3 - 2 * _transK); // smoothstep
+
         // Breathing-linked shoulder micro-movement
         const breathShoulder = Math.sin(t * (state === 'TALKING' ? 1.6 : 0.95)) * 0.015;
 
-        // Critically-damped spring helper (k=55, d=14 → ζ≈0.94 — no bouncing, organic settle)
-        const S = (cur, vel, target) => sprStep(cur, vel, target, 55, 14);
-        // Fast spring for snappy gestures
-        const SF = (cur, vel, target) => sprStep(cur, vel, target, 90, 18);
+        // Critically-damped spring helper con ease-in según cross-fade.
+        // Al inicio de una pose, el resorte arranca más blando (K bajo) y
+        // crece hacia K pleno conforme el smoothstep avanza → sin tirones.
+        const _Kbase = 30 + 25 * _ease;     // 30→55
+        const _Dbase = 10 + 4 * _ease;      // 10→14
+        const _KFast = 45 + 45 * _ease;     // 45→90
+        const _DFast = 13 + 5 * _ease;      // 13→18
+        const S  = (cur, vel, target) => sprStep(cur, vel, target, _Kbase, _Dbase);
+        const SF = (cur, vel, target) => sprStep(cur, vel, target, _KFast, _DFast);
 
         // Arm spring applicator — updates bone + stores velocity
         const apA = (bone, vz, vx, tz, tx) => {
@@ -2748,14 +2838,13 @@
             if (emo === 'curious' && JOY)  setBlend(proxy, JOY,  eStrength * 0.3);
 
             if (state === 'TALKING') {
-                // Organic multi-freq fallback lip-sync (no analyser) — less robotic
+                // Audio-driven amplitude (volumen global de la boca)
                 let mOpen = Math.abs(Math.sin(t * 7.8)) * 0.55
                           + Math.abs(Math.sin(t * 14.3 + 0.7)) * 0.18
                           + Math.abs(Math.sin(t * 3.2 + 1.1)) * 0.12;
                 mOpen = Math.min(1, mOpen);
                 if (ttsAnalyser && ttsFreq) {
                     ttsAnalyser.getByteFrequencyData(ttsFreq);
-                    // Weighted bands: speech fundamentals 80-800Hz carry most lip motion
                     const binHz = (ttsCtx ? ttsCtx.sampleRate : 44100) / (ttsAnalyser.fftSize || 256);
                     let sumLow = 0, sumMid = 0, nLow = 0, nMid = 0;
                     for (let i = 1; i < ttsFreq.length; i++) {
@@ -2768,11 +2857,29 @@
                     const raw = vLow * 2.2 + vMid * 0.8;
                     const prevM = mOpen;
                     const target = Math.min(1, raw * 3.4);
-                    // Fast attack, slow decay for natural mouth movement
                     if (target > prevM) mOpen = prevM + (target - prevM) * 0.72;
                     else mOpen = prevM * 0.80 + target * 0.20;
                 }
-                setBlend(proxy, vrmBlend.mouth, mOpen);
+
+                // ── VISEME MIX — A/I/U/E/O con interpolación suave ─────────
+                // Si el VRM tiene visemes separados, repartimos mOpen según la
+                // letra activa de la palabra actual (onboundary). Si no, la
+                // amplitud cae en la boca genérica.
+                const visSmooth = 0.22; // attack suave
+                for (const k of ['A','I','U','E','O','M']) {
+                    _vis[k] = _vis[k] + (_vis.target[k] - _vis[k]) * visSmooth;
+                }
+                const hasVisemes = !!(vrmBlend.visI || vrmBlend.visU || vrmBlend.visE || vrmBlend.visO);
+                if (hasVisemes) {
+                    const scale = Math.max(mOpen, 0.05);
+                    if (vrmBlend.visA) setBlend(proxy, vrmBlend.visA, _vis.A * scale);
+                    if (vrmBlend.visI) setBlend(proxy, vrmBlend.visI, _vis.I * scale * 0.85);
+                    if (vrmBlend.visU) setBlend(proxy, vrmBlend.visU, _vis.U * scale * 0.90);
+                    if (vrmBlend.visE) setBlend(proxy, vrmBlend.visE, _vis.E * scale * 0.85);
+                    if (vrmBlend.visO) setBlend(proxy, vrmBlend.visO, _vis.O * scale * 0.95);
+                } else {
+                    setBlend(proxy, vrmBlend.mouth, mOpen);
+                }
                 // Keep micro-blinks even while talking; avoid hard forcing eyes open.
                 if (vrmBlend.blinkL && vrmBlend.blinkR) {
                     setBlend(proxy, vrmBlend.blinkL, _eye.blinkL ? _clamp01(_eye.blink * _eye.blinkL) : _eye.blink);
@@ -2826,6 +2933,15 @@
         if (rfoot) {
             rfoot.rotation.x = lerp(rfoot.rotation.x || 0, Math.sin(phR + 0.2) * 0.12 + organic(t, 6.8) * 0.02, wLeg);
             rfoot.rotation.z = lerp(rfoot.rotation.z || 0, sR * 0.06, wLeg * 0.9);
+        }
+
+        // ── FOOT-PLANT BOB — cada zancada baja el grupo ligeramente en el
+        // momento del apoyo (sin(phase) cruza por cero) para "plantar" el pie.
+        // Sin foot-IK real, pero vende el peso del paso.
+        if (state === 'IDLE' && (AMOVE.state === 'WALK' || AMOVE.state === 'CATWALK')) {
+            const stepFreq = (AMOVE.state === 'CATWALK') ? 2.2 : 1.9;
+            const plantBob = -Math.abs(Math.sin(t * stepFreq)) * 0.018;
+            avatarGroup.position.y = lerp(avatarGroup.position.y, plantBob, 0.25);
         }
 
         vrm.update(delta);
@@ -3961,6 +4077,16 @@
             _face.present = 1;
             _face.furrow = _face.furrow + (fur - _face.furrow) * 0.25;
             _face.mouth = _face.mouth + (mow - _face.mouth) * 0.25;
+
+            // ── Head pose estimation (yaw + tilt) para mirror ─────────
+            // Usa landmarks de ojos (33, 263) + mentón (152) + nariz (1).
+            const nose = p(1), chin = p(152);
+            // Yaw: ratio horizontal del nose entre ambos ojos
+            const yaw = ((nose.x - p(33).x) - (p(263).x - nose.x)) / eyeW;
+            // Tilt: ángulo vertical desde nose al chin
+            const tilt = (chin.y - nose.y) - 0.18; // baseline
+            _face.headYaw  = _face.headYaw  + (Math.max(-1, Math.min(1, yaw  * 1.6)) - _face.headYaw)  * 0.25;
+            _face.headTilt = _face.headTilt + (Math.max(-1, Math.min(1, tilt * 3.2)) - _face.headTilt) * 0.25;
             _face.lastAt = Date.now();
         });
 
@@ -4622,8 +4748,24 @@
                 }
             }
         };
-        u.onend = done;
-        u.onerror = done;
+        // ── Phonetic viseme sync via onboundary ─────────────────────────
+        // Cada palabra pronunciada actualiza los targets A/I/U/E/O según sus
+        // letras; el render loop interpola suavemente.
+        u.onboundary = (ev) => {
+            if (ev.name !== 'word') return;
+            try {
+                const word = text.slice(ev.charIndex, ev.charIndex + (ev.charLength || 8));
+                _setVisemeFromWord(word);
+            } catch(_) {}
+        };
+        u.onend = () => {
+            _vis.target.A = _vis.target.I = _vis.target.U = _vis.target.E = _vis.target.O = _vis.target.M = 0;
+            done();
+        };
+        u.onerror = () => {
+            _vis.target.A = _vis.target.I = _vis.target.U = _vis.target.E = _vis.target.O = _vis.target.M = 0;
+            done();
+        };
         synth.speak(u);
     }
 
@@ -4631,6 +4773,7 @@
         synth.cancel();
         if (_curAudio) { _curAudio.pause(); _curAudio = null; }
         ttsAnalyser = null; ttsFreq = null;
+        _vis.target.A = _vis.target.I = _vis.target.U = _vis.target.E = _vis.target.O = _vis.target.M = 0;
         setState('IDLE'); updateStatus('LISTA');
     }
 
@@ -5148,10 +5291,12 @@
         if (indic) indic.style.display = count > 0 ? 'block' : 'none';
         if (stats) stats.textContent = `${count} fragmentos en KB`;
         if (list) {
+            // Escapar source para prevenir XSS desde filenames ingested.
+            const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             const sources = [...new Set(_ragChunks.map(c => c.source))];
             list.innerHTML = sources.map(s => {
                 const n = _ragChunks.filter(c => c.source === s).length;
-                return `<div class="rag-chunk-item"><span>${s}</span><span>${n} frags</span></div>`;
+                return `<div class="rag-chunk-item"><span>${esc(s)}</span><span>${n} frags</span></div>`;
             }).join('') || '<div style="color:rgba(0,255,157,.4);font-size:11px">KB vacía</div>';
         }
     }

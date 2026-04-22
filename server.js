@@ -49,6 +49,7 @@ const MIME = {
   '.woff2':'font/woff2',
   '.mp3':  'audio/mpeg',
   '.wav':  'audio/wav',
+  '.webmanifest': 'application/manifest+json',
 };
 
 // ── Helper: leer body JSON ─────────────────────────────────────────────────
@@ -260,6 +261,23 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(500);
     res.end('Error: ' + e.message);
   }
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`✗ Puerto ${PORT} ocupado. Otro proceso escuchando ahí. Cambia PORT o cierra el proceso.`);
+  } else {
+    console.error('✗ Server error:', err);
+  }
+  process.exit(1);
+});
+
+// Log de excepciones no manejadas en handlers API para evitar crashes silenciosos
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠ Unhandled promise rejection en API handler:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠ Uncaught exception:', err);
 });
 
 server.listen(PORT, () => {
