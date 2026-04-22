@@ -11,7 +11,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = process.env.PORT || 3333;
+const PORT = Number(process.env.PORT) || 3333;
+// Railway/host/container envs requieren bind a 0.0.0.0 para ser alcanzables
+const HOST = process.env.HOST || '0.0.0.0';
 
 // ── Cargar .env.local ──────────────────────────────────────────────────────
 const envFile = path.join(__dirname, '.env.local');
@@ -149,6 +151,13 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
+  // Healthcheck para Railway — responde 200 sin tocar nada más
+  if (pathname === '/health' || pathname === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, uptime: process.uptime(), node: process.version }));
+    return;
+  }
+
   // ── Debug endpoint (Railway diagnostics) ─────────────────────────────
   if (pathname === '/api/debug') {
     const publicDir = path.join(__dirname, 'public');
@@ -281,9 +290,22 @@ process.on('uncaughtException', (err) => {
   console.error('⚠ Uncaught exception:', err);
 });
 
-server.listen(PORT, () => {
-  console.log(`\n🚀 AVA Dev Server corriendo en → http://localhost:${PORT}`);
-  console.log(`   Chat API : http://localhost:${PORT}/api/chat`);
+server.listen(PORT, HOST, () => {
+  const isRailway = !!(process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_ENVIRONMENT);
+  const pub = process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : `http://${HOST}:${PORT}`;
+  console.log(`\n🚀 AVA Server escuchando en ${HOST}:${PORT}${isRailway ? ' (Railway)' : ''}`);
+  console.log(`   URL pública   : ${pub}`);
+  console.log(`   Chat API      : ${pub}/api/chat`);
+  console.log(`   Healthcheck   : ${pub}/health`);
   console.log(`   ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? '✓ cargada (' + process.env.ANTHROPIC_API_KEY.slice(0,20) + '...)' : '✗ NO encontrada'}`);
   console.log(`   DEEPGRAM_API_KEY : ${process.env.DEEPGRAM_API_KEY ? '✓ cargada' : '✗ NO encontrada'}\n`);
 });
+
+// Graceful shutdown — Railway envía SIGTERM en redeploys
+const _shutdown = (sig) => {
+  console.log(`⇣ ${sig} recibido — cerrando servidor…`);
+  server.close(() => { console.log('✓ Servidor cerrado limpiamente'); process.exit(0); });
+  setTimeout(() => { console.warn('⚠ Shutdown forzoso tras 10s'); process.exit(1); }, 10_000).unref();
+};
+process.on('SIGTERM', () => _shutdown('SIGTERM'));
+process.on('SIGINT',  () => _shutdown('SIGINT'));

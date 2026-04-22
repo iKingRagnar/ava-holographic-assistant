@@ -40,75 +40,71 @@ Un asistente virtual holográfico inspirado en **Razer Project AVA**, diseñado 
 
 ## 📦 Instalación
 
-### 1. Deploy en Vercel (Frontend + Backend)
+### 1. Deploy en Railway (recomendado)
 
-El proyecto incluye:
-- `ava.html` - Aplicación estática (frontend)
-- `api/chat.js` - Endpoint para OpenRouter (backend)
+El proyecto incluye todo lo necesario para Railway: `railway.json`, `nixpacks.toml`, `Procfile`, `.railwayignore`. Railway auto-detecta Node 20 y corre `node server.js`.
 
-Este es un proyecto estático, puedes deployarlo directamente:
+**Opción A — Desde GitHub (recomendado):**
+
+1. Ve a [railway.com/new](https://railway.com/new) y conecta este repo (`iKingRagnar/ava-holographic-assistant`).
+2. Railway detecta `package.json` y compila con Nixpacks automáticamente.
+3. En **Settings → Networking** clickea **Generate Domain** para obtener `https://<proyecto>.up.railway.app`.
+4. En **Variables** añade tus secrets (ver sección más abajo).
+5. El healthcheck configurado en `railway.json` apunta a `/health`; debería volver `"ok":true` a los pocos segundos.
+
+**Opción B — Desde CLI:**
 
 ```bash
-# El archivo ava.html es completamente estático
-# Solo súbelo a Vercel como proyecto Static
+npm i -g @railway/cli
+railway login
+railway link   # selecciona tu proyecto (b29d2e9e-0488-444d-a1c1-a8ea318991bc)
+railway up     # build + deploy
+railway logs   # ver logs en vivo
 ```
 
-### 2. Configurar Backend (Opción OpenRouter)
+**Opción C — deploy desde este clone:**
 
-Crea un archivo `api/chat.js` en tu proyecto Vercel:
-
-```javascript
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { messages, system } = req.body;
-
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENROUTER_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://tu-dominio.vercel.app',
-        'X-Title': 'AVA Assistant'
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3.5-sonnet',
-        messages: [
-          { role: 'system', content: system },
-          ...messages
-        ]
-      })
-    });
-
-    const data = await response.json();
-    res.json({ 
-      message: data.choices?.[0]?.message?.content || 'Sin respuesta' 
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Error conectando con IA' });
-  }
-}
+```bash
+npm run deploy   # alias de `railway up` (requiere CLI logueada y link previo)
 ```
 
-**Variables de entorno en Vercel:**
+### 2. Variables de entorno en Railway
 
-- `INWORLD_API_KEY` — credencial Basic de Inworld (TTS en `/api/tts` y chat en `/api/chat` si no hay Ollama). Ver `.env.example`.
-- Opcional: `OLLAMA_URL` si usas Ollama local como primera opción en el servidor.
+En el dashboard de Railway → **Variables** añade al menos una API key de LLM:
 
+| Variable | Requerida | Uso |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | ⭐ una de las LLM | Claude (preferido para calidad) |
+| `OPENAI_API_KEY`    | ⭐ una de las LLM | GPT-4o / vision fallback |
+| `GEMINI_API_KEY`    | ⭐ una de las LLM | Gemini Flash (más rápido, gratis) |
+| `GROQ_API_KEY`      | ⭐ una de las LLM | Llama 3.3 70B (ultra rápido, gratis tier) |
+| `DEEPGRAM_API_KEY`  | Opcional | STT de baja latencia (mejor que Web Speech API) |
+| `ELEVENLABS_API_KEY`| Opcional | TTS premium (voz natural latina) |
+| `NEWSDATA_API_KEY`  | Opcional | Contexto de noticias |
+| `AVA_TIMEZONE`      | Opcional | `America/Mexico_City` por defecto |
+| `ALLOWED_ORIGINS`   | Opcional | CSV de dominios permitidos (CORS). Vacío = `*` |
+| `PORT`              | Auto | Railway lo inyecta, no lo toques |
+
+Railway re-despliega automáticamente al guardar variables.
+
+### 3. Configuración Inicial del cliente
+
+1. Abre `https://<tu-proyecto>.up.railway.app` en Chrome (del Google TV Box o cualquier navegador).
+2. En el overlay de configuración deja el campo de endpoint vacío (default `/api/chat`, va al mismo dominio).
+3. Click **"ACTIVAR AVA"**.
+
+### 4. Desarrollo local
+
+```bash
+npm install
+cp .env.example .env.local
+# edita .env.local con tus keys
+npm run dev:local        # arranca en http://localhost:3333
 ```
-OPENROUTER_KEY=sk-or-v1-xxxxxxxxxxxxxxxx
-```
 
-### 3. Configuración Inicial
+### 5. (Legacy) Deploy en Vercel
 
-1. Abre `ava.html` en Chrome del Google TV Box
-2. En el overlay de configuración ingresa:
-   - **URL del Endpoint:** `https://tu-proyecto.vercel.app/api/chat`
-   - **System Prompt:** Personaliza la personalidad de AVA
-3. Click en **"ACTIVAR AVA"**
+Aún soportado via `vercel.json`. Usa `npm run deploy:vercel`. No se garantiza mantenimiento — el path recomendado es Railway.
 
 ## 🎮 Controles
 

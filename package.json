@@ -3,18 +3,25 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "AVA holografico - proyecto raiz: Holograma_AI.",
+  "description": "AVA holográfica — server Node + Three.js/VRM, deploy en Railway.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node server.js",
-    "dev": "vercel dev",
+    "dev": "node server.js",
     "dev:static": "npx --yes serve . -l 3333",
     "dev:local": "node server.js",
-    "deploy": "vercel --prod"
+    "deploy": "railway up",
+    "deploy:vercel": "vercel --prod",
+    "check:syntax": "node scripts/check-inline-js.mjs && node --check server.js && node --check api/chat.js",
+    "test": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "vercel": "latest"
   }
 }

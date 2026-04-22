@@ -1,0 +1,15 @@
+# Archivos que NO se suben al build de Railway
+node_modules
+.env
+.env.local
+.env.*.local
+.vercel
+.git
+.github
+.idea
+.vscode
+tests
+playwright.config.js
+*.log
+Thumbs.db
+.DS_Store
