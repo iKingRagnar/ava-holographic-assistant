@@ -381,15 +381,28 @@ async function fetchNewsContext(userContent) {
   if (!/\b(noticias|noticiero|que pasa en el mundo|news|ultima hora|actualidad|headlines|portada)\b/.test(raw)) return '';
   try {
     // Free: WorldNewsAPI.com with free tier or newsdata.io
-    const key = process.env.NEWSDATA_API_KEY || process.env.WORLDNEWS_API_KEY;
-    if (key) {
-      const r = await fetch(`https://newsdata.io/api/1/latest?apikey=${key}&language=es&size=3`, { signal: abortMs(6000) });
+    const newsdataKey = process.env.NEWSDATA_API_KEY || process.env.WORLDNEWS_API_KEY;
+    if (newsdataKey) {
+      const r = await fetch(`https://newsdata.io/api/1/latest?apikey=${newsdataKey}&language=es&size=3`, { signal: abortMs(6000) });
       if (r.ok) {
         const d = await r.json();
         const articles = (d.results || []).slice(0, 3);
         if (articles.length) {
           const lines = articles.map(a => `• ${a.title}`).join('\n');
           return `\n[Noticias recientes (NewsData):\n${lines}\nResume brevemente en español.]\n`;
+        }
+      }
+    }
+    // newsapi.org (NEWS_API_KEY) — segunda alternativa
+    const newsapiKey = process.env.NEWS_API_KEY;
+    if (newsapiKey) {
+      const r = await fetch(`https://newsapi.org/v2/top-headlines?language=es&pageSize=3&apiKey=${newsapiKey}`, { signal: abortMs(6000) });
+      if (r.ok) {
+        const d = await r.json();
+        const articles = (d.articles || []).slice(0, 3);
+        if (articles.length) {
+          const lines = articles.map(a => `• ${a.title}`).join('\n');
+          return `\n[Noticias recientes (NewsAPI):\n${lines}\nResume brevemente en español.]\n`;
         }
       }
     }
