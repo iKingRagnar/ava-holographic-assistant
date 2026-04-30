@@ -1,5 +1,10 @@
 # AVA - Asistente Holográfico de Escritorio
 
+> 🎙️ **Comandos de voz disponibles**: ver [`COMANDOS.md`](./COMANDOS.md) — cambio de avatar, control de audio, smart-mirror, resumen de sesión, búsqueda en internet, memoria persistente.
+>
+> ✨ **Features destacados**: 10 avatares VRM con personalidades únicas y voces distintas · prosodia autónoma por oración · wake-word estricto · viseme lip-sync A/I/U/E/O · barge-in TTS · adaptive quality FPS-driven · god-rays + bloom + halo + scan-line + 3-point lighting · memoria episódica Postgres · web search Tavily/DuckDuckGo/Wikipedia · GitHub search · rate-limit Redis · PWA + Service Worker · Smart Mirror (edad fisiológica + foco + fatiga + postura via FaceMesh).
+
+
 **Raíz del proyecto:** todo el código y `public/*.vrm` viven en la carpeta **`Holograma_AI`** (por ejemplo `C:\Users\ragna\Downloads\Holograma_AI`). Abre esa carpeta en el editor y despliega desde ahí; no mezcles con otros repos.
 
 ![AVA](https://img.shields.io/badge/AVA-Holographic%20Assistant-00ff9d?style=for-the-badge&logo=three.js&logoColor=white)
