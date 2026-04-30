@@ -156,10 +156,57 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // Healthcheck para Railway — responde 200 sin tocar nada más
+  // Healthcheck para Railway — incluye estado de Redis + DB cuando aplica.
   if (pathname === '/health' || pathname === '/healthz') {
+    const status = {
+      ok: true,
+      uptime: process.uptime(),
+      node: process.version,
+      env: process.env.NODE_ENV || 'development',
+      timestamp: new Date().toISOString(),
+      services: {
+        redis: process.env.REDIS_URL ? 'configured' : 'not_configured',
+        postgres: process.env.DATABASE_URL ? 'configured' : 'not_configured',
+        anthropic: process.env.ANTHROPIC_API_KEY ? 'configured' : 'not_configured',
+        deepgram: process.env.DEEPGRAM_API_KEY ? 'configured' : 'not_configured',
+        elevenlabs: process.env.ELEVENLABS_API_KEY ? 'configured' : 'not_configured',
+        tavily: process.env.TAVILY_API_KEY ? 'configured' : 'not_configured',
+        github: process.env.GITHUB_TOKEN ? 'configured' : 'not_configured',
+        vrm_cdn: process.env.VRM_CDN_BASE ? 'configured' : 'local',
+      },
+    };
+
+    // Verbose mode: GET /health?deep=1 testea conexiones reales
+    if (pathname === '/health' && (new URL(req.url, `http://x`).searchParams.get('deep') === '1')) {
+      // Redis ping
+      if (process.env.REDIS_URL) {
+        try {
+          const { default: Redis } = await import('ioredis');
+          const r = new Redis(process.env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
+          await r.connect();
+          const pong = await r.ping();
+          status.services.redis = pong === 'PONG' ? 'alive' : 'unreachable';
+          await r.quit();
+        } catch (e) { status.services.redis = `error: ${e.message}`; }
+      }
+      // Postgres ping
+      if (process.env.DATABASE_URL) {
+        try {
+          const { default: pg } = await import('pg');
+          const pool = new pg.Pool({
+            connectionString: process.env.DATABASE_URL,
+            ssl: process.env.DATABASE_URL.includes('railway') ? { rejectUnauthorized: false } : false,
+            max: 1,
+          });
+          const r = await pool.query('SELECT 1 as alive');
+          status.services.postgres = r.rows[0]?.alive === 1 ? 'alive' : 'unreachable';
+          await pool.end();
+        } catch (e) { status.services.postgres = `error: ${e.message}`; }
+      }
+    }
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, uptime: process.uptime(), node: process.version }));
+    res.end(JSON.stringify(status, null, 2));
     return;
   }
 

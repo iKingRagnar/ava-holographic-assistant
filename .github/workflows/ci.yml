@@ -24,6 +24,9 @@ jobs:
       - name: Validate inline JS in ava.html
         run: node scripts/check-inline-js.mjs
 
+      - name: Unit tests (node:test)
+        run: node --test tests/parsers.test.mjs
+
       - name: TypeScript @ts-check on annotated files
         run: |
           npx --yes -p typescript@5.4 tsc \

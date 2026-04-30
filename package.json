@@ -18,12 +18,16 @@
     "test": "playwright test",
     "dev:vite":   "vite",
     "build:vite": "vite build",
-    "upload:vrms": "node scripts/upload-vrms.mjs"
+    "upload:vrms": "node scripts/upload-vrms.mjs",
+    "verify:vrms": "node scripts/verify-vrm-cdn.mjs",
+    "test:unit":   "node --test tests/parsers.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.2",
     "pg": "^8.12.0",
+    "pino": "^9.5.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
