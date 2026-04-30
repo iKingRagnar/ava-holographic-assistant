@@ -327,6 +327,36 @@ async function fetchJokeContext(userContent) {
   } catch { return ''; }
 }
 
+/** Web search context — usa Tavily/DuckDuckGo/Wikipedia si el user pide búsqueda explícita */
+async function fetchWebSearchContext(userContent) {
+  const raw = String(userContent || '');
+  const t = raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const trigger = /\b(busca\s+en\s+(internet|web|google)|googlea|investiga\s+sobre|que\s+(dice|sabe)\s+(internet|el\s+web)|necesito\s+info\s+(actual|reciente)\s+de|datos\s+actuales\s+de|noticias\s+sobre)\s+([^.?!]{3,80})/i;
+  const m = raw.match(trigger);
+  if (!m) return '';
+  const query = m[m.length - 1].trim();
+  if (!query) return '';
+  try {
+    // Llama a /api/web-search local (mismo proceso o fetch)
+    const port = process.env.PORT || 3333;
+    const url = `http://127.0.0.1:${port}/api/web-search`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+      signal: abortMs(12_000),
+    });
+    if (!r.ok) return '';
+    const d = await r.json();
+    if (!d.results?.length && !d.answer) return '';
+    const lines = (d.results || []).slice(0, 4)
+      .map(x => `• ${x.title} — ${String(x.snippet || '').slice(0, 220)}`)
+      .join('\n');
+    const ans = d.answer ? `Resumen: ${String(d.answer).slice(0, 400)}\n` : '';
+    return `\n[Búsqueda web en tiempo real (${d.source}) sobre "${query}"]:\n${ans}${lines}\nUsa estos datos como fuente principal y cita brevemente.\n`;
+  } catch { return ''; }
+}
+
 /** Hoy en la historia (byabbe.se — sin API key) */
 async function fetchTodayInHistoryContext(userContent) {
   const raw = String(userContent || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -698,7 +728,7 @@ export default async function handler(req, res) {
   const lastUserMsg = [...msgList].reverse().find((m) => m.role === 'user');
 
   // Enrich context with free APIs (all fire in parallel, keyword-gated)
-  let weatherCtx = '', quoteCtx = '', factCtx = '', jokeCtx = '', historyCtx = '', newsCtx = '';
+  let weatherCtx = '', quoteCtx = '', factCtx = '', jokeCtx = '', historyCtx = '', newsCtx = '', webCtx = '';
   if (lastUserMsg?.content) {
     const txt = lastUserMsg.content;
     const results = await Promise.allSettled([
@@ -708,6 +738,7 @@ export default async function handler(req, res) {
       fetchJokeContext(txt),
       fetchTodayInHistoryContext(txt),
       fetchNewsContext(txt),
+      fetchWebSearchContext(txt),
     ]);
     weatherCtx = results[0].status === 'fulfilled' ? results[0].value : '';
     quoteCtx   = results[1].status === 'fulfilled' ? results[1].value : '';
@@ -715,6 +746,7 @@ export default async function handler(req, res) {
     jokeCtx    = results[3].status === 'fulfilled' ? results[3].value : '';
     historyCtx = results[4].status === 'fulfilled' ? results[4].value : '';
     newsCtx    = results[5].status === 'fulfilled' ? results[5].value : '';
+    webCtx     = results[6].status === 'fulfilled' ? results[6].value : '';
   }
 
   const mem = String(memoryContext || '').trim();
@@ -736,7 +768,7 @@ export default async function handler(req, res) {
   const detectedAgent = detectWorkflowAgent(lastUserMsg?.content, workflowMode);
   const workflowBlock = detectedAgent ? `\n\n${detectedAgent.prompt}\n` : '';
 
-  const enrichment = [weatherCtx, quoteCtx, factCtx, jokeCtx, historyCtx, newsCtx].filter(Boolean).join('');
+  const enrichment = [weatherCtx, quoteCtx, factCtx, jokeCtx, historyCtx, newsCtx, webCtx].filter(Boolean).join('');
   const ambientTime = getAmbientTimeBlock();
   const motivation = getRandomMotivationBlock(lastUserMsg?.content);
   const systemPrompt =

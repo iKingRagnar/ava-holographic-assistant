@@ -608,6 +608,66 @@
     window._deepgramAvailable = true;
 
     let _lastUserActionAt = Date.now();
+
+    // ── Session ID estable por dispositivo (para memoria persistente Postgres) ──
+    let _avaSessionId = localStorage.getItem('ava_session_id');
+    if (!_avaSessionId) {
+        _avaSessionId = 'ses_' + Math.random().toString(36).slice(2, 12) + '_' + Date.now().toString(36);
+        localStorage.setItem('ava_session_id', _avaSessionId);
+    }
+
+    /** Guarda turno en memoria episódica del backend (silent fail si DB off) */
+    function _memSave(role, content, summary) {
+        try {
+            fetch('/api/memory-recall', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: _avaSessionId, action: 'save', role, content, summary }),
+            }).catch(()=>{});
+        } catch(_) {}
+    }
+
+    /** Trae top-K recuerdos relevantes para la query actual */
+    async function _memRecall(query) {
+        try {
+            const r = await fetch('/api/memory-recall', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: _avaSessionId, action: 'recall', query }),
+            });
+            if (!r.ok) return [];
+            const d = await r.json();
+            return d.matches || [];
+        } catch { return []; }
+    }
+
+    // ── Session log — registro de conversación + screen findings ───────
+    // Sirve para el comando "resumen de sesión" / changelog hablado.
+    const _sessionLog = {
+        startAt: Date.now(),
+        items: [], // { t, type:'user'|'assistant'|'screen', text }
+        topics: new Map(), // tema → count (heurística)
+        push(type, text) {
+            const t = String(text || '').trim();
+            if (!t) return;
+            this.items.push({ t: Date.now(), type, text: t.slice(0, 1200) });
+            if (this.items.length > 200) this.items.shift();
+            // Topic extraction barata: palabras clave 5+ chars que se repiten
+            const tokens = t.toLowerCase().match(/\b[a-záéíóúñ]{5,}\b/g) || [];
+            for (const tk of tokens) this.topics.set(tk, (this.topics.get(tk) || 0) + 1);
+        },
+        topTopics(n = 6) {
+            const stop = new Set(['cuando','donde','tiempo','tienes','tienen','sobre','tanto','algunos','tambien','quiero','puedes','siempre','pueden','despues','antes','mejor','primero','segundo','realmente','gracias','poder','perfecto','varios']);
+            return [...this.topics.entries()]
+                .filter(([k, v]) => v >= 2 && !stop.has(k))
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, n)
+                .map(([k]) => k);
+        },
+        durationMin() { return Math.round((Date.now() - this.startAt) / 60000); },
+        userTurns() { return this.items.filter(x => x.type === 'user').length; },
+        screenFindings() { return this.items.filter(x => x.type === 'screen').length; },
+    };
     let _lastProactiveAt = 0;
     let _proactiveBusy = false;
 
@@ -626,7 +686,16 @@
     let _faceMesh = null;
     let _faceMeshReady = false;
     let _faceT = 0;
-    let _face = { furrow: 0, mouth: 0, present: 0, lastAt: 0, furrowHold: 0, headYaw: 0, headTilt: 0 };
+    let _face = { furrow: 0, mouth: 0, present: 0, lastAt: 0, furrowHold: 0, headYaw: 0, headTilt: 0,
+                   // ── Smart-mirror metrics ─────────────────────────────
+                   blinks: 0, blinkTs: [], lastBlinkAt: 0, blinkPerMin: 0,
+                   eyeOpen: 1, // 0..1 derivado de landmarks
+                   ageEst: 0, ageHistory: [], symmetry: 0,
+                   focusScore: 0.5, focusHistory: [],
+                   shoulderTilt: 0, // -1..+1
+                   sessionStart: Date.now(),
+                   focusedSince: Date.now(),
+                   };
 
     let _seg = null;
     let _segReady = false;
@@ -4037,6 +4106,67 @@
         }, 1500);
     }
 
+    /**
+     * Smart-mirror Q&A: responde preguntas sobre el estado del usuario
+     * basadas en métricas faceMesh (edad, foco, fatiga, postura).
+     * Devuelve string para hablar o null si no aplica.
+     */
+    function _parseMirrorQuery(norm) {
+        if (!cfg.faceMesh || _face.present < 0.5) return null;
+
+        // Edad fisiológica
+        if (/\b(que|cuanta)\s+edad\s+(tengo|aparento|me\s+(ves|das))\b/.test(norm) ||
+            /\bcomo\s+(me\s+)?ves|como\s+luzco|como\s+me\s+veo\b/.test(norm) ||
+            /\bedad\s+(fisiologica|aparente)\b/.test(norm)) {
+            const a = Math.round(_face.ageEst);
+            const sym = Math.round(_face.symmetry * 100);
+            let q = '';
+            if (a < 28) q = 'Te ves descansado y firme';
+            else if (a < 35) q = 'Te ves dentro de tu rango';
+            else if (a < 42) q = 'Hay algo de fatiga en cara';
+            else q = 'Hoy te ves cansado, considera dormir o estirarte';
+            return `Te estimo unos ${a} años fisiológicos. Simetría ${sym}%. ${q}.`;
+        }
+
+        // Foco / concentración
+        if (/\b(estoy|me\s+(ves|notas))\s+(enfoc|concentr|distr)/.test(norm) ||
+            /\b(que|cual|cuanto)\s+(es\s+mi)?\s*(foco|concentracion|nivel\s+de\s+atencion)\b/.test(norm)) {
+            const f = Math.round(_face.focusScore * 100);
+            const bpm = _face.blinkPerMin;
+            const minutes = Math.round((Date.now() - _face.focusedSince) / 60000);
+            let q = '';
+            if (f >= 75) q = 'Foco alto, mantén el ritmo';
+            else if (f >= 50) q = 'Foco medio, hidrata y respira';
+            else q = 'Estás distraído, descansa 5 minutos';
+            return `Foco al ${f}%. Parpadeas ${bpm} veces por minuto. Llevas ${minutes} minutos en sesión. ${q}.`;
+        }
+
+        // Fatiga / cansancio
+        if (/\b(estoy|me\s+ves)\s+(cansad|fatigad|agotad)/.test(norm) ||
+            /\b(que\s+tan\s+cansad|fatiga|cansancio)\b/.test(norm)) {
+            const bpm = _face.blinkPerMin;
+            const fur = Math.round(_face.furrowHold);
+            let v = 'normal';
+            if (bpm > 22 || fur > 35) v = 'alta';
+            else if (bpm > 18 || fur > 22) v = 'moderada';
+            return `Fatiga ${v}. Parpadeo ${bpm} por minuto, tensión facial ${fur}. ` +
+                (v === 'alta' ? 'Toma 10 minutos lejos de la pantalla.' :
+                 v === 'moderada' ? 'Considera una pausa corta pronto.' :
+                 'Estás bien, sigue así.');
+        }
+
+        // Postura
+        if (/\b(como\s+esta|como\s+es)\s+mi\s+postura\b/.test(norm) ||
+            /\b(estoy\s+derecho|encorvado|inclinado)\b/.test(norm)) {
+            const tilt = _face.shoulderTilt;
+            const side = tilt > 0.15 ? 'derecho' : tilt < -0.15 ? 'izquierdo' : null;
+            if (side) return `Estás inclinado al lado ${side}. Endereza el hombro y reacomoda la espalda.`;
+            return 'Tu postura está balanceada. Buen porte.';
+        }
+
+        return null;
+    }
+
     async function processMessage(text) {
         _lastUserActionAt = Date.now();
         const raw = String(text || '').trim();
@@ -4087,6 +4217,35 @@
             return;
         }
 
+        // ── RESUMEN DE SESIÓN ─────────────────────────────────────────
+        if (/\b(dame\s+un\s+)?resumen(\s+de)?\s+(la\s+)?sesion\b/.test(norm) ||
+            /\b(que\s+hicimos\s+hoy|recap)\b/.test(norm)) {
+            const dur = _sessionLog.durationMin();
+            const turns = _sessionLog.userTurns();
+            const findings = _sessionLog.screenFindings();
+            const topics = _sessionLog.topTopics(5);
+            const focusPct = cfg.faceMesh && _face.present > 0.5
+                ? Math.round((_face.focusHistory.reduce((a,b)=>a+b,0) / Math.max(1,_face.focusHistory.length)) * 100)
+                : null;
+            let resp = `Llevamos ${dur} minutos de sesión, ${turns} turnos tuyos`;
+            if (findings) resp += `, ${findings} hallazgos en pantalla`;
+            if (topics.length) resp += `. Temas principales: ${topics.join(', ')}`;
+            if (focusPct !== null) resp += `. Foco promedio ${focusPct}%`;
+            resp += '.';
+            document.getElementById('response').textContent = resp;
+            speak(resp);
+            return;
+        }
+
+        // ── SMART-MIRROR — preguntas sobre tu estado ──────────────────
+        // "¿cómo me veo?" / "¿qué edad tengo?" / "¿estoy enfocado?" / "¿llevo cansado?"
+        const mirrorAck = _parseMirrorQuery(norm);
+        if (mirrorAck) {
+            document.getElementById('response').textContent = mirrorAck;
+            speak(mirrorAck);
+            return;
+        }
+
         // ── COMANDOS DE VOZ PARA CONTROLAR AUDIO ───────────────────────
         const audioAck = _parseAudioCommand(norm);
         if (audioAck) {
@@ -4105,6 +4264,17 @@
                 return;
             }
         }
+        // Quitar wake-word también en input directo (sin conversación continua)
+        sendText = stripWakePhrases(sendText).trim() || sendText;
+
+        // ── Memoria episódica: recall y agrega como contexto silencioso ─
+        let _memHits = [];
+        try { _memHits = await _memRecall(sendText); } catch(_) {}
+        const memBlock = _memHits.length
+            ? `\n[Memoria de conversaciones anteriores con este usuario]\n` +
+              _memHits.slice(0, 5).map(m => `(${m.role}) ${String(m.content).slice(0, 280)}`).join('\n') +
+              `\n[fin memoria]\n`
+            : '';
 
         const oracle = _oracleCache;
         let oracleUsed = false;
@@ -4145,6 +4315,8 @@
         msgHistory.push({ role: 'user', content: sendText });
         if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
         _persistMsgHistory();
+        _sessionLog.push('user', sendText);
+        _memSave('user', sendText);
 
         try {
             // ── RAG: recuperar contexto relevante antes de enviar al LLM ──
@@ -4153,7 +4325,7 @@
             const payload = {
                 messages: msgHistory,
                 avatarName: NAMES[currentIdx],
-                memoryContext: ((cfg.memory || '').trim() + getEpisodicContext(sendText)).trim(),
+                memoryContext: ((cfg.memory || '').trim() + getEpisodicContext(sendText) + memBlock).trim(),
                 ...(ragResults.length ? { ragContext: ragResults } : {}),
                 ...(_workflowMode ? { workflowMode: _workflowMode } : {}),
             };
@@ -4277,6 +4449,7 @@
                 fullReply = data.content?.[0]?.text || data.message || data.response || data.choices?.[0]?.message?.content || data.text || '';
                 if (!fullReply) throw new Error('Empty response');
                 _lastReply = fullReply; // cache para comando "repite"
+                _sessionLog.push('assistant', fullReply);
                 document.getElementById('response').textContent = fullReply.substring(0, 150);
                 _emotion = data.emotion || detectEmotion(fullReply);
                 _emotionTimer = 12;
@@ -4304,6 +4477,7 @@
                 msgHistory.push({ role: 'assistant', content: fullReply });
                 if (msgHistory.length > 24) msgHistory = msgHistory.slice(-24);
                 _persistMsgHistory();
+                _memSave('assistant', fullReply);
                 saveEpisodicMemory(sendText, fullReply, _emotion);
             }
 
@@ -4614,11 +4788,16 @@
             if (!vis) { _screenBusy = false; return; }
 
             const sys =
-                `Eres AVA. Estás viendo la pantalla compartida del usuario (puede ser Cursor, SQL, Power BI). ` +
-                `Tarea: 1) detectar señales de error o oportunidad (warning, stacktrace, query, DAX, SQL). ` +
-                `2) dar 1-2 sugerencias MAX, concretas y accionables. ` +
-                `Si no hay suficiente información, haz 1 pregunta corta. ` +
-                `No saludes. No menciones que estás viendo una pantalla. No inventes contenido no visible.`;
+                `Eres ${NAMES[currentIdx]}, co-piloto holográfico observando la pantalla compartida del usuario. ` +
+                `Tu trabajo es ser ÚTIL sin ser intrusivo. ` +
+                `Reglas: ` +
+                `1) Solo habla si ves algo CONCRETO y accionable (error explícito, query lento, anomalía visible, hallazgo importante). ` +
+                `2) Si no hay nada urgente, retorna texto vacío "" y NO inventes hallazgos. ` +
+                `3) Si encuentras algo, da máximo 2 frases: descripción del hallazgo + acción específica. ` +
+                `4) Nunca digas "veo en tu pantalla" — habla directo del hallazgo. ` +
+                `5) Si es código con error, da la línea exacta o el patrón. ` +
+                `6) Si es dashboard/BI, identifica la métrica que destaca (positiva o negativa). ` +
+                `7) NUNCA saludes, ni te presentes, ni hagas preguntas filler.`;
 
             const payload = {
                 system: sys,
@@ -4640,6 +4819,7 @@
             if (clean && clean.length >= 6) {
                 document.getElementById('response').textContent = clean.substring(0, 150);
                 speak(clean);
+                _sessionLog.push('screen', clean);
             }
         } catch {
         } finally {
@@ -4766,16 +4946,67 @@
             _face.furrow = _face.furrow + (fur - _face.furrow) * 0.25;
             _face.mouth = _face.mouth + (mow - _face.mouth) * 0.25;
 
-            // ── Head pose estimation (yaw + tilt) para mirror ─────────
-            // Usa landmarks de ojos (33, 263) + mentón (152) + nariz (1).
+            // ── Head pose estimation ─────────────────────────────
             const nose = p(1), chin = p(152);
-            // Yaw: ratio horizontal del nose entre ambos ojos
             const yaw = ((nose.x - p(33).x) - (p(263).x - nose.x)) / eyeW;
-            // Tilt: ángulo vertical desde nose al chin
-            const tilt = (chin.y - nose.y) - 0.18; // baseline
+            const tilt = (chin.y - nose.y) - 0.18;
             _face.headYaw  = _face.headYaw  + (Math.max(-1, Math.min(1, yaw  * 1.6)) - _face.headYaw)  * 0.25;
             _face.headTilt = _face.headTilt + (Math.max(-1, Math.min(1, tilt * 3.2)) - _face.headTilt) * 0.25;
-            _face.lastAt = Date.now();
+
+            // ── BLINK DETECTION (Eye Aspect Ratio) ───────────────────
+            // Landmarks ojo derecho top/bot: 159/145; ojo izq: 386/374
+            const eyeRT = dist(p(159), p(145));
+            const eyeLT = dist(p(386), p(374));
+            const ear = ((eyeRT + eyeLT) * 0.5) / Math.max(0.0001, eyeW);
+            _face.eyeOpen = _face.eyeOpen + (Math.min(1, ear * 18) - _face.eyeOpen) * 0.4;
+            const now = Date.now();
+            if (_face.eyeOpen < 0.30 && (now - _face.lastBlinkAt) > 220) {
+                _face.lastBlinkAt = now;
+                _face.blinks++;
+                _face.blinkTs.push(now);
+                if (_face.blinkTs.length > 60) _face.blinkTs.shift();
+            }
+            // Blinks per minute (rolling 60s window)
+            _face.blinkTs = _face.blinkTs.filter(ts => now - ts < 60000);
+            _face.blinkPerMin = _face.blinkTs.length;
+
+            // ── SHOULDER TILT (proxy: ratio left/right de mejillas) ──
+            const cheekL = p(234), cheekR = p(454);
+            const horizDelta = (cheekR.y - cheekL.y);
+            _face.shoulderTilt = _face.shoulderTilt + (Math.max(-1, Math.min(1, horizDelta * 8)) - _face.shoulderTilt) * 0.15;
+
+            // ── SYMMETRY SCORE (firmeza) ─────────────────────────────
+            const browL = dist(p(70), p(33));   // ceja izq → ojo izq
+            const browR = dist(p(300), p(263)); // ceja der → ojo der
+            const sym = 1 - Math.min(1, Math.abs(browL - browR) / Math.max(0.0001, eyeW) * 6);
+            _face.symmetry = _face.symmetry + (sym - _face.symmetry) * 0.06;
+
+            // ── EDAD FISIOLÓGICA ESTIMADA (heurística) ───────────────
+            // Combina: furrow (líneas), simetría inversa, blink rate, postura.
+            // Rango 22-55 — solo indicativo, mood-driven.
+            const baseAge = 30;
+            const furrowAge = _face.furrowHold * 0.18;            // 0..120 → 0..21.6
+            const symAge = (1 - _face.symmetry) * 8;              // 0..8
+            const fatiAge = (_face.blinkPerMin > 22 ? 4 : 0) + (_face.blinkPerMin < 8 ? 6 : 0);
+            const tiltAge = Math.abs(_face.shoulderTilt) * 5;
+            const ageRaw = baseAge + furrowAge + symAge + fatiAge + tiltAge;
+            _face.ageEst = _face.ageEst + (Math.max(22, Math.min(55, ageRaw)) - _face.ageEst) * 0.04;
+            _face.ageHistory.push(_face.ageEst);
+            if (_face.ageHistory.length > 200) _face.ageHistory.shift();
+
+            // ── FOCUS SCORE 0..1 (anti-fatiga, anti-distracción) ─────
+            // Foco alto: parpadeos 12-20/min, head yaw bajo, simetría alta.
+            const blinkOk = (_face.blinkPerMin >= 10 && _face.blinkPerMin <= 22) ? 1
+                          : Math.max(0, 1 - Math.abs(_face.blinkPerMin - 16) / 24);
+            const yawOk = 1 - Math.min(1, Math.abs(_face.headYaw) * 1.4);
+            const tiltOk = 1 - Math.min(1, Math.abs(_face.shoulderTilt) * 1.6);
+            const symOk = _face.symmetry;
+            const focusRaw = (blinkOk * 0.35 + yawOk * 0.25 + tiltOk * 0.15 + symOk * 0.25);
+            _face.focusScore = _face.focusScore + (focusRaw - _face.focusScore) * 0.04;
+            _face.focusHistory.push(_face.focusScore);
+            if (_face.focusHistory.length > 600) _face.focusHistory.shift();
+
+            _face.lastAt = now;
         });
 
         _faceMeshReady = true;
